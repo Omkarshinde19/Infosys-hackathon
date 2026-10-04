@@ -23,4 +23,5 @@ def load_topology(path: Path = DEFAULT_TOPOLOGY) -> nx.Graph:
             capacity_mbps=link["capacity_mbps"],
             base_latency_ms=link["base_latency_ms"],
         )
+    g.graph["flows"] = spec.get("flows", [])
     return g

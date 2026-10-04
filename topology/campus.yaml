@@ -51,3 +51,15 @@ links:
   - {a: dist4, b: auditorium, capacity_mbps: 1000, base_latency_ms: 0.5}
   - {a: dist3, b: cafeteria, capacity_mbps: 1000, base_latency_ms: 0.5}
   - {a: dist4, b: cafeteria, capacity_mbps: 1000, base_latency_ms: 0.5}
+
+# Traffic demands in Mbps (routed on the lowest-latency path at start).
+flows:
+  - {id: library-internet, src: library, dst: internet, demand_mbps: 350}
+  - {id: hostel_a-internet, src: hostel_a, dst: internet, demand_mbps: 450}
+  - {id: hostel_b-internet, src: hostel_b, dst: internet, demand_mbps: 400}
+  - {id: admin-internet, src: admin, dst: internet, demand_mbps: 150}
+  - {id: lab_cs-internet, src: lab_cs, dst: internet, demand_mbps: 300}
+  - {id: lab_ece-internet, src: lab_ece, dst: internet, demand_mbps: 250}
+  - {id: auditorium-internet, src: auditorium, dst: internet, demand_mbps: 100}
+  - {id: cafeteria-internet, src: cafeteria, dst: internet, demand_mbps: 80}
+  - {id: lab_cs-admin, src: lab_cs, dst: admin, demand_mbps: 50}
