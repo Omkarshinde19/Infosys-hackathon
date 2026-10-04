@@ -67,7 +67,7 @@ def test_anomaly_events_are_streamed_and_listed(monkeypatch):
         assert "dist1-library" in active
         client.post("/reset")
         assert client.get("/anomalies").json()["active"] == []
-        for _ in range(4):
+        for _ in range(10):  # other event types (rca, incident) arrive alongside
             msg = ws.receive_json()
             if msg["type"] == "anomaly":
                 break
@@ -96,3 +96,33 @@ def test_rca_diagnosis_is_streamed_and_listed(monkeypatch):
         assert client.get("/rca").json()[0]["target"] == "dist3-lab_cs"
         client.post("/reset")
         assert client.get("/rca").json() == []
+
+
+def test_fault_is_healed_end_to_end(monkeypatch):
+    from services.detector.detector import Detector
+    from services.gateway import main
+    from services.healer.healer import Healer
+    from services.healer.incidents import IncidentTracker
+    from services.rca.engine import RCAEngine
+
+    monkeypatch.setattr(main, "detector", Detector(warmup_ticks=8))
+    monkeypatch.setattr(main, "rca", RCAEngine())
+    monkeypatch.setattr(main, "healer", Healer())
+    monkeypatch.setattr(main, "incidents", IncidentTracker())
+    with TestClient(app) as client, client.websocket_connect("/ws/live") as ws:
+        client.post("/reset")
+        while not client.get("/anomalies").json()["ready"]:
+            ws.receive_json()
+        client.post("/fault", json={"type": "link_down", "target": "dist1-library"})
+        kinds = []
+        for _ in range(120):  # ~15 s of ticks, a few messages each
+            msg = ws.receive_json()
+            if msg["type"] == "action":
+                kinds.append(msg["data"]["kind"])
+            if msg["type"] == "incident" and msg["data"]["healer_status"] == "healed":
+                break
+        assert kinds[:3] == ["proposed", "applied", "result"]
+        state = client.get("/incident").json()
+        assert state["incident"]["status"] == "resolved"
+        assert state["incident"]["mttr_s"] <= 15
+        assert [a["kind"] for a in state["actions"]][:3] == kinds[:3]
