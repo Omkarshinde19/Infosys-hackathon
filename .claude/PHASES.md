@@ -13,7 +13,7 @@ Status: ⬜ not started · 🟨 in progress · ✅ done
 | 4 | Detection (z-score + IsolationForest) | ✅ |
 | 5 | Root cause analysis (voting + rules) | ✅ |
 | 6 | Healing (reroute, twin dry-run, verify, rollback) → **core demo loop** | ✅ |
-| 7 | Incidents + LLM reports | ⬜ |
+| 7 | Incidents + LLM reports | ✅ |
 | 8 | Data platform (Redpanda, TimescaleDB, Redis, Docker Compose) | ⬜ |
 | 9 | Advanced ML (LSTM-AE, forecaster, datagen, GNN RCA, SHAP, MLflow) | ⬜ |
 | 10 | Safety + control (OPA, autonomy levels, approvals, auth, audit ledger) | ⬜ |
@@ -63,7 +63,7 @@ Status: ⬜ not started · 🟨 in progress · ✅ done
 
 ## Phase 7: Incidents + LLM reports
 - Incident model + timeline; Incidents list + Incident detail pages
-- Qualcomm Cloud AI Playground client (OpenAI SDK) + Jinja2 template fallback; Markdown report + PDF export
+- Qualcomm Cloud AI via Cirrascale AI Suite (OpenAI-compatible `/chat/completions`, Llama-3.3-70B) + f-string template fallback (no Jinja2 needed); grounding check; Markdown report + .md download + print-to-PDF
 - **Done when:** after a healed fault, "Generate report" returns a report citing real numbers, and it still works with the API key removed (fallback).
 
 ## Phase 8: Data platform
