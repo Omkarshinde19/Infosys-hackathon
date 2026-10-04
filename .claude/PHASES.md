@@ -12,7 +12,7 @@ Status: ⬜ not started · 🟨 in progress · ✅ done
 | 3 | Frontend shell + Live Control Room | ✅ |
 | 4 | Detection (z-score + IsolationForest) | ✅ |
 | 5 | Root cause analysis (voting + rules) | ✅ |
-| 6 | Healing (reroute, twin dry-run, verify, rollback) → **core demo loop** | ⬜ |
+| 6 | Healing (reroute, twin dry-run, verify, rollback) → **core demo loop** | ✅ |
 | 7 | Incidents + LLM reports | ⬜ |
 | 8 | Data platform (Redpanda, TimescaleDB, Redis, Docker Compose) | ⬜ |
 | 9 | Advanced ML (LSTM-AE, forecaster, datagen, GNN RCA, SHAP, MLflow) | ⬜ |
