@@ -3,6 +3,9 @@
 MTTD = detected_at - opened_at, MTTR = healed_at - opened_at. When the fault was
 injected through the API we know its true start time (opened_at); otherwise the
 incident opens when it is first detected.
+
+Each incident also keeps its context (alerts, diagnosis, healing actions) so it can be
+reviewed and reported on after it closes.
 """
 
 from datetime import datetime
@@ -15,6 +18,10 @@ class IncidentTracker:
         self.current: Incident | None = None
         self.history: list[Incident] = []
         self.fault_at: datetime | None = None
+        self.context: dict[str, dict] = {}  # incident id -> anomalies, diagnosis, actions
+
+    def get(self, incident_id: str) -> Incident | None:
+        return next((i for i in [self.current, *self.history] if i and i.id == incident_id), None)
 
     def note_fault(self, ts: datetime) -> None:
         if self.current is None and self.fault_at is None:
@@ -49,8 +56,15 @@ class IncidentTracker:
                 status="open", opened_at=opened, detected_at=ts,
                 mttd_s=(ts - opened).total_seconds(),
             )  # fmt: skip
+            self.context[inc.id] = {"anomalies": {}, "diagnosis": [], "actions": []}
             self._mark(ts, "detect")
             changed = True
+
+        ctx = self.context[inc.id]
+        for entity, anomaly in active.items():
+            ctx["anomalies"].setdefault(entity, anomaly)
+        if hypotheses and inc.status in ("open", "diagnosing"):  # the diagnosis acted upon
+            ctx["diagnosis"] = hypotheses
         if hypotheses and inc.diagnosed_at is None:
             inc.diagnosed_at, inc.status = ts, "diagnosing"
             self._mark(ts, "diagnose", hypotheses[0].id)
@@ -58,6 +72,7 @@ class IncidentTracker:
 
         for kind, payload in events:
             changed = True
+            ctx["actions"].append({"kind": kind, "payload": payload})
             if kind == "proposed":
                 inc.status = "healing"
                 self._mark(ts, "decide")

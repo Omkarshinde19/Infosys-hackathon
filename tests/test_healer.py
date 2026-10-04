@@ -126,3 +126,17 @@ def test_incident_closes_after_reset():
         p.tick()
     assert p.incidents.current is None
     assert p.incidents.history[-1].timeline[-1].stage == "close"
+
+
+def test_incident_keeps_its_context_after_closing():
+    p = Pipeline()
+    p.inject("misconfig", "admin-internet")
+    p.run_until("healed", max_ticks=30)
+    for _ in range(10):
+        p.tick()
+    inc = p.incidents.history[-1]
+    assert p.incidents.get(inc.id) is inc
+    ctx = p.incidents.context[inc.id]
+    assert "admin-internet" in ctx["anomalies"]
+    assert ctx["diagnosis"][0].cause == "misconfig"
+    assert [a["kind"] for a in ctx["actions"]] == ["proposed", "applied", "result"]
