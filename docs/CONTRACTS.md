@@ -113,3 +113,15 @@ Healing events (one per step) and the incident state after every change:
 `GET /incident` returns the same incident state. In `ActionResult.before`/`after`, `latency_ms` is averaged over the affected flows (an unreachable flow counts as 1000 ms), and `after.baseline_latency_ms` is their healthy latency.
 
 `rebaseline` carries the link/node ids that now carry rerouted traffic; the detector re-learns their normal for 10 s instead of flagging the intended change.
+
+## Incident history and reports (REST)
+
+- `GET /incidents`: newest first, `[{ "incident": Incident, "root_cause": RCAHypothesis | null }]`
+- `GET /incidents/{id}`: `{ "incident", "anomalies": [Anomaly], "diagnosis": [RCAHypothesis], "actions": [action event data], "report": Report | null }`
+- `POST /incidents/{id}/report?refresh=false`: generates (or returns the cached) report:
+  ```json
+  { "markdown": "## Summary ...", "source": "llm:Llama-3.3-70B" | "template",
+    "fallback_reason": null | "No AI credentials configured" | "AI draft failed the grounding check" | "AI unavailable (...)",
+    "generated_at": "2026-10-07T10:43:12+00:00" }
+  ```
+LLM settings come from `.env`: `INFERENCE_CLOUD_API_KEY`, `INFERENCE_CLOUD_ENDPOINT` (Cirrascale AI Suite, OpenAI-compatible), and optional `LLM_MODEL` (default `Llama-3.3-70B`).
