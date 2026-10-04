@@ -79,3 +79,14 @@ def test_update_reports_only_changes():
         det.update(samples)
         changes.append(rca.update(samples, det.active, net))
     assert 1 <= sum(changes) <= 2  # diagnosis appears once (maybe refined once), not every tick
+
+
+def test_fault_on_idle_standby_link_is_reported_without_inflated_confidence():
+    net, det, rca = trained()
+    net.inject_fault("gray_failure", "dist4-cafeteria", severity=0.5)  # no flow uses dist4
+    for _ in range(6):
+        step(net, det, rca)
+    top = rca.hypotheses[0]
+    assert (top.cause, top.target) == ("gray_failure", "dist4-cafeteria")
+    assert top.method_scores["voting"] == 0.5  # no affected flows: voting is neutral
+    assert "No user traffic is affected yet" in top.evidence[1].description
