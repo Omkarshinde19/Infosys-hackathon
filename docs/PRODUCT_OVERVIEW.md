@@ -32,6 +32,60 @@ NetHeal watches the network 24/7, notices trouble early, works out the cause, fi
 4. **Fix it safely:** it **tests the fix on a virtual copy of your network first**, then applies it, for example by sending traffic down a different path.
 5. **Explain it:** it writes a plain-English report: what happened, who was affected, what it did, and proof that it worked.
 
+### Flowchart: how NetHeal handles a problem
+
+```mermaid
+flowchart TD
+    A([🟢 Network running normally]) --> B[👀 WATCH<br/>Check network health every half-second]
+    B --> C{Anything unusual?}
+    C -- No --> B
+    C -- Yes --> D[🚨 NOTICE<br/>Raise an early warning]
+    D --> E[🔍 FIND THE CAUSE<br/>What broke and where?<br/>e.g. 'Library cable is faulty — 94% sure']
+    E --> F[🧪 TEST THE FIX<br/>Try possible fixes on the virtual copy<br/>and pick the best one]
+    F --> G{Does it follow<br/>your safety rules?}
+    G -- No --> H[🙋 Ask a human for help]
+    G -- Yes --> I[🔧 FIX IT<br/>e.g. send traffic down a different path]
+    I --> J{Did the network<br/>recover?}
+    J -- No --> K[↩️ UNDO the fix automatically<br/>and try the next best fix]
+    K --> F
+    J -- Yes --> L[📝 EXPLAIN IT<br/>AI writes a plain-English report<br/>with before/after proof]
+    L --> M[🔒 Save everything in the tamper-proof log]
+    M --> A
+```
+
+### Flowchart: who decides (the five comfort levels)
+
+```mermaid
+flowchart LR
+    P[NetHeal finds a fix] --> Q{Comfort level<br/>chosen by you}
+    Q -- "Level 0" --> R[Alert only<br/>no fix suggested]
+    Q -- "Level 1" --> S[Suggest the fix<br/>human applies it]
+    Q -- "Level 2" --> T[Ask for approval<br/>then fix automatically]
+    Q -- "Level 3" --> U{Small or<br/>big change?}
+    U -- Small --> W[Fix automatically]
+    U -- Big --> T
+    Q -- "Level 4" --> W
+    T --> X{Manager clicks}
+    X -- Approve --> W
+    X -- Reject --> Y[No change<br/>noted in the log]
+```
+
+### Flowchart: where the AI fits in
+
+```mermaid
+flowchart LR
+    subgraph Engine["⚙️ NetHeal engine (makes decisions)"]
+        N1[Watch] --> N2[Notice] --> N3[Find cause] --> N4[Test & fix]
+    end
+    subgraph AI["🤖 AI assistant (only explains)"]
+        A1[Plain-English reports]
+        A2[Chat: 'Ask NetHeal']
+    end
+    Engine -- "evidence & results" --> AI
+    AI -. "never changes the network" .-x Engine
+    AI --> U1([👩‍💼 IT team & managers])
+```
+
 ---
 
 ## Every feature, in plain words
