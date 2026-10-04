@@ -77,6 +77,7 @@ Format: **5 min demo + 5 min judge Q&A**.
 
 ## Docs (read in this order)
 
+0. **[docs/PRODUCT_OVERVIEW.md](docs/PRODUCT_OVERVIEW.md)**: NetHeal explained for non-tech readers: every feature, page and deliverable, with flowcharts
 1. **[PLAN.md](PLAN.md)**: the full build plan: architecture, stack, fault catalogue, message contracts, priorities, demo script, Q&A prep
 2. **[docs/RESEARCH.md](docs/RESEARCH.md)**: papers, existing apps and what each of us should learn
 3. **[docs/CONTRACTS.md](docs/CONTRACTS.md)**: the message formats every service must follow
