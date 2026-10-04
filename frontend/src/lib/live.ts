@@ -22,6 +22,21 @@ export type Topology = {
   flows: { id: string; src: string; dst: string; demand_mbps: number; route: string[] }[];
 };
 
+// Mirrors contracts/models.py (Anomaly).
+export type Anomaly = {
+  id: string;
+  ts: string;
+  entity_id: string;
+  metric: string;
+  value: number;
+  baseline: number;
+  score: number;
+  detectors: string[];
+  severity: "warning" | "critical";
+};
+
+export type AlertEvent = { time: string; kind: "raised" | "cleared"; entity: string; anomaly?: Anomaly };
+
 const HISTORY = 120; // ticks kept for charts (60 s at 2 ticks/s)
 const WS_URL = process.env.NEXT_PUBLIC_GATEWAY_WS ?? "ws://localhost:8000/ws/live";
 
@@ -30,7 +45,11 @@ type LiveState = {
   topology: Topology | null;
   latest: Record<string, Sample>;
   history: Sample[][];
+  anomalies: Record<string, Anomaly>;
+  alertLog: AlertEvent[];
+  detector: { ready: boolean; progress: number };
   loadTopology: () => Promise<void>;
+  loadAnomalies: () => Promise<void>;
 };
 
 export const useLive = create<LiveState>((set) => ({
@@ -38,8 +57,32 @@ export const useLive = create<LiveState>((set) => ({
   topology: null,
   latest: {},
   history: [],
+  anomalies: {},
+  alertLog: [],
+  detector: { ready: false, progress: 0 },
   loadTopology: async () => set({ topology: await (await fetch("/api/topology")).json() }),
+  loadAnomalies: async () => {
+    const body = await (await fetch("/api/anomalies")).json();
+    set({
+      detector: { ready: body.ready, progress: body.warmup_progress },
+      anomalies: Object.fromEntries(body.active.map((a: Anomaly) => [a.entity_id, a])),
+    });
+  },
 }));
+
+function onAnomalyEvent({ raised, cleared }: { raised: Anomaly[]; cleared: string[] }) {
+  const time = new Date().toLocaleTimeString();
+  useLive.setState((s) => {
+    const anomalies = { ...s.anomalies };
+    raised.forEach((a) => (anomalies[a.entity_id] = a));
+    cleared.forEach((e) => delete anomalies[e]);
+    const events: AlertEvent[] = [
+      ...raised.map((a) => ({ time, kind: "raised" as const, entity: a.entity_id, anomaly: a })),
+      ...cleared.map((e) => ({ time, kind: "cleared" as const, entity: e })),
+    ];
+    return { anomalies, alertLog: [...events, ...s.alertLog].slice(0, 30) };
+  });
+}
 
 /** Opens the gateway WebSocket once and keeps it reconnecting. */
 export function useLiveConnection() {
@@ -53,9 +96,11 @@ export function useLiveConnection() {
       ws.onopen = () => {
         useLive.setState({ connected: true });
         useLive.getState().loadTopology();
+        useLive.getState().loadAnomalies();
       };
       ws.onmessage = (e) => {
         const msg = JSON.parse(e.data);
+        if (msg.type === "anomaly") return onAnomalyEvent(msg.data);
         if (msg.type !== "telemetry") return;
         const tick: Sample[] = msg.data;
         useLive.setState((s) => ({
@@ -70,8 +115,15 @@ export function useLiveConnection() {
     }
 
     connect();
+    // While the detector is still learning its baseline, poll its progress.
+    const warmup = setInterval(() => {
+      if (useLive.getState().connected && !useLive.getState().detector.ready) {
+        useLive.getState().loadAnomalies();
+      }
+    }, 2000);
     return () => {
       closed = true;
+      clearInterval(warmup);
       clearTimeout(retry);
       ws.close();
     };
