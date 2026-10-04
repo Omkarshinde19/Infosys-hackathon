@@ -75,6 +75,16 @@ class Network:
     def clear_faults(self) -> None:
         self.faults.clear()
 
+    def rollback_config(self, flow_id: str) -> None:
+        """Restore a flow's last known-good forwarding rules (undoes a misconfig)."""
+        self.faults = {
+            k: f for k, f in self.faults.items() if (f.type, f.target) != ("misconfig", flow_id)
+        }
+
+    @property
+    def now(self) -> datetime:
+        return self.t0 + timedelta(seconds=self.tick * TICK_S)
+
     def set_route(self, flow_id: str, path: list[str]) -> None:
         f = self.flows[flow_id]
         if path[0] != f["src"] or path[-1] != f["dst"] or not nx.is_path(self.graph, path):
@@ -118,7 +128,7 @@ class Network:
 
     def step(self) -> list[TelemetrySample]:
         self.tick += 1
-        ts = self.t0 + timedelta(seconds=self.tick * TICK_S)
+        ts = self.now
         down, extra_loss, extra_load, extra_cpu, blackholed = self._fault_state()
 
         # Traffic that reaches its destination loads every link on its path.

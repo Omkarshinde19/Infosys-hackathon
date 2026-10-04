@@ -120,3 +120,13 @@ def test_rejects_bad_faults(type, target):
 def test_rejects_invalid_route():
     with pytest.raises(ValueError):
         Network().set_route("library-internet", ["library", "core1", "internet"])
+
+
+def test_rollback_config_fixes_misconfig_only():
+    net = Network(seed=1)
+    net.inject_fault("misconfig", "admin-internet")
+    net.inject_fault("gray_failure", "dist1-library")
+    net.rollback_config("admin-internet")
+    tick = run(net, 1)[0]
+    assert tick["admin-internet"].loss_pct < 1
+    assert tick["library-internet"].loss_pct > 10
