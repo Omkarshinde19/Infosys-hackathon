@@ -104,6 +104,15 @@ make test      # run all tests
 make dev       # start the gateway on http://localhost:8000 (API docs at /docs)
 ```
 
+Frontend (Node 24+):
+
+```bash
+cd frontend && npm install
+npm run dev    # http://localhost:3000 (homepage) and /dashboard (Control Room)
+```
+
+The frontend proxies `/api/*` to the gateway (`GATEWAY_URL`, default `http://localhost:8000`) and opens the WebSocket at `NEXT_PUBLIC_GATEWAY_WS` (default `ws://localhost:8000/ws/live`).
+
 Live telemetry: `ws://localhost:8000/ws/live`. Inject a fault with:
 `curl -X POST localhost:8000/fault -H 'content-type: application/json' -d '{"type":"link_down","target":"dist1-library"}'`
 
