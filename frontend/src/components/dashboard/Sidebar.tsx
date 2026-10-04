@@ -1,7 +1,19 @@
 "use client";
 
-import { Activity, BellRing, FlaskConical, Gauge, HeartPulse, Home, LineChart, Network, Stethoscope } from "lucide-react";
+import {
+  Activity,
+  BellRing,
+  FileText,
+  FlaskConical,
+  Gauge,
+  HeartPulse,
+  Home,
+  LineChart,
+  Network,
+  Stethoscope,
+} from "lucide-react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -38,9 +50,11 @@ export function Sidebar() {
   const active = useActiveSection();
   const connected = useLive((s) => s.connected);
   const alertCount = useLive((s) => Object.keys(s.anomalies).length);
+  const onControlRoom = usePathname() === "/dashboard";
+  const onIncidents = usePathname().startsWith("/dashboard/incidents");
 
   return (
-    <aside className="glass fixed inset-y-4 left-4 z-20 flex w-60 flex-col rounded-2xl! p-4">
+    <aside className="glass fixed inset-y-4 left-4 z-20 flex w-60 flex-col rounded-2xl! p-4 print:hidden">
       <Logo className="px-2 py-1 text-lg" />
 
       <nav className="mt-8 flex flex-col gap-1 text-sm">
@@ -53,9 +67,9 @@ export function Sidebar() {
         {SECTIONS.map((s) => (
           <a
             key={s.id}
-            href={`#${s.id}`}
+            href={`/dashboard#${s.id}`}
             className={`flex items-center gap-3 rounded-xl px-3 py-2 transition-colors ${
-              active === s.id ? "bg-[var(--glass-hover)] text-fg" : "text-fg-muted hover:text-fg"
+              onControlRoom && active === s.id ? "bg-[var(--glass-hover)] text-fg" : "text-fg-muted hover:text-fg"
             }`}
           >
             <s.icon className="size-4" /> {s.label}
@@ -64,6 +78,14 @@ export function Sidebar() {
             )}
           </a>
         ))}
+        <Link
+          href="/dashboard/incidents"
+          className={`mt-4 flex items-center gap-3 rounded-xl px-3 py-2 transition-colors ${
+            onIncidents ? "bg-[var(--glass-hover)] text-fg" : "text-fg-muted hover:text-fg"
+          }`}
+        >
+          <FileText className="size-4" /> Incidents &amp; reports
+        </Link>
       </nav>
 
       <div className="mt-auto flex items-center justify-between px-2">
