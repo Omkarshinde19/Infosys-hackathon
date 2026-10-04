@@ -72,3 +72,27 @@ def test_anomaly_events_are_streamed_and_listed(monkeypatch):
             if msg["type"] == "anomaly":
                 break
         assert "dist1-library" in msg["data"]["cleared"]
+
+
+def test_rca_diagnosis_is_streamed_and_listed(monkeypatch):
+    from services.detector.detector import Detector
+    from services.gateway import main
+    from services.rca.engine import RCAEngine
+
+    monkeypatch.setattr(main, "detector", Detector(warmup_ticks=4))
+    monkeypatch.setattr(main, "rca", RCAEngine())
+    with TestClient(app) as client, client.websocket_connect("/ws/live") as ws:
+        while not client.get("/anomalies").json()["ready"]:
+            ws.receive_json()
+        client.post("/fault", json={"type": "link_down", "target": "dist3-lab_cs"})
+        for _ in range(12):
+            msg = ws.receive_json()
+            if msg["type"] == "rca":
+                break
+        assert (msg["data"][0]["cause"], msg["data"][0]["target"]) == (
+            "link_failure",
+            "dist3-lab_cs",
+        )
+        assert client.get("/rca").json()[0]["target"] == "dist3-lab_cs"
+        client.post("/reset")
+        assert client.get("/rca").json() == []
