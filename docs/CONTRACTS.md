@@ -105,9 +105,11 @@ RCA events carry the full ranked diagnosis whenever it changes (an empty list me
 
 Healing events (one per step) and the incident state after every change:
 ```json
-{ "type": "action", "data": { "kind": "proposed" | "applied" | "result" | "no_action" | "escalated",
+{ "type": "action", "data": { "kind": "proposed" | "applied" | "rebaseline" | "result" | "no_action" | "escalated",
                               "payload": [ActionCandidate, ...] | ActionCandidate | ActionResult | "reason" } }
 { "type": "incident", "data": { "incident": Incident | null, "healer_status": "idle" | "verifying" | "healed" | "rolled_back" | "no_action_needed" | "escalated",
                                 "actions": [ <action event data>, ... ] } }
 ```
 `GET /incident` returns the same incident state. In `ActionResult.before`/`after`, `latency_ms` is averaged over the affected flows (an unreachable flow counts as 1000 ms), and `after.baseline_latency_ms` is their healthy latency.
+
+`rebaseline` carries the link/node ids that now carry rerouted traffic; the detector re-learns their normal for 10 s instead of flagging the intended change.

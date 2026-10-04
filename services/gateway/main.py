@@ -54,6 +54,9 @@ async def heal(samples) -> None:
     if detector.ready:
         baseline = {f: detector.median[f][0] for f in net.flows}
         events = healer.update(samples, rca.hypotheses, net, baseline)
+        for kind, payload in events:
+            if kind == "rebaseline":  # traffic moved on purpose: new normal for the new path
+                detector.relearn(payload)
     if incidents.update(net.now, detector.active, rca.hypotheses, events):
         for kind, payload in events:
             await broadcast(Envelope(type="action", data={"kind": kind, "payload": payload}))

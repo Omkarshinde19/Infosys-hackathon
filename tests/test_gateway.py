@@ -117,7 +117,7 @@ def test_fault_is_healed_end_to_end(monkeypatch):
         kinds = []
         for _ in range(120):  # ~15 s of ticks, a few messages each
             msg = ws.receive_json()
-            if msg["type"] == "action":
+            if msg["type"] == "action" and msg["data"]["kind"] != "rebaseline":
                 kinds.append(msg["data"]["kind"])
             if msg["type"] == "incident" and msg["data"]["healer_status"] == "healed":
                 break
@@ -125,4 +125,5 @@ def test_fault_is_healed_end_to_end(monkeypatch):
         state = client.get("/incident").json()
         assert state["incident"]["status"] == "resolved"
         assert state["incident"]["mttr_s"] <= 15
-        assert [a["kind"] for a in state["actions"]][:3] == kinds[:3]
+        logged = [a["kind"] for a in state["actions"] if a["kind"] != "rebaseline"]
+        assert logged[:3] == kinds[:3]
