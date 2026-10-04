@@ -1,25 +1,30 @@
 "use client";
 
 import { Moon, Sun } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 type Theme = "light" | "dark";
 
 /** Runs before first paint (see layout.tsx) so the saved theme never flashes. */
 export const themeScript = `document.documentElement.dataset.theme=localStorage.getItem("theme")||"dark"`;
 
-export function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>("dark");
+function subscribe(onChange: () => void) {
+  const observer = new MutationObserver(onChange);
+  observer.observe(document.documentElement, { attributeFilter: ["data-theme"] });
+  return () => observer.disconnect();
+}
 
-  useEffect(() => {
-    setTheme(document.documentElement.dataset.theme as Theme);
-  }, []);
+export function ThemeToggle() {
+  const theme = useSyncExternalStore(
+    subscribe,
+    () => document.documentElement.dataset.theme as Theme,
+    () => "dark" as Theme,
+  );
 
   function toggle() {
     const next = theme === "dark" ? "light" : "dark";
     document.documentElement.dataset.theme = next;
     localStorage.setItem("theme", next);
-    setTheme(next);
   }
 
   return (
