@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, BellRing, FlaskConical, Gauge, Home, LineChart, Network, Stethoscope } from "lucide-react";
+import { Activity, BellRing, FlaskConical, Gauge, HeartPulse, Home, LineChart, Network, Stethoscope } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Logo } from "@/components/Logo";
@@ -11,6 +11,7 @@ export const SECTIONS = [
   { id: "overview", label: "Overview", icon: Gauge },
   { id: "alerts", label: "Alerts", icon: BellRing },
   { id: "diagnosis", label: "Diagnosis", icon: Stethoscope },
+  { id: "healing", label: "Self-healing", icon: HeartPulse },
   { id: "network", label: "Network", icon: Network },
   { id: "telemetry", label: "Telemetry", icon: LineChart },
   { id: "faults", label: "Fault Lab", icon: FlaskConical },

@@ -5,6 +5,7 @@ import { LiveChart } from "@/components/dashboard/LiveChart";
 import { NetworkView } from "@/components/dashboard/NetworkView";
 import { Overview } from "@/components/dashboard/Overview";
 import { Section } from "@/components/dashboard/Section";
+import { SelfHealing } from "@/components/dashboard/SelfHealing";
 
 export default function ControlRoom() {
   return (
@@ -24,6 +25,10 @@ export default function ControlRoom() {
 
       <Section id="diagnosis" title="Diagnosis" subtitle="The single most likely root cause behind the alerts, with the evidence.">
         <Diagnosis />
+      </Section>
+
+      <Section id="healing" title="Self-healing" subtitle="Decide, heal, verify: every fix is tested on the digital twin before it touches the network.">
+        <SelfHealing />
       </Section>
 
       <Section id="network" title="Network" subtitle="Every device and connection, coloured by health. Switch to 3D to explore the layers.">
