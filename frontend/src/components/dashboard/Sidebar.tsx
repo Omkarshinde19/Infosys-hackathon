@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, FlaskConical, Gauge, Home, LineChart, Network } from "lucide-react";
+import { Activity, BellRing, FlaskConical, Gauge, Home, LineChart, Network } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Logo } from "@/components/Logo";
@@ -9,6 +9,7 @@ import { useLive } from "@/lib/live";
 
 export const SECTIONS = [
   { id: "overview", label: "Overview", icon: Gauge },
+  { id: "alerts", label: "Alerts", icon: BellRing },
   { id: "network", label: "Network", icon: Network },
   { id: "telemetry", label: "Telemetry", icon: LineChart },
   { id: "faults", label: "Fault Lab", icon: FlaskConical },
@@ -34,6 +35,7 @@ function useActiveSection() {
 export function Sidebar() {
   const active = useActiveSection();
   const connected = useLive((s) => s.connected);
+  const alertCount = useLive((s) => Object.keys(s.anomalies).length);
 
   return (
     <aside className="glass fixed inset-y-4 left-4 z-20 flex w-60 flex-col rounded-2xl! p-4">
@@ -55,6 +57,9 @@ export function Sidebar() {
             }`}
           >
             <s.icon className="size-4" /> {s.label}
+            {s.id === "alerts" && alertCount > 0 && (
+              <span className="ml-auto rounded-full bg-critical px-2 text-xs font-semibold text-[#021024]">{alertCount}</span>
+            )}
           </a>
         ))}
       </nav>
