@@ -6,9 +6,9 @@ Status: ⬜ not started · 🟨 in progress · ✅ done
 
 | # | Phase | Status |
 |---|---|---|
-| 0 | Foundation | ⬜ |
-| 1 | Network twin (simulator) | ⬜ |
-| 2 | Gateway + live stream | ⬜ |
+| 0 | Foundation | ✅ |
+| 1 | Network twin (simulator) | ✅ |
+| 2 | Gateway + live stream | ✅ |
 | 3 | Frontend shell + Live Control Room | ⬜ |
 | 4 | Detection (z-score + IsolationForest) | ⬜ |
 | 5 | Root cause analysis (voting + rules) | ⬜ |
@@ -34,7 +34,7 @@ Status: ⬜ not started · 🟨 in progress · ✅ done
 ## Phase 1: Network twin (simulator)
 - Flows on shortest paths; link utilization; latency `base/(1−ρ)`; loss curve; node CPU/queue; seeded noise
 - Fault injection: link down, gray failure, congestion, node overload, flapping, misconfig, gradual ramp
-- `snapshot()` / `restore()` for twin dry-runs
+- `snapshot()` for twin dry-runs (returns an independent deep copy; no separate `restore()` needed)
 - **Done when:** tests show (a) a healthy baseline is stable, (b) link down makes the flows through it lose packets, (c) congestion raises latency non-linearly, and (d) the same seed gives the same output.
 
 ## Phase 2: Gateway + live stream
