@@ -1,0 +1,53 @@
+# Campus network: topology-as-code.
+# Layers: internet edge -> core (2) -> distribution (4) -> access (8 buildings).
+# Every access switch is dual-homed to two distribution switches, and every
+# distribution switch to both cores, so an alternate path always exists.
+
+nodes:
+  - {id: internet, layer: edge, name: Internet Gateway}
+  - {id: core1, layer: core, name: Core Router 1}
+  - {id: core2, layer: core, name: Core Router 2}
+  - {id: dist1, layer: distribution, name: Distribution North A}
+  - {id: dist2, layer: distribution, name: Distribution North B}
+  - {id: dist3, layer: distribution, name: Distribution South A}
+  - {id: dist4, layer: distribution, name: Distribution South B}
+  - {id: library, layer: access, name: Library}
+  - {id: hostel_a, layer: access, name: Hostel A}
+  - {id: hostel_b, layer: access, name: Hostel B}
+  - {id: admin, layer: access, name: Admin Block}
+  - {id: lab_cs, layer: access, name: CS Lab}
+  - {id: lab_ece, layer: access, name: ECE Lab}
+  - {id: auditorium, layer: access, name: Auditorium}
+  - {id: cafeteria, layer: access, name: Cafeteria}
+
+# capacity in Mbps, base latency in ms
+links:
+  - {a: internet, b: core1, capacity_mbps: 10000, base_latency_ms: 5.0}
+  - {a: internet, b: core2, capacity_mbps: 10000, base_latency_ms: 5.0}
+  - {a: core1, b: core2, capacity_mbps: 10000, base_latency_ms: 0.5}
+
+  - {a: core1, b: dist1, capacity_mbps: 10000, base_latency_ms: 1.0}
+  - {a: core2, b: dist1, capacity_mbps: 10000, base_latency_ms: 1.0}
+  - {a: core1, b: dist2, capacity_mbps: 10000, base_latency_ms: 1.0}
+  - {a: core2, b: dist2, capacity_mbps: 10000, base_latency_ms: 1.0}
+  - {a: core1, b: dist3, capacity_mbps: 10000, base_latency_ms: 1.0}
+  - {a: core2, b: dist3, capacity_mbps: 10000, base_latency_ms: 1.0}
+  - {a: core1, b: dist4, capacity_mbps: 10000, base_latency_ms: 1.0}
+  - {a: core2, b: dist4, capacity_mbps: 10000, base_latency_ms: 1.0}
+
+  - {a: dist1, b: library, capacity_mbps: 1000, base_latency_ms: 0.5}
+  - {a: dist2, b: library, capacity_mbps: 1000, base_latency_ms: 0.5}
+  - {a: dist1, b: hostel_a, capacity_mbps: 1000, base_latency_ms: 0.5}
+  - {a: dist2, b: hostel_a, capacity_mbps: 1000, base_latency_ms: 0.5}
+  - {a: dist1, b: hostel_b, capacity_mbps: 1000, base_latency_ms: 0.5}
+  - {a: dist2, b: hostel_b, capacity_mbps: 1000, base_latency_ms: 0.5}
+  - {a: dist1, b: admin, capacity_mbps: 1000, base_latency_ms: 0.5}
+  - {a: dist2, b: admin, capacity_mbps: 1000, base_latency_ms: 0.5}
+  - {a: dist3, b: lab_cs, capacity_mbps: 1000, base_latency_ms: 0.5}
+  - {a: dist4, b: lab_cs, capacity_mbps: 1000, base_latency_ms: 0.5}
+  - {a: dist3, b: lab_ece, capacity_mbps: 1000, base_latency_ms: 0.5}
+  - {a: dist4, b: lab_ece, capacity_mbps: 1000, base_latency_ms: 0.5}
+  - {a: dist3, b: auditorium, capacity_mbps: 1000, base_latency_ms: 0.5}
+  - {a: dist4, b: auditorium, capacity_mbps: 1000, base_latency_ms: 0.5}
+  - {a: dist3, b: cafeteria, capacity_mbps: 1000, base_latency_ms: 0.5}
+  - {a: dist4, b: cafeteria, capacity_mbps: 1000, base_latency_ms: 0.5}
