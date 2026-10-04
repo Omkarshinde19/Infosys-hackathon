@@ -61,10 +61,12 @@ class RCAEngine:
         path_nodes = {f: set(net.routes[f]) for f in net.flows}
 
         def vote(on_path: dict[str, set[str]], element: str) -> tuple[float, Evidence]:
+            if not bad_flows:  # e.g. an idle standby link: voting can't tell us anything
+                text = "No user traffic is affected yet (idle or standby path)"
+                return 0.5, Evidence(description=text, weight=VOTE_WEIGHT)
             hits = sum(element in on_path[f] for f in bad_flows)
-            share = hits / len(bad_flows) if bad_flows else 1.0
             text = f"{hits} of {len(bad_flows)} affected flows pass through it"
-            return share, Evidence(description=text, weight=VOTE_WEIGHT)
+            return hits / len(bad_flows), Evidence(description=text, weight=VOTE_WEIGHT)
 
         hypotheses = []
         for entity, anomaly in active.items():
