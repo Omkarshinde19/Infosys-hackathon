@@ -127,3 +127,32 @@ def test_fault_is_healed_end_to_end(monkeypatch):
         assert state["incident"]["mttr_s"] <= 15
         logged = [a["kind"] for a in state["actions"] if a["kind"] != "rebaseline"]
         assert logged[:3] == kinds[:3]
+
+
+def test_incident_history_detail_and_offline_report(monkeypatch):
+    from services.detector.detector import Detector
+    from services.gateway import main
+    from services.healer.healer import Healer
+    from services.healer.incidents import IncidentTracker
+    from services.rca.engine import RCAEngine
+
+    for name, value in [("detector", Detector(warmup_ticks=8)), ("rca", RCAEngine()),
+                        ("healer", Healer()), ("incidents", IncidentTracker()),
+                        ("llm", None), ("reports", {})]:  # fmt: skip
+        monkeypatch.setattr(main, name, value)  # llm=None: no network in tests
+    with TestClient(app) as client, client.websocket_connect("/ws/live") as ws:
+        client.post("/reset")
+        while not client.get("/anomalies").json()["ready"]:
+            ws.receive_json()
+        client.post("/fault", json={"type": "misconfig", "target": "admin-internet"})
+        while client.get("/incident").json()["healer_status"] != "healed":
+            ws.receive_json()
+        listed = client.get("/incidents").json()
+        assert listed[0]["root_cause"]["cause"] == "misconfig"
+        inc_id = listed[0]["incident"]["id"]
+        detail = client.get(f"/incidents/{inc_id}").json()
+        assert detail["diagnosis"][0]["target"] == "admin-internet" and detail["report"] is None
+        report = client.post(f"/incidents/{inc_id}/report").json()
+        assert report["source"] == "template" and "Admin Block" in report["markdown"]
+        assert client.get(f"/incidents/{inc_id}").json()["report"] == report
+        assert client.get("/incidents/nope").status_code == 404
