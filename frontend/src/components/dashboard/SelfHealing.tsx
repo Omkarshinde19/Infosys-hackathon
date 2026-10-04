@@ -1,7 +1,8 @@
 "use client";
 
-import { Activity, CheckCircle2, FlaskConical, HeartPulse, Search, ShieldAlert, Stethoscope, Wrench } from "lucide-react";
-import type { ActionCandidate, ActionResult, Incident } from "@/lib/live";
+import { Activity, ArrowRight, CheckCircle2, FlaskConical, HeartPulse, Search, ShieldAlert, Stethoscope, Wrench } from "lucide-react";
+import Link from "next/link";
+import type { ActionCandidate, ActionEvent, ActionResult, Incident } from "@/lib/live";
 import { useLive } from "@/lib/live";
 import { useEntityName } from "@/lib/names";
 
@@ -26,7 +27,7 @@ function seconds(from: string, to: string) {
   return ((new Date(to).getTime() - new Date(from).getTime()) / 1000).toFixed(1);
 }
 
-function Stepper({ incident }: { incident: Incident }) {
+export function Stepper({ incident }: { incident: Incident }) {
   const done = new Map(incident.timeline.map((e) => [e.stage, e.ts]));
   const current = STAGES.find((s) => !done.has(s.id))?.id;
   return (
@@ -77,7 +78,6 @@ function fmtLatency(v: number | undefined, loss: number | undefined) {
 
 export function SelfHealing() {
   const { incident, healer_status, actions } = useLive((s) => s.incident);
-  const name = useEntityName();
 
   if (!incident) {
     return (
@@ -89,20 +89,7 @@ export function SelfHealing() {
     );
   }
 
-  const candidates = (actions.find((a) => a.kind === "proposed")?.payload ?? []) as ActionCandidate[];
-  const applied = new Set(actions.filter((a) => a.kind === "applied").map((a) => (a.payload as ActionCandidate).id));
-  const results = new Map(
-    actions.filter((a) => a.kind === "result").map((a) => [(a.payload as ActionResult).action_id, a.payload as ActionResult]),
-  );
-  const final = [...results.values()].at(-1);
   const message = actions.find((a) => a.kind === "escalated" || a.kind === "no_action")?.payload as string | undefined;
-
-  function describe(c: ActionCandidate) {
-    if (c.type === "rollback_config") return `Roll back forwarding rules of ${name(c.params.flow!)}`;
-    const verb = c.type === "drain_node" ? "Drain" : "Reroute around";
-    const via = Object.values(c.params.routes ?? {})[0]?.slice(1, -1).map(name).join(" → ");
-    return `${verb} ${name(c.params.avoid![0])}${via ? ` · via ${via}` : ""}`;
-  }
 
   return (
     <div className="space-y-4">
@@ -112,12 +99,38 @@ export function SelfHealing() {
             {healer_status === "escalated" ? <ShieldAlert className="size-5 text-critical" /> : <HeartPulse className="size-5 text-healthy" />}
             {STATUS[healer_status] ?? healer_status}
           </p>
-          <span className="text-xs text-fg-muted uppercase">incident {incident.status}</span>
+          <Link href={`/dashboard/incidents/${incident.id}`} className="flex items-center gap-1 text-sm text-fg-muted hover:text-fg">
+            Incident {incident.status} · report <ArrowRight className="size-3.5" />
+          </Link>
         </div>
         <Stepper incident={incident} />
         {message && <p className="mt-6 text-sm text-fg-muted">{message}</p>}
       </div>
 
+      <HealingResults incident={incident} actions={actions} />
+    </div>
+  );
+}
+
+/** MTTD/MTTR, before → after, and the twin-ranked candidate fixes of one incident. */
+export function HealingResults({ incident, actions }: { incident: Incident; actions: ActionEvent[] }) {
+  const name = useEntityName();
+  const candidates = (actions.find((a) => a.kind === "proposed")?.payload ?? []) as ActionCandidate[];
+  const applied = new Set(actions.filter((a) => a.kind === "applied").map((a) => (a.payload as ActionCandidate).id));
+  const results = new Map(
+    actions.filter((a) => a.kind === "result").map((a) => [(a.payload as ActionResult).action_id, a.payload as ActionResult]),
+  );
+  const final = [...results.values()].at(-1);
+
+  function describe(c: ActionCandidate) {
+    if (c.type === "rollback_config") return `Roll back forwarding rules of ${name(c.params.flow!)}`;
+    const verb = c.type === "drain_node" ? "Drain" : "Reroute around";
+    const via = Object.values(c.params.routes ?? {})[0]?.slice(1, -1).map(name).join(" → ");
+    return `${verb} ${name(c.params.avoid![0])}${via ? ` · via ${via}` : ""}`;
+  }
+
+  return (
+    <>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Kpi label="Time to detect (MTTD)" value={incident.mttd_s != null ? `${incident.mttd_s.toFixed(1)} s` : "-"} hint="from the moment the fault began" />
         <Kpi label="Time to heal (MTTR)" value={incident.mttr_s != null ? `${incident.mttr_s.toFixed(1)} s` : "-"} hint="fault start → verified fix" />
@@ -175,6 +188,6 @@ export function SelfHealing() {
           </table>
         </div>
       )}
-    </div>
+    </>
   );
 }
