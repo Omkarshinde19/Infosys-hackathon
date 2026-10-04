@@ -1,4 +1,4 @@
-"""API gateway: runs the simulator -> detector -> RCA tick loop and streams it over WebSocket."""
+"""API gateway: runs the detect -> diagnose -> decide -> heal loop and streams it over WebSocket."""
 
 import asyncio
 from contextlib import asynccontextmanager, suppress
@@ -9,6 +9,8 @@ from pydantic import BaseModel
 
 from contracts.models import Envelope
 from services.detector.detector import Detector
+from services.healer.healer import Healer
+from services.healer.incidents import IncidentTracker
 from services.netsim.engine import TICK_S, Network
 from services.rca.engine import RCAEngine
 
@@ -20,6 +22,9 @@ def new_network() -> Network:
 net = new_network()
 detector = Detector()
 rca = RCAEngine()
+healer = Healer()
+incidents = IncidentTracker()
+action_log: list[dict] = []  # healing events of the current incident
 clients: set[WebSocket] = set()
 
 
@@ -41,7 +46,31 @@ async def tick_loop() -> None:
             await broadcast(Envelope(type="anomaly", data={"raised": raised, "cleared": cleared}))
         if rca.update(samples, detector.active, net):
             await broadcast(Envelope(type="rca", data=rca.hypotheses))
+        await heal(samples)
         await asyncio.sleep(TICK_S)
+
+
+async def heal(samples) -> None:
+    events = []
+    if detector.ready:
+        baseline = {f: detector.median[f][0] for f in net.flows}
+        events = healer.update(samples, rca.hypotheses, net, baseline)
+    before = incidents.current
+    if incidents.update(net.now, detector.active, rca.hypotheses, events):
+        if incidents.current is not before and incidents.current is not None:
+            action_log.clear()  # a new incident started
+        for kind, payload in events:
+            action_log.append({"kind": kind, "payload": payload})
+            await broadcast(Envelope(type="action", data=action_log[-1]))
+        await broadcast(Envelope(type="incident", data=incident_state()))
+
+
+def incident_state() -> dict:
+    return {
+        "incident": incidents.current or (incidents.history[-1] if incidents.history else None),
+        "healer_status": healer.status,
+        "actions": action_log,
+    }
 
 
 @asynccontextmanager
@@ -79,6 +108,7 @@ def inject_fault(req: FaultRequest) -> dict:
         fault = net.inject_fault(req.type, req.target, req.severity, req.ramp_s)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
+    incidents.note_fault(net.now)
     return vars(fault)
 
 
@@ -89,9 +119,12 @@ async def reset() -> dict:
     cleared = list(detector.active)
     detector.clear()
     rca.clear()
+    healer.clear()
+    incidents.close(net.now)
     if cleared:
         await broadcast(Envelope(type="anomaly", data={"raised": [], "cleared": cleared}))
         await broadcast(Envelope(type="rca", data=[]))
+        await broadcast(Envelope(type="incident", data=incident_state()))
     return {"ok": True}
 
 
@@ -118,3 +151,8 @@ async def live(ws: WebSocket) -> None:
 @app.get("/rca")
 def diagnosis() -> list:
     return rca.hypotheses
+
+
+@app.get("/incident")
+def incident() -> dict:
+    return incident_state()
