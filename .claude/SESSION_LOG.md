@@ -8,7 +8,7 @@
 
 ## Index
 
-### Session 1: 2026-10-02 → 2026-10-05 · messages used: 11 / 25
+### Session 1: 2026-10-02 → 2026-10-05 · messages used: 12 / 25
 
 | Msg | Date | Request | Files touched | Commit(s) |
 |---|---|---|---|---|
@@ -23,6 +23,7 @@
 | 9 | 10-04 | Answers + build Phases 0–2 | see entry 9 | `f07092d`…`852c18a` |
 | 10 | 10-05 | UI answers + references; build Phase 3 (homepage + Control Room) | see entry 10 | `aec3c5b`…`bc38b8c` |
 | 11 | 10-05 | Build Phase 4 (detection) | see entry 11 | `ef1dbac`…`d6d72be` |
+| 12 | 10-05 | Build Phase 5 (root cause analysis) | see entry 12 | `a1b229a`…(this commit) |
 
 ---
 
@@ -124,3 +125,29 @@
   - First version used "IsolationForest score > max warm-up score" as its threshold. Measured scores saturate around 0.7 (max warm-up 0.74), which vetoed real 12σ faults. Switched to the standard `predict()` rule (score > 0.5, Liu et al. 2008, scikit-learn `contamination="auto"`), since the z-score gate already guards against false positives. Tests went from 4 failing in 23 s to all passing in 2 s.
   - Robust z threshold 6 (stricter than the usual 3.5 for modified z-scores) plus per-metric noise floors, so healthy noise never alerts.
   - Bug found by reading the code: reset cleared server alerts silently. A test was written first, then fixed by broadcasting `cleared`.
+
+### Msg 12 · Phase 5: root cause analysis ✅
+- **Created:**
+  - `services/rca/__init__.py`
+  - `services/rca/engine.py` (`RCAEngine`: signature rules + 007 voting, confidence = 0.6·signature + 0.4·vote, stable `incident_id` per episode, flap history)
+  - `tests/test_rca.py`
+  - `frontend/src/lib/names.ts`
+  - `frontend/src/components/dashboard/Diagnosis.tsx`
+- **Modified:**
+  - `pyproject.toml` (rca package)
+  - `services/netsim/engine.py` (`_path_links` → public `path_links`)
+  - `services/gateway/main.py` (RCA each tick; `rca` envelope only on change; `GET /rca`; reset clears)
+  - `tests/test_gateway.py` (rca stream test)
+  - `docs/CONTRACTS.md` (rca event)
+  - `frontend/src/lib/live.ts` (diagnosis state)
+  - `frontend/src/components/dashboard/Alerts.tsx` (uses the shared names)
+  - `frontend/src/components/dashboard/Topology2D.tsx` (root-cause glow / "root cause" edge label)
+  - `frontend/src/components/dashboard/Sidebar.tsx`, `frontend/src/app/dashboard/page.tsx` (Diagnosis section)
+  - `.claude/PHASES.md`
+- **Verified:**
+  - 54 backend tests pass; correct top-1 cause + target for all 6 fault types (both congestion severities); flapping is refined from link_failure once it has flipped twice (≤ 10 s)
+  - browser: "Device overload · Distribution North A · 97%", with evidence "CPU at 74% (normal 22%)" and "5 of 5 affected flows pass through it"; node glow on the map; reset shows "No active incident"; a link fault shows the "root cause" edge label
+- Bug found in the browser:
+  - A gray failure on the idle standby link dist4-cafeteria showed "0 of 0 affected flows" with an inflated 98%, because voting counted no flows as full agreement.
+  - Test first, then fixed: voting is now neutral (0.5) and the evidence reads "No user traffic is affected yet (idle or standby path)".
+- Research (Rule 3): the voting follows 007 (Arzani et al., NSDI'18) from `docs/RESEARCH.md`. The signature rules follow the fault catalogue in `PLAN.md` §3.
