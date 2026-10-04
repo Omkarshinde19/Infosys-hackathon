@@ -8,7 +8,7 @@
 
 ## Index
 
-### Session 1: 2026-10-02 → 2026-10-05 · messages used: 12 / 25
+### Session 1: 2026-10-02 → 2026-10-05 · messages used: 13 / 25
 
 | Msg | Date | Request | Files touched | Commit(s) |
 |---|---|---|---|---|
@@ -24,6 +24,7 @@
 | 10 | 10-05 | UI answers + references; build Phase 3 (homepage + Control Room) | see entry 10 | `aec3c5b`…`bc38b8c` |
 | 11 | 10-05 | Build Phase 4 (detection) | see entry 11 | `ef1dbac`…`d6d72be` |
 | 12 | 10-05 | Build Phase 5 (root cause analysis) | see entry 12 | `a1b229a`…`094a23a` |
+| 13 | 10-05 | Build Phase 6 (self-healing, core demo loop) | see entry 13 | `3ddb98c`…(this commit) |
 
 ---
 
@@ -151,3 +152,33 @@
   - A gray failure on the idle standby link dist4-cafeteria showed "0 of 0 affected flows" with an inflated 98%, because voting counted no flows as full agreement.
   - Test first, then fixed: voting is now neutral (0.5) and the evidence reads "No user traffic is affected yet (idle or standby path)".
 - Research (Rule 3): the voting follows 007 (Arzani et al., NSDI'18) from `docs/RESEARCH.md`. The signature rules follow the fault catalogue in `PLAN.md` §3.
+
+### Msg 13 · Phase 6: self-healing, core demo loop ✅
+- **Created:**
+  - `services/healer/__init__.py`
+  - `services/healer/healer.py` (`Healer`: plan → twin dry-run on `net.snapshot()` → guardrails → apply → verify 3 s → commit/rollback → next/escalate)
+  - `services/healer/incidents.py` (`IncidentTracker`: detect/diagnose/decide/heal/verify/rollback/close timeline, MTTD, MTTR)
+  - `tests/test_healer.py`
+  - `frontend/src/components/dashboard/SelfHealing.tsx`
+- **Modified:**
+  - `services/netsim/engine.py` (`rollback_config()`, `now`)
+  - `tests/test_netsim.py`
+  - `pyproject.toml`
+  - `services/gateway/main.py` (`heal()` each tick, `action` + `incident` envelopes, `GET /incident`, reset closes the incident)
+  - `tests/test_gateway.py` (e2e heal test; wider look-ahead in the anomaly test)
+  - `docs/CONTRACTS.md`
+  - `frontend/src/lib/live.ts`, `frontend/src/components/dashboard/Sidebar.tsx`, `frontend/src/app/dashboard/page.tsx`
+  - `.claude/PHASES.md`
+- **Verified:**
+  - 67 backend tests pass. All 6 faults are healed with MTTD 1.5 s and MTTR 4.5 s (requirement ≤ 15 s), and traffic is within 10% of baseline afterwards.
+  - Examples: congestion 201 → 8.3 ms and 28.6 → 0.05% loss; link down unreachable → 8.7 ms.
+  - A forced bad reroute is rolled back and the routes restored; an idle-link fault needs no action; an overloaded building switch (can't be drained) escalates.
+  - Browser: congestion on Hostel A gives a full green stepper, 207.4 → 9.8 ms, 33.7% → 0.06%, and 3 twin-ranked reroutes; the fastest (via Core Router 2) is applied and verified.
+- Bugs found and fixed (test first):
+  1. The guardrail measured peak load on every link, including the congested link being avoided, so all congestion fixes were denied. It now checks only the links the rerouted traffic uses.
+  2. The tracker dropped the "verified" event when a full fix cleared the alerts on the same tick. Events are now processed before closing.
+  3. MTTD was silently 0: every healthy tick wiped the fault-injection time. Found by tightening the test to MTTD ≥ 1 s.
+- Notes:
+  - Detect, diagnose, decide and heal all land on the same tick (+1.5 s); verify follows 3 s later.
+  - After a reroute, the broken element stays flagged (alerts remain) until it is repaired; the UI says so.
+  - The dashboard isn't laid out for narrow panes (~750 px) yet; noted for Phase 15.
