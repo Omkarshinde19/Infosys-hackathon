@@ -96,3 +96,9 @@ Anomaly events carry what changed this tick:
 { "type": "anomaly", "data": { "raised": [Anomaly, ...], "cleared": ["dist1-library", ...] } }
 ```
 `GET /anomalies` returns `{ "ready": bool, "warmup_progress": 0..1, "active": [Anomaly, ...] }`. The detector learns a baseline for the first 30 s after start.
+
+RCA events carry the full ranked diagnosis whenever it changes (an empty list means the incident is over):
+```json
+{ "type": "rca", "data": [RCAHypothesis, ...] }
+```
+`GET /rca` returns the current ranked `[RCAHypothesis, ...]`. `method_scores` holds `signature` (how strongly the telemetry matches the fault type) and `voting` (the share of affected flows whose path crosses the target).
