@@ -79,10 +79,13 @@ def inject_fault(req: FaultRequest) -> dict:
 
 
 @app.post("/reset")
-def reset() -> dict:
+async def reset() -> dict:
     global net
     net = new_network()
+    cleared = list(detector.active)
     detector.clear()
+    if cleared:
+        await broadcast(Envelope(type="anomaly", data={"raised": [], "cleared": cleared}))
     return {"ok": True}
 
 
