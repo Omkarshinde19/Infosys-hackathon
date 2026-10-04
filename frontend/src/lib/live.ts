@@ -35,6 +35,17 @@ export type Anomaly = {
   severity: "warning" | "critical";
 };
 
+// Mirrors contracts/models.py (RCAHypothesis).
+export type Hypothesis = {
+  id: string;
+  incident_id: string;
+  cause: "link_failure" | "gray_failure" | "congestion" | "node_overload" | "misconfig" | "flapping";
+  target: string;
+  confidence: number;
+  evidence: { anomaly_id: string | null; description: string; weight: number }[];
+  method_scores: Record<string, number>;
+};
+
 export type AlertEvent = { time: string; kind: "raised" | "cleared"; entity: string; anomaly?: Anomaly };
 
 const HISTORY = 120; // ticks kept for charts (60 s at 2 ticks/s)
@@ -48,6 +59,7 @@ type LiveState = {
   anomalies: Record<string, Anomaly>;
   alertLog: AlertEvent[];
   detector: { ready: boolean; progress: number };
+  diagnosis: Hypothesis[];
   loadTopology: () => Promise<void>;
   loadAnomalies: () => Promise<void>;
 };
@@ -60,12 +72,14 @@ export const useLive = create<LiveState>((set) => ({
   anomalies: {},
   alertLog: [],
   detector: { ready: false, progress: 0 },
+  diagnosis: [],
   loadTopology: async () => set({ topology: await (await fetch("/api/topology")).json() }),
   loadAnomalies: async () => {
     const body = await (await fetch("/api/anomalies")).json();
     set({
       detector: { ready: body.ready, progress: body.warmup_progress },
       anomalies: Object.fromEntries(body.active.map((a: Anomaly) => [a.entity_id, a])),
+      diagnosis: await (await fetch("/api/rca")).json(),
     });
   },
 }));
@@ -101,6 +115,7 @@ export function useLiveConnection() {
       ws.onmessage = (e) => {
         const msg = JSON.parse(e.data);
         if (msg.type === "anomaly") return onAnomalyEvent(msg.data);
+        if (msg.type === "rca") return useLive.setState({ diagnosis: msg.data });
         if (msg.type !== "telemetry") return;
         const tick: Sample[] = msg.data;
         useLive.setState((s) => ({
