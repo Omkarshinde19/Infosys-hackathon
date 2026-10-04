@@ -46,3 +46,24 @@ def test_bad_fault_is_rejected():
     with TestClient(app) as client:
         r = client.post("/fault", json={"type": "link_down", "target": "nope"})
     assert r.status_code == 400
+
+
+def test_anomaly_events_are_streamed_and_listed(monkeypatch):
+    from services.detector.detector import Detector
+    from services.gateway import main
+
+    monkeypatch.setattr(main, "detector", Detector(warmup_ticks=4))
+    with TestClient(app) as client, client.websocket_connect("/ws/live") as ws:
+        while not client.get("/anomalies").json()["ready"]:
+            ws.receive_json()
+        client.post("/fault", json={"type": "link_down", "target": "dist1-library"})
+        for _ in range(12):
+            msg = ws.receive_json()
+            if msg["type"] == "anomaly":
+                break
+        raised = {a["entity_id"] for a in msg["data"]["raised"]}
+        assert "dist1-library" in raised
+        active = {a["entity_id"] for a in client.get("/anomalies").json()["active"]}
+        assert "dist1-library" in active
+        client.post("/reset")
+        assert client.get("/anomalies").json()["active"] == []
