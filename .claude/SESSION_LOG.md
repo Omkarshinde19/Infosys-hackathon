@@ -8,7 +8,7 @@
 
 ## Index
 
-### Session 1: 2026-10-02 → 2026-10-05 · messages used: 13 / 25
+### Session 1: 2026-10-02 → 2026-10-05 · messages used: 14 / 25
 
 | Msg | Date | Request | Files touched | Commit(s) |
 |---|---|---|---|---|
@@ -25,6 +25,7 @@
 | 11 | 10-05 | Build Phase 4 (detection) | see entry 11 | `ef1dbac`…`d6d72be` |
 | 12 | 10-05 | Build Phase 5 (root cause analysis) | see entry 12 | `a1b229a`…`094a23a` |
 | 13 | 10-05 | Build Phase 6 (self-healing, core demo loop) | see entry 13 | `3ddb98c`…`4baa3f4` |
+| 14 | 10-05 | Build Phase 7 (incidents + AI reports) | see entry 14 | `ceacd8f`…(this commit) |
 
 ---
 
@@ -182,3 +183,37 @@
   - Detect, diagnose, decide and heal all land on the same tick (+1.5 s); verify follows 3 s later.
   - After a reroute, the broken element stays flagged (alerts remain) until it is repaired; the UI says so.
   - The dashboard isn't laid out for narrow panes (~750 px) yet; noted for Phase 15.
+
+### Msg 14 · Phase 7: incidents + AI reports ✅
+- Platform: Omkar chose Cirrascale AI Suite (Qualcomm Cloud AI inference). `.env` holds `INFERENCE_CLOUD_API_KEY` and `INFERENCE_CLOUD_ENDPOINT` (gitignored; values never printed).
+- Research (Rule 3):
+  - Cirrascale blog (Bearer auth, `/apis/v2/completions`)
+  - probed `GET /models`: llm = DeepSeek-R1-Distill-Llama-70B, Llama-3.1-8B, Llama-3.3-70B, Qwen-QwQ-32B; embedding = bge-base/large
+  - `/chat/completions` is OpenAI-compatible (1.5 s), so the `openai` SDK is used with `base_url`
+- **Created:**
+  - `services/llm/__init__.py`
+  - `services/llm/reports.py` (`make_client`, `entity_namer`, `incident_facts`, `write_report` with grounding check + timeout, `template_report`)
+  - `tests/__init__.py`, `tests/test_reports.py` (fake LLM, no network)
+  - `.env.example`
+  - `frontend/src/components/dashboard/ReportPanel.tsx`
+  - `frontend/src/app/dashboard/incidents/page.tsx`, `frontend/src/app/dashboard/incidents/[id]/page.tsx`
+- **Modified:**
+  - `services/healer/incidents.py` (per-incident context: anomalies, diagnosis, actions; `get()`)
+  - `services/detector/detector.py` (`relearn()`: change-aware re-baselining)
+  - `services/healer/healer.py` (`rebaseline` events, `_changed()`)
+  - `services/gateway/main.py` (tracker context replaces `action_log`; `GET /incidents`, `GET /incidents/{id}`, `POST /incidents/{id}/report`; rebaseline → detector)
+  - `tests/test_healer.py`, `tests/test_gateway.py`
+  - `docs/CONTRACTS.md`, `pyproject.toml` (openai 3.24, python-dotenv 1.2)
+  - `frontend/package.json` (react-markdown, remark-gfm)
+  - `frontend/src/components/dashboard/{SelfHealing,Sidebar}.tsx`, `frontend/src/app/{globals.css,dashboard/layout.tsx}`
+  - `README.md`, `.claude/PHASES.md`
+- **Verified:**
+  - 78 backend tests pass; `tsc`, eslint and `next build` clean
+  - live: Llama-3.3-70B reports pass grounding in 10–15 s (congestion and link-down)
+  - browser: Incidents list → detail → "Generate report" shows the loading state, then the AI report credited "Llama-3.3-70B on Qualcomm Cloud AI (Cirrascale)"
+  - with no key, the template fallback is used (tested)
+- Bugs found and fixed (test first):
+  1. `json.dumps` escaped "↔" to `\u2194` in the facts sent to the AI. Fixed with `ensure_ascii=False`.
+  2. The grounding check was too literal: it rejected an accurate draft that wrote "between Distribution North A and Hostel A". It now requires the cause name, every device name and the real MTTR.
+  3. **Healing caused a false alert**: traffic moved onto an idle backup link was flagged against its idle baseline, so the incident could never close. Fixed with change-aware detection: the healer emits `rebaseline` for newly used links and nodes, and the detector re-learns their normal for 10 s.
+- Decision: the template uses f-strings instead of Jinja2 (Rule 2, one less dependency).
