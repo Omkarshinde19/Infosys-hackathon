@@ -10,7 +10,7 @@ Status: ⬜ not started · 🟨 in progress · ✅ done
 | 1 | Network twin (simulator) | ✅ |
 | 2 | Gateway + live stream | ✅ |
 | 3 | Frontend shell + Live Control Room | ✅ |
-| 4 | Detection (z-score + IsolationForest) | ⬜ |
+| 4 | Detection (z-score + IsolationForest) | ✅ |
 | 5 | Root cause analysis (voting + rules) | ⬜ |
 | 6 | Healing (reroute, twin dry-run, verify, rollback) → **core demo loop** | ⬜ |
 | 7 | Incidents + LLM reports | ⬜ |
@@ -48,7 +48,7 @@ Status: ⬜ not started · 🟨 in progress · ✅ done
 - **Done when:** in the browser, the map and charts update live, and clicking "inject link down" turns a link red.
 
 ## Phase 4: Detection
-- EWMA + robust z-score (MAD), IsolationForest trained on the healthy warm-up, ensemble vote + debounce
+- Robust z-score (median + MAD, frozen 30 s warm-up baseline), IsolationForest trained on warm-up z-scores, both must agree (hard failures alert alone), debounce 3-of-4 raise / 6 clear. EWMA dropped: a frozen baseline can't absorb a slow fault.
 - **Done when:** for each fault type, a test detects it within ≤ 3 s, with zero alerts across 5 min of healthy run.
 
 ## Phase 5: Root cause analysis
