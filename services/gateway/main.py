@@ -11,6 +11,7 @@ from contracts.models import Envelope
 from services.detector.detector import Detector
 from services.healer.healer import Healer
 from services.healer.incidents import IncidentTracker
+from services.llm.reports import entity_namer, incident_facts, make_client, write_report
 from services.netsim.engine import TICK_S, Network
 from services.rca.engine import RCAEngine
 
@@ -24,6 +25,8 @@ detector = Detector()
 rca = RCAEngine()
 healer = Healer()
 incidents = IncidentTracker()
+llm = make_client()
+reports: dict[str, dict] = {}  # incident id -> generated report
 clients: set[WebSocket] = set()
 
 
@@ -119,7 +122,7 @@ async def reset() -> dict:
     detector.clear()
     rca.clear()
     healer.clear()
-    incidents.close(net.now)
+    incidents.close(net.now)  # history and reports are kept
     if cleared:
         await broadcast(Envelope(type="anomaly", data={"raised": [], "cleared": cleared}))
         await broadcast(Envelope(type="rca", data=[]))
@@ -155,3 +158,38 @@ def diagnosis() -> list:
 @app.get("/incident")
 def incident() -> dict:
     return incident_state()
+
+
+@app.get("/incidents")
+def list_incidents() -> list:
+    out = []
+    for inc in reversed([*incidents.history, *([incidents.current] if incidents.current else [])]):
+        top = incidents.context[inc.id]["diagnosis"][:1]
+        out.append({"incident": inc, "root_cause": top[0] if top else None})
+    return out
+
+
+@app.get("/incidents/{incident_id}")
+def get_incident(incident_id: str) -> dict:
+    inc = incidents.get(incident_id)
+    if inc is None:
+        raise HTTPException(404, "incident not found")
+    ctx = incidents.context[incident_id]
+    return {
+        "incident": inc,
+        "anomalies": list(ctx["anomalies"].values()),
+        "diagnosis": ctx["diagnosis"],
+        "actions": ctx["actions"],
+        "report": reports.get(incident_id),
+    }
+
+
+@app.post("/incidents/{incident_id}/report")
+async def report(incident_id: str, refresh: bool = False) -> dict:
+    inc = incidents.get(incident_id)
+    if inc is None:
+        raise HTTPException(404, "incident not found")
+    if refresh or incident_id not in reports:
+        facts = incident_facts(inc, incidents.context[incident_id], entity_namer(net))
+        reports[incident_id] = await write_report(facts, llm)
+    return reports[incident_id]
