@@ -1,0 +1,28 @@
+[project]
+name = "netheal"
+version = "0.1.0"
+description = "Self-healing network simulator (Infosys Hack-AI-Thon NC-04)"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.142",
+    "uvicorn[standard]>=0.54",
+    "pydantic>=2.13",
+    "networkx>=3.7",
+    "numpy>=2.5",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=9.1", "httpx>=0.28", "ruff>=0.16"]
+
+[tool.setuptools]
+packages = ["contracts", "services", "services.netsim", "services.gateway"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
