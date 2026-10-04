@@ -1,3 +1,4 @@
+import { Alerts } from "@/components/dashboard/Alerts";
 import { FaultLab } from "@/components/dashboard/FaultLab";
 import { LiveChart } from "@/components/dashboard/LiveChart";
 import { NetworkView } from "@/components/dashboard/NetworkView";
@@ -14,6 +15,10 @@ export default function ControlRoom() {
 
       <Section id="overview" title="Overview" subtitle="How the whole network is doing right now.">
         <Overview />
+      </Section>
+
+      <Section id="alerts" title="Alerts" subtitle="Problems the detector has noticed. Several detectors must agree before an alert is raised.">
+        <Alerts />
       </Section>
 
       <Section id="network" title="Network" subtitle="Every device and connection, coloured by health. Switch to 3D to explore the layers.">
