@@ -8,7 +8,7 @@
 
 ## Index
 
-### Session 1: 2026-10-02 → 2026-10-05 · messages used: 10 / 25
+### Session 1: 2026-10-02 → 2026-10-05 · messages used: 11 / 25
 
 | Msg | Date | Request | Files touched | Commit(s) |
 |---|---|---|---|---|
@@ -22,6 +22,7 @@
 | 8 | 10-04 | Rules, phases, session log | `.claude/CLAUDE.md`, `.claude/PHASES.md`, `.claude/SESSION_LOG.md` | `cf9137f`…`35855d2` |
 | 9 | 10-04 | Answers + build Phases 0–2 | see entry 9 | `f07092d`…`852c18a` |
 | 10 | 10-05 | UI answers + references; build Phase 3 (homepage + Control Room) | see entry 10 | `aec3c5b`…`bc38b8c` |
+| 11 | 10-05 | Build Phase 4 (detection) | see entry 11 | `ef1dbac`…(this commit) |
 
 ---
 
@@ -99,3 +100,27 @@
   - Network score = 0.7·mean + 0.3·min of flow health (so one dead building is visible).
   - Gateway URLs come from env (`GATEWAY_URL`, `NEXT_PUBLIC_GATEWAY_WS`).
 - Not committed (left in the working folder): `colour pllate.jpeg`, `Hack-AI-Thon_Solution_Presentation_Template.pptx` (PPT left for last).
+
+### Msg 11 · Phase 4: detection ✅
+- **Created:**
+  - `services/detector/__init__.py`
+  - `services/detector/detector.py` (`Detector`: warm-up → robust z + IsolationForest vote → debounce)
+  - `tests/test_detector.py`
+  - `frontend/src/components/dashboard/Alerts.tsx`
+- **Modified:**
+  - `pyproject.toml` (scikit-learn 1.9.1, detector package)
+  - `services/gateway/main.py` (detector runs each tick; `broadcast()`; `anomaly` envelope; `GET /anomalies`; async `/reset` broadcasts cleared alerts)
+  - `tests/test_gateway.py` (anomaly stream + reset test)
+  - `docs/CONTRACTS.md` (anomaly event + `/anomalies`)
+  - `frontend/src/lib/live.ts` (anomalies, alertLog, detector warm-up polling)
+  - `frontend/src/components/dashboard/Sidebar.tsx` (Alerts item + badge)
+  - `frontend/src/app/dashboard/page.tsx` (Alerts section)
+  - `.claude/PHASES.md` (Phase 4 ✅)
+- **Verified:**
+  - 42 backend tests pass
+  - every fault type detected in ≤ 3 s; 0 false alerts over 5 healthy minutes (also checked on seeds 10–14)
+  - browser: warm-up bar → gray failure shows 2 critical cards ("packet loss 10.00%, normal 0.01%", z-score + IsolationForest) → link down shows 3 "Unreachable" cards → reset shows "All clear"
+- Rule 3 / decisions:
+  - First version used "IsolationForest score > max warm-up score" as its threshold. Measured scores saturate around 0.7 (max warm-up 0.74), which vetoed real 12σ faults. Switched to the standard `predict()` rule (score > 0.5, Liu et al. 2008, scikit-learn `contamination="auto"`), since the z-score gate already guards against false positives. Tests went from 4 failing in 23 s to all passing in 2 s.
+  - Robust z threshold 6 (stricter than the usual 3.5 for modified z-scores) plus per-metric noise floors, so healthy noise never alerts.
+  - Bug found by reading the code: reset cleared server alerts silently. A test was written first, then fixed by broadcasting `cleared`.
