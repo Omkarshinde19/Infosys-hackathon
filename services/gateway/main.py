@@ -1,4 +1,4 @@
-"""API gateway: runs the simulator tick loop and streams telemetry over WebSocket."""
+"""API gateway: runs the simulator + detector tick loop and streams it over WebSocket."""
 
 import asyncio
 from contextlib import asynccontextmanager, suppress
@@ -8,6 +8,7 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
 from contracts.models import Envelope
+from services.detector.detector import Detector
 from services.netsim.engine import TICK_S, Network
 
 
@@ -16,17 +17,26 @@ def new_network() -> Network:
 
 
 net = new_network()
+detector = Detector()
 clients: set[WebSocket] = set()
+
+
+async def broadcast(envelope: Envelope) -> None:
+    message = envelope.model_dump_json()
+    for ws in list(clients):
+        try:
+            await ws.send_text(message)
+        except Exception:
+            clients.discard(ws)
 
 
 async def tick_loop() -> None:
     while True:
-        message = Envelope(type="telemetry", data=net.step()).model_dump_json()
-        for ws in list(clients):
-            try:
-                await ws.send_text(message)
-            except Exception:
-                clients.discard(ws)
+        samples = net.step()
+        raised, cleared = detector.update(samples)
+        await broadcast(Envelope(type="telemetry", data=samples))
+        if raised or cleared:
+            await broadcast(Envelope(type="anomaly", data={"raised": raised, "cleared": cleared}))
         await asyncio.sleep(TICK_S)
 
 
@@ -72,7 +82,17 @@ def inject_fault(req: FaultRequest) -> dict:
 def reset() -> dict:
     global net
     net = new_network()
+    detector.clear()
     return {"ok": True}
+
+
+@app.get("/anomalies")
+def anomalies() -> dict:
+    return {
+        "ready": detector.ready,
+        "warmup_progress": min(1.0, detector.ticks_seen / detector.warmup_ticks),
+        "active": list(detector.active.values()),
+    }
 
 
 @app.websocket("/ws/live")
