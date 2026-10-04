@@ -19,8 +19,8 @@
 | 5 | 10-04 | Push docs to repo; ownership swap; many-commits goal | `README.md`, `PLAN.md`, `CONTRIBUTING.md`, `docs/CONTRACTS.md`, `docs/RESEARCH.md`, `.gitignore` | `44ee1a3`…`dd5dc48` |
 | 6 | 10-04 | Non-tech list of features and pages | none (chat) | none |
 | 7 | 10-04 | Save the overview as md + flowcharts | `docs/PRODUCT_OVERVIEW.md`, `README.md` | `a975b47`, `777ced3`, `8aef28a` |
-| 8 | 10-04 | Rules, phases, session log | `.claude/CLAUDE.md`, `.claude/PHASES.md`, `.claude/SESSION_LOG.md` | `9b0d3bf`…`35855d2` |
-| 9 | 10-04 | Answers + build Phases 0–2 | see entry 9 | `f07092d`…(this commit) |
+| 8 | 10-04 | Rules, phases, session log | `.claude/CLAUDE.md`, `.claude/PHASES.md`, `.claude/SESSION_LOG.md` | `cf9137f`…`35855d2` |
+| 9 | 10-04 | Answers + build Phases 0–2 | see entry 9 | `f07092d`…`852c18a` |
 
 ---
 
