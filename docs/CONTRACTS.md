@@ -102,3 +102,12 @@ RCA events carry the full ranked diagnosis whenever it changes (an empty list me
 { "type": "rca", "data": [RCAHypothesis, ...] }
 ```
 `GET /rca` returns the current ranked `[RCAHypothesis, ...]`. `method_scores` holds `signature` (how strongly the telemetry matches the fault type) and `voting` (the share of affected flows whose path crosses the target).
+
+Healing events (one per step) and the incident state after every change:
+```json
+{ "type": "action", "data": { "kind": "proposed" | "applied" | "result" | "no_action" | "escalated",
+                              "payload": [ActionCandidate, ...] | ActionCandidate | ActionResult | "reason" } }
+{ "type": "incident", "data": { "incident": Incident | null, "healer_status": "idle" | "verifying" | "healed" | "rolled_back" | "no_action_needed" | "escalated",
+                                "actions": [ <action event data>, ... ] } }
+```
+`GET /incident` returns the same incident state. In `ActionResult.before`/`after`, `latency_ms` is averaged over the affected flows (an unreachable flow counts as 1000 ms), and `after.baseline_latency_ms` is their healthy latency.
