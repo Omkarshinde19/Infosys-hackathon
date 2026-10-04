@@ -28,9 +28,15 @@ class Pipeline:
         events = []
         if self.det.ready:
             events = self.healer.update(samples, self.rca.hypotheses, self.net, self.baseline())
+        self.relearn(events)
         self.incidents.update(self.net.now, self.det.active, self.rca.hypotheses, events)
         self.events += events
         self.latest = {s.entity_id: s for s in samples}
+
+    def relearn(self, events):
+        for kind, payload in events:
+            if kind == "rebaseline":
+                self.det.relearn(payload)
 
     def inject(self, *args, **kwargs):
         self.net.inject_fault(*args, **kwargs)
@@ -97,7 +103,9 @@ def test_bad_action_is_rolled_back():
         type="reroute",
         params={"avoid": [], "routes": {"library-internet": still_broken}},
     )
-    p.events += p.healer.apply(bad, p.latest, p.net, ["library-internet"])
+    applied = p.healer.apply(bad, p.latest, p.net, ["library-internet"])
+    p.relearn(applied)
+    p.events += applied
     p.run_until("escalated", max_ticks=10)  # nothing left to try after the rollback
     result = next(payload for kind, payload in p.events if kind == "result")
     assert result.rolled_back and not result.verified
@@ -140,3 +148,18 @@ def test_incident_keeps_its_context_after_closing():
     assert "admin-internet" in ctx["anomalies"]
     assert ctx["diagnosis"][0].cause == "misconfig"
     assert [a["kind"] for a in ctx["actions"]] == ["proposed", "applied", "result"]
+
+
+@pytest.mark.parametrize(
+    ("fault", "target", "severity"),
+    [("congestion", "dist1-hostel_a", 1.0), ("link_down", "dist1-library", 1.0)],
+)
+def test_new_path_is_not_flagged_after_healing(fault, target, severity):
+    """Traffic moved onto an idle backup path is the new normal, not an anomaly."""
+    p = Pipeline()
+    p.inject(fault, target, severity=severity)
+    p.run_until("healed", max_ticks=30)
+    for _ in range(40):
+        p.tick()
+    assert set(p.det.active) == {target}  # only the faulty part stays flagged
+    assert any(kind == "rebaseline" for kind, _ in p.events)
