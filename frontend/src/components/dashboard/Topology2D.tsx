@@ -21,13 +21,16 @@ const ICONS = { edge: Globe, core: Router, distribution: Server, access: Buildin
 const COL_GAP = 300;
 const ROW_GAP = 78;
 
-type NetNodeData = { name: string; layer: keyof typeof COLUMNS; health: number };
+type NetNodeData = { name: string; layer: keyof typeof COLUMNS; health: number; rootCause?: boolean };
 
 function NetNode({ data }: NodeProps<Node<NetNodeData>>) {
   const Icon = ICONS[data.layer];
   const color = healthColor(data.health);
   return (
-    <div className="glass flex items-center gap-2 rounded-full! py-1.5 pr-4 pl-1.5 text-xs">
+    <div
+      className="glass flex items-center gap-2 rounded-full! py-1.5 pr-4 pl-1.5 text-xs"
+      style={data.rootCause ? { borderColor: "var(--critical)", boxShadow: "0 0 18px var(--critical)" } : undefined}
+    >
       <span className="grid size-7 place-items-center rounded-full" style={{ background: color, transition: "background 500ms" }}>
         <Icon className="size-3.5 text-[#021024]" />
       </span>
@@ -61,6 +64,7 @@ function layout(topo: Topology): Node<NetNodeData>[] {
 export function Topology2D() {
   const topology = useLive((s) => s.topology);
   const latest = useLive((s) => s.latest);
+  const rootCause = useLive((s) => s.diagnosis[0]?.target);
   const baseNodes = useMemo(() => (topology ? layout(topology) : []), [topology]);
   const wrapper = useRef<HTMLDivElement>(null);
   const [flow, setFlow] = useState<ReactFlowInstance<Node<NetNodeData>>>();
@@ -77,7 +81,7 @@ export function Topology2D() {
 
   const nodes = baseNodes.map((n) => ({
     ...n,
-    data: { ...n.data, health: nodeHealth(n.id, latest, topology.flows) },
+    data: { ...n.data, health: nodeHealth(n.id, latest, topology.flows), rootCause: n.id === rootCause },
   }));
   const layers = Object.fromEntries(topology.nodes.map((n) => [n.id, n.layer]));
   const edges: Edge[] = topology.links.map((l) => {
@@ -91,6 +95,9 @@ export function Topology2D() {
       sourceHandle: sameColumn ? "bottom" : undefined,
       targetHandle: sameColumn ? "top" : undefined,
       animated: !down && (s?.throughput_mbps ?? 0) > 1,
+      label: l.id === rootCause ? "root cause" : undefined,
+      labelStyle: { fill: "var(--critical)", fontWeight: 600 },
+      labelBgStyle: { fill: "var(--bg)" },
       style: {
         stroke: healthColor(health(s)),
         strokeWidth: 1.5 + Math.min(1, s?.util ?? 0) * 4,
