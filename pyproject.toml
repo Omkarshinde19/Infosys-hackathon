@@ -19,6 +19,7 @@ dev = ["pytest>=9.1", "httpx2>=2.13", "ruff>=0.16"]
 [tool.setuptools]
 packages = [
     "contracts", "services", "services.netsim", "services.gateway", "services.detector", "services.rca",
+    "services.healer",
 ]
 
 [tool.ruff]
