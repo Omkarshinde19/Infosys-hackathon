@@ -8,6 +8,8 @@
    without a vote.
 4. Debounce: raise after RAISE_K of the last RAISE_N ticks are bad; clear after
    CLEAR_TICKS consecutive normal ticks.
+5. Change-aware: when the healer deliberately moves traffic, the elements on the new
+   path re-learn their baseline for RELEARN_TICKS instead of raising false alerts.
 """
 
 from collections import defaultdict, deque
@@ -21,6 +23,7 @@ WARMUP_TICKS = 60  # 30 s at 2 ticks/s
 Z_THRESHOLD = 6.0
 RAISE_K, RAISE_N = 3, 4
 CLEAR_TICKS = 6
+RELEARN_TICKS = 20  # 10 s
 
 # Metrics watched per entity type; all of them are "worse when higher".
 METRICS = {
@@ -44,10 +47,17 @@ class Detector:
         self.recent: dict[str, deque[bool]] = defaultdict(lambda: deque(maxlen=RAISE_N))
         self.normal_streak: dict[str, int] = defaultdict(int)
         self.active: dict[str, Anomaly] = {}
+        self.relearning: dict[str, list[list[float]]] = {}
 
     @property
     def ready(self) -> bool:
         return self.ticks_seen >= self.warmup_ticks
+
+    def relearn(self, entity_ids: list[str]) -> None:
+        """An intended change (e.g. a reroute) gave these entities a new normal."""
+        for e in entity_ids:
+            if e in self.median:
+                self.relearning[e] = []
 
     def clear(self) -> None:
         """Forget active alerts (e.g. after a network reset) but keep the baseline."""
@@ -61,6 +71,13 @@ class Detector:
             self._collect(samples)
             return [], []
 
+        for s in samples:
+            if s.entity_id in self.relearning:
+                rows = self.relearning[s.entity_id]
+                rows.append([getattr(s, m) for m in METRICS[s.entity_type]])
+                if len(rows) >= RELEARN_TICKS:
+                    self._baseline(s.entity_id, np.array(rows, dtype=float))
+                    del self.relearning[s.entity_id]
         candidates = self._candidates(samples)
         raised, cleared = [], []
         for s in samples:
@@ -91,10 +108,7 @@ class Detector:
         z_by_type: dict[str, list[np.ndarray]] = defaultdict(list)
         for e, rows in self.warmup.items():
             x = np.array(rows, dtype=float)
-            floors = np.array([FLOORS[m] for m in METRICS[self.types[e]]])
-            self.median[e] = np.median(x, axis=0)
-            mad = 1.4826 * np.median(np.abs(x - self.median[e]), axis=0)
-            self.scale[e] = np.maximum(mad, floors)
+            self._baseline(e, x)
             z_by_type[self.types[e]].append((x - self.median[e]) / self.scale[e])
         for t, zs in z_by_type.items():
             z = np.vstack(zs)
@@ -102,13 +116,19 @@ class Detector:
             self.forests[t] = IsolationForest(n_estimators=100, random_state=0).fit(z)
         self.warmup.clear()
 
+    def _baseline(self, e: str, x: np.ndarray) -> None:
+        floors = np.array([FLOORS[m] for m in METRICS[self.types[e]]])
+        self.median[e] = np.median(x, axis=0)
+        mad = 1.4826 * np.median(np.abs(x - self.median[e]), axis=0)
+        self.scale[e] = np.maximum(mad, floors)
+
     # ---- detection -------------------------------------------------------
 
     def _candidates(self, samples: list[TelemetrySample]) -> dict[str, Anomaly]:
         out: dict[str, Anomaly] = {}
         to_vote: dict[str, list[tuple[TelemetrySample, np.ndarray]]] = defaultdict(list)
         for s in samples:
-            if s.entity_id not in self.median:
+            if s.entity_id not in self.median or s.entity_id in self.relearning:
                 continue
             if s.entity_type != "node" and s.latency_ms is None:
                 out[s.entity_id] = Anomaly(
