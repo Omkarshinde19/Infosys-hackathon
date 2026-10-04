@@ -113,7 +113,7 @@ class Network:
                 blackholed.add(f.target)
         return down, extra_loss, extra_load, extra_cpu, blackholed
 
-    def _path_links(self, path: list[str]) -> list[str]:
+    def path_links(self, path: list[str]) -> list[str]:
         return [self.graph.edges[a, b]["id"] for a, b in zip(path, path[1:], strict=False)]
 
     def step(self) -> list[TelemetrySample]:
@@ -123,7 +123,7 @@ class Network:
 
         # Traffic that reaches its destination loads every link on its path.
         reachable = {
-            fid: not (fid in blackholed or down.intersection(self._path_links(path)))
+            fid: not (fid in blackholed or down.intersection(self.path_links(path)))
             for fid, path in self.routes.items()
         }
         load = dict.fromkeys(self.links, 0.0)
@@ -131,7 +131,7 @@ class Network:
             load[lid] += extra
         for fid, path in self.routes.items():
             if reachable[fid]:
-                for lid in self._path_links(path):
+                for lid in self.path_links(path):
                     load[lid] += self.flows[fid]["demand_mbps"]
 
         samples: list[TelemetrySample] = []
@@ -209,7 +209,7 @@ class Network:
                     )
                 )
                 continue
-            links = self._path_links(path)
+            links = self.path_links(path)
             latency = sum(link_lat[lid] for lid in links) + sum(node_delay[n] for n in path)
             delivered = np.prod([1 - link_loss[lid] / 100 for lid in links])
             delivered *= np.prod([1 - node_loss[n] / 100 for n in path])
