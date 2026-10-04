@@ -9,7 +9,7 @@ Status: ⬜ not started · 🟨 in progress · ✅ done
 | 0 | Foundation | ✅ |
 | 1 | Network twin (simulator) | ✅ |
 | 2 | Gateway + live stream | ✅ |
-| 3 | Frontend shell + Live Control Room | ⬜ |
+| 3 | Frontend shell + Live Control Room | ✅ |
 | 4 | Detection (z-score + IsolationForest) | ⬜ |
 | 5 | Root cause analysis (voting + rules) | ⬜ |
 | 6 | Healing (reroute, twin dry-run, verify, rollback) → **core demo loop** | ⬜ |
@@ -43,7 +43,7 @@ Status: ⬜ not started · 🟨 in progress · ✅ done
 - **Done when:** a test WebSocket client receives ≥ 2 ticks/s, and `POST /fault` changes the next ticks.
 
 ## Phase 3: Frontend shell + Live Control Room
-- Next.js 15 + TS + Tailwind + shadcn/ui; the colour palette from `colour pllate.jpeg` (to confirm)
+- Next.js 16 + TS + Tailwind v4 (custom glass components instead of shadcn/ui); palette from `colour pllate.jpeg`; light/dark toggle; homepage
 - React Flow topology (health colours, animated traffic), ECharts live latency/loss, KPI tiles, fault buttons
 - **Done when:** in the browser, the map and charts update live, and clicking "inject link down" turns a link red.
 
