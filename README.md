@@ -104,6 +104,12 @@ make test      # run all tests
 make dev       # start the gateway on http://localhost:8000 (API docs at /docs)
 ```
 
+AI incident reports (optional; without a key a built-in template writes them):
+
+```bash
+cp .env.example .env   # then add your Cirrascale AI Suite key
+```
+
 Frontend (Node 24+):
 
 ```bash
