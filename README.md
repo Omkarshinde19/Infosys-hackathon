@@ -98,4 +98,13 @@ docs/           research, contracts, runbooks (RAG corpus)
 
 ## Running it
 
-_Coming soon_: `make demo` will start the laptop-safe stack and `make full` everything.
+```bash
+make install   # create .venv and install backend deps
+make test      # run all tests
+make dev       # start the gateway on http://localhost:8000 (API docs at /docs)
+```
+
+Live telemetry: `ws://localhost:8000/ws/live`. Inject a fault with:
+`curl -X POST localhost:8000/fault -H 'content-type: application/json' -d '{"type":"link_down","target":"dist1-library"}'`
+
+Fault types: `link_down`, `gray_failure`, `congestion`, `flapping` (target a link id like `dist1-library`), `node_overload` (target a node like `dist1`), `misconfig` (target a flow like `admin-internet`). Optional: `severity` (0–1), `ramp_s` (gradual onset).
