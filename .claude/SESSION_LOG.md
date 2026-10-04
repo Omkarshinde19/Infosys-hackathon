@@ -24,7 +24,7 @@
 | 10 | 10-05 | UI answers + references; build Phase 3 (homepage + Control Room) | see entry 10 | `aec3c5b`…`bc38b8c` |
 | 11 | 10-05 | Build Phase 4 (detection) | see entry 11 | `ef1dbac`…`d6d72be` |
 | 12 | 10-05 | Build Phase 5 (root cause analysis) | see entry 12 | `a1b229a`…`094a23a` |
-| 13 | 10-05 | Build Phase 6 (self-healing, core demo loop) | see entry 13 | `3ddb98c`…(this commit) |
+| 13 | 10-05 | Build Phase 6 (self-healing, core demo loop) | see entry 13 | `3ddb98c`…`4baa3f4` |
 
 ---
 
