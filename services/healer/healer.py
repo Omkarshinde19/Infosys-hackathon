@@ -158,7 +158,8 @@ class Healer:
             "window": [],
         }
         self.status = "verifying"
-        return [("applied", c)]
+        changed = _changed(self.current["undo"], net)
+        return [("applied", c), *([("rebaseline", changed)] if changed else [])]
 
     def _apply_next(self, latest, net: Network, affected: list[str]) -> list[Event]:
         if not self.pending:
@@ -182,9 +183,13 @@ class Healer:
             after["loss_pct"] < HEALTHY_LOSS_PCT
             and after["latency_ms"] <= LATENCY_TOLERANCE * healthy_latency
         )
+        events = []
         if not verified:
+            new_routes = {f: net.routes[f] for f in cur["undo"]}
             for f, path in cur["undo"].items():
                 net.set_route(f, path)
+            if changed := _changed(new_routes, net):
+                events.append(("rebaseline", changed))
         result = ActionResult(
             action_id=cur["candidate"].id,
             applied_at=cur["applied_at"],
@@ -198,7 +203,14 @@ class Healer:
             self.status = "healed"
             return [("result", result)]
         self.status = "rolled_back"
-        return [("result", result), *self._apply_next(latest, net, affected)]
+        return [("result", result), *events, *self._apply_next(latest, net, affected)]
+
+
+def _changed(old_routes: dict[str, list[str]], net: Network) -> list[str]:
+    """Links and nodes that now carry traffic they didn't before (their normal changed)."""
+    old = {x for p in old_routes.values() for x in [*p, *net.path_links(p)]}
+    new = {x for f in old_routes for x in [*net.routes[f], *net.path_links(net.routes[f])]}
+    return sorted(new - old)
 
 
 def _latency(s) -> float:
