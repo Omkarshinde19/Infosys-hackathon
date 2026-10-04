@@ -1,26 +1,79 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* Palette (colour pllate.jpeg): #021024 #052659 #5483B3 #7DA0CA #C1E8FF
+   Status colours are soft tints chosen to sit next to the blues. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #eaf4ff;
+  --bg-2: #c1e8ff;
+  --fg: #021024;
+  --fg-muted: #34557d;
+  --accent: #052659;
+  --accent-2: #5483b3;
+  --glass: rgba(255, 255, 255, 0.45);
+  --glass-border: rgba(5, 38, 89, 0.15);
+  --glass-hover: rgba(255, 255, 255, 0.65);
+  --healthy: #2a9d8f;
+  --warning: #d19a3c;
+  --critical: #d0607a;
+}
+
+[data-theme="dark"] {
+  --bg: #021024;
+  --bg-2: #052659;
+  --fg: #e6f4ff;
+  --fg-muted: #7da0ca;
+  --accent: #c1e8ff;
+  --accent-2: #5483b3;
+  --glass: rgba(5, 38, 89, 0.28);
+  --glass-border: rgba(193, 232, 255, 0.22);
+  --glass-hover: rgba(84, 131, 179, 0.3);
+  --healthy: #6fd6c4;
+  --warning: #f2c77b;
+  --critical: #f2919f;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-bg: var(--bg);
+  --color-bg-2: var(--bg-2);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-healthy: var(--healthy);
+  --color-warning: var(--warning);
+  --color-critical: var(--critical);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* Glass panel, adapted from the reference card. */
+@utility glass {
+  position: relative;
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: 1rem;
+  backdrop-filter: blur(14px) saturate(140%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 0 9px rgba(0, 0, 0, 0.12),
+    0 8px 24px rgba(2, 16, 36, 0.18);
+  transition: background 300ms;
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.18), transparent 45%);
+    pointer-events: none;
   }
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+  transition:
+    background 400ms,
+    color 400ms;
 }
