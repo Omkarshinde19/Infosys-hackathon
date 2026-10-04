@@ -67,3 +67,8 @@ def test_anomaly_events_are_streamed_and_listed(monkeypatch):
         assert "dist1-library" in active
         client.post("/reset")
         assert client.get("/anomalies").json()["active"] == []
+        for _ in range(4):
+            msg = ws.receive_json()
+            if msg["type"] == "anomaly":
+                break
+        assert "dist1-library" in msg["data"]["cleared"]
