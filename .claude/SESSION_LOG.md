@@ -8,7 +8,7 @@
 
 ## Index
 
-### Session 1: 2026-10-02 → 2026-10-04 · messages used: 9 / 25
+### Session 1: 2026-10-02 → 2026-10-05 · messages used: 10 / 25
 
 | Msg | Date | Request | Files touched | Commit(s) |
 |---|---|---|---|---|
@@ -21,6 +21,7 @@
 | 7 | 10-04 | Save the overview as md + flowcharts | `docs/PRODUCT_OVERVIEW.md`, `README.md` | `a975b47`, `777ced3`, `8aef28a` |
 | 8 | 10-04 | Rules, phases, session log | `.claude/CLAUDE.md`, `.claude/PHASES.md`, `.claude/SESSION_LOG.md` | `cf9137f`…`35855d2` |
 | 9 | 10-04 | Answers + build Phases 0–2 | see entry 9 | `f07092d`…`852c18a` |
+| 10 | 10-05 | UI answers + references; build Phase 3 (homepage + Control Room) | see entry 10 | `frontend scaffold`…(this commit) |
 
 ---
 
@@ -62,3 +63,39 @@
   - Rule 3 applied: Starlette deprecated `httpx` for its TestClient, so the dev dependency was switched to `httpx2`.
   - `snapshot()` (deep copy) replaces the planned `snapshot()/restore()` pair: simpler, same use.
 - Next: Phase 3 (frontend). UI questions are pending with Omkar.
+
+### Msg 10 · Phase 3: homepage + Control Room ✅
+- UI decisions (Omkar):
+  - light/dark toggle
+  - soft status colours that blend with the blues
+  - creative 3D allowed
+  - left vertical nav
+  - 2D map flows left → right
+  - long scrolling page with per-section navigation
+  - a homepage is required
+  - references: the glass card snippet + Dribbble "Trading Landing Page" (starfield + glossy liquid blob)
+- Research (Rule 3):
+  - Dribbble viewed in the browser (dark starfield, metallic blob rising from the bottom, centered headline, pill buttons)
+  - web search for 3D topology ideas (react-three-topology, nettopo-3d)
+  - read Next 16 bundled docs (`frontend/node_modules/next/dist/docs/`: version-16 upgrade, rewrites, lazy-loading, preventing-flash-before-hydration)
+  - drei `Html` dev warning = known issue pmndrs/drei#2867 (React 19 StrictMode, dev-only), so no workaround added
+- **Created:**
+  - `frontend/` (create-next-app: Next 16.3.8, React 19.2.8, Tailwind v4)
+  - `.claude/launch.json` (preview servers: gateway on 8001 because 8000 is used by another local app; frontend on 3000)
+  - `frontend/src/components/{ThemeToggle,Logo,Reveal}.tsx`
+  - `frontend/src/components/landing/{HeroScene,HeroCanvas}.tsx`
+  - `frontend/src/components/dashboard/{Sidebar,Section,Overview,Topology2D,Topology3DScene,NetworkView,LiveChart,FaultLab}.tsx`
+  - `frontend/src/lib/{live,health}.ts`
+  - `frontend/src/app/dashboard/{layout,page}.tsx`
+- **Modified:**
+  - `frontend/src/app/{layout.tsx,page.tsx,globals.css}`, `frontend/next.config.ts` (`/api` → gateway rewrite), `frontend/package.json`
+  - `README.md` (frontend run section), `.claude/PHASES.md` (Phase 3 ✅; stack line updated)
+- **Verified:**
+  - `tsc` clean, eslint clean, `next build` OK
+  - in the browser: live map and charts, a link-down injected from the Fault Lab turns the link and the Library node coral, health drops to 62 "Degraded", and reset recovers to 99
+- Decisions:
+  - The 3D view is "Network Strata": layers as floating tiers, packets travelling along links.
+  - Node health = the worst of its own health and the flows starting at it.
+  - Network score = 0.7·mean + 0.3·min of flow health (so one dead building is visible).
+  - Gateway URLs come from env (`GATEWAY_URL`, `NEXT_PUBLIC_GATEWAY_WS`).
+- Not committed (left in the working folder): `colour pllate.jpeg`, `Hack-AI-Thon_Solution_Presentation_Template.pptx` (PPT left for last).
