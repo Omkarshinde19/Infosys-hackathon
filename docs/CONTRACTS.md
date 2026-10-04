@@ -90,3 +90,9 @@ Every service talks through these messages, on Redpanda topics and over the gate
 ```json
 { "type": "telemetry" | "anomaly" | "rca" | "action" | "incident" | "kpi", "data": { ... } }
 ```
+
+Anomaly events carry what changed this tick:
+```json
+{ "type": "anomaly", "data": { "raised": [Anomaly, ...], "cleared": ["dist1-library", ...] } }
+```
+`GET /anomalies` returns `{ "ready": bool, "warmup_progress": 0..1, "active": [Anomaly, ...] }`. The detector learns a baseline for the first 30 s after start.
