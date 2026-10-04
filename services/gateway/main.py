@@ -1,4 +1,4 @@
-"""API gateway: runs the simulator + detector tick loop and streams it over WebSocket."""
+"""API gateway: runs the simulator -> detector -> RCA tick loop and streams it over WebSocket."""
 
 import asyncio
 from contextlib import asynccontextmanager, suppress
@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from contracts.models import Envelope
 from services.detector.detector import Detector
 from services.netsim.engine import TICK_S, Network
+from services.rca.engine import RCAEngine
 
 
 def new_network() -> Network:
@@ -18,6 +19,7 @@ def new_network() -> Network:
 
 net = new_network()
 detector = Detector()
+rca = RCAEngine()
 clients: set[WebSocket] = set()
 
 
@@ -37,6 +39,8 @@ async def tick_loop() -> None:
         await broadcast(Envelope(type="telemetry", data=samples))
         if raised or cleared:
             await broadcast(Envelope(type="anomaly", data={"raised": raised, "cleared": cleared}))
+        if rca.update(samples, detector.active, net):
+            await broadcast(Envelope(type="rca", data=rca.hypotheses))
         await asyncio.sleep(TICK_S)
 
 
@@ -84,8 +88,10 @@ async def reset() -> dict:
     net = new_network()
     cleared = list(detector.active)
     detector.clear()
+    rca.clear()
     if cleared:
         await broadcast(Envelope(type="anomaly", data={"raised": [], "cleared": cleared}))
+        await broadcast(Envelope(type="rca", data=[]))
     return {"ok": True}
 
 
@@ -107,3 +113,8 @@ async def live(ws: WebSocket) -> None:
             await ws.receive_text()
     except WebSocketDisconnect:
         clients.discard(ws)
+
+
+@app.get("/rca")
+def diagnosis() -> list:
+    return rca.hypotheses
