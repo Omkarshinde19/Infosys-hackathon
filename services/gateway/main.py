@@ -24,7 +24,6 @@ detector = Detector()
 rca = RCAEngine()
 healer = Healer()
 incidents = IncidentTracker()
-action_log: list[dict] = []  # healing events of the current incident
 clients: set[WebSocket] = set()
 
 
@@ -55,21 +54,18 @@ async def heal(samples) -> None:
     if detector.ready:
         baseline = {f: detector.median[f][0] for f in net.flows}
         events = healer.update(samples, rca.hypotheses, net, baseline)
-    before = incidents.current
     if incidents.update(net.now, detector.active, rca.hypotheses, events):
-        if incidents.current is not before and incidents.current is not None:
-            action_log.clear()  # a new incident started
         for kind, payload in events:
-            action_log.append({"kind": kind, "payload": payload})
-            await broadcast(Envelope(type="action", data=action_log[-1]))
+            await broadcast(Envelope(type="action", data={"kind": kind, "payload": payload}))
         await broadcast(Envelope(type="incident", data=incident_state()))
 
 
 def incident_state() -> dict:
+    incident = incidents.current or (incidents.history[-1] if incidents.history else None)
     return {
-        "incident": incidents.current or (incidents.history[-1] if incidents.history else None),
+        "incident": incident,
         "healer_status": healer.status,
-        "actions": action_log,
+        "actions": incidents.context[incident.id]["actions"] if incident else [],
     }
 
 
