@@ -8,7 +8,7 @@
 
 ## Index
 
-### Session 1: 2026-10-02 → 2026-10-05 · messages used: 16 / 25
+### Session 1: 2026-10-02 → 2026-10-05 · messages used: 17 / 25
 
 | Msg | Date | Request | Files touched | Commit(s) |
 |---|---|---|---|---|
@@ -28,6 +28,7 @@
 | 14 | 10-05 | Build Phase 7 (incidents + AI reports) | see entry 14 | `ceacd8f`…`ead2396` |
 | 15 | 10-05 | Build Phase 8 (data platform, Docker) | see entry 15 | `ca94b46`…`dcc4180` |
 | 16 | 10-05 | Build Phase 9 (advanced ML) + theory/ML.md | see entry 16 | `dd76719`…`b86c5a3` |
+| 17 | 10-05 | Build Phase 10 (safety + control) | see entry 17 | `d5aa1a9`…(this commit) |
 
 ---
 
@@ -285,3 +286,41 @@
 - Honest findings:
   - At the first instant a flapping link is physically identical to a dead link; the GNN keeps a calibrated ~50/50 belief.
   - 007 alone fails on a campus (about one flow per building).
+
+### Msg 17 · Phase 10: safety + control ✅
+- Research and decisions (Rule 3):
+  - `regopy` 1.5.2 (Microsoft's Rego interpreter) runs real OPA Rego in-process (<5 ms per check), so there's no OPA sidecar and tests stay self-contained.
+  - PyJWT 2.15 (HS256, 12 h) for sessions; stdlib PBKDF2-SHA256 (200k iterations, salted) for password hashes.
+  - Reads and the WebSocket stay public (NOC wall-screen style); actions need roles.
+- **Created:**
+  - `policies/healing.rego` (6 guardrails with readable reasons)
+  - `services/policy.py`, `services/auth.py`, `services/ledger/{__init__,ledger}.py`
+  - `config/users.yaml` (hashes only), `config/DEMO_ACCOUNTS.md` (demo passwords; never put in the Docker image, never repeated in chat)
+  - `tests/{test_policy,test_ledger,accounts}.py`
+  - `frontend/src/lib/auth.ts`, `frontend/src/app/login/page.tsx`, `frontend/src/app/dashboard/{approvals,audit}/page.tsx`
+- **Modified:**
+  - `contracts/models.py` (`ActionCandidate.policy_reasons`, `LedgerEntry.payload`, `Envelope` type `audit`)
+  - `services/bus.py` (`audit` topic)
+  - `services/healer/healer.py` (Rego policy decides; `LEVELS` 0–4, `approve`/`reject`, rate-limit history)
+  - `services/gateway/main.py`:
+    - roles on fault/reset/report/approvals/autonomy
+    - `/auth/login`, `/auth/me`, `/autonomy`, `/approvals`, `/audit`, `/audit/verify`
+    - `audit()` + `handle()`; the tick loop survives exceptions
+  - `tests/{test_healer,test_gateway}.py`, `tests/e2e/test_stack.py` (operator login; waits for the engine)
+  - `docker/python.Dockerfile` (+policies, +hashed users, +libatomic1)
+  - `pyproject.toml` (regopy, pyjwt, pytest-timeout with timeout = 120)
+  - `frontend/src/lib/live.ts` (auth header, awaiting, new event kinds), `frontend/src/app/dashboard/layout.tsx`
+  - `frontend/src/components/dashboard/{SelfHealing,FaultLab,Sidebar}.tsx`
+  - `docs/CONTRACTS.md`, `README.md`, `.gitignore` (mlflow.db), `.claude/PHASES.md`
+- **Verified:**
+  - 114 tests pass. Policy: each of the 6 rules blocks with a readable reason; draining a core router escalates.
+  - Levels: L0 alerts only, L1 recommends, L2 waits then heals on approve, a rejection applies nothing, L3 automates only 1-flow fixes.
+  - Roles: anonymous gets 401, a viewer gets 403 on fault and approve, an operator gets 403 on autonomy; the demo login works.
+  - Ledger: an edited payload, a re-hashed edit and a deleted entry are all detected.
+  - Browser (Docker): signed out the Fault Lab is locked; signed in as admin, L2 → link fault → "waiting for approval" card with twin predictions → Approve → healed (MTTR 20 s, including the human) → Audit log "Integrity verified: all 20 entries untouched".
+  - The e2e test is stable right after engine restarts.
+- Bugs found and fixed:
+  1. `summary()` assumed every list held candidates; the rebaseline list of names crashed it, which **silently killed the tick loop** and hung every test. Fixed, and the loop now logs errors and keeps running. pytest-timeout added.
+  2. The image lacked `policies/`, `config/users.yaml` and `libatomic` (regopy), so the engine was unhealthy.
+  3. The audit order put `incident.opened` after that tick's healing step. Now causal order (test first).
+  4. The e2e test was flaky right after an engine restart (connection refused). It now waits for the engine.
