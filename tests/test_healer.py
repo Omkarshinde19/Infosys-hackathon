@@ -24,7 +24,7 @@ class Pipeline:
     def tick(self):
         samples = self.net.step()
         self.det.update(samples)
-        self.rca.update(samples, self.det.active, self.net)
+        self.rca.update(samples, self.det.active, self.net, detector=self.det)
         events = []
         if self.det.ready:
             events = self.healer.update(samples, self.rca.hypotheses, self.net, self.baseline())
@@ -163,3 +163,17 @@ def test_new_path_is_not_flagged_after_healing(fault, target, severity):
         p.tick()
     assert set(p.det.active) == {target}  # only the faulty part stays flagged
     assert any(kind == "rebaseline" for kind, _ in p.events)
+
+
+def test_gnn_still_names_the_root_cause_after_traffic_was_rerouted():
+    from services.ml.gnn import load
+
+    p = Pipeline()
+    p.rca = RCAEngine(gnn=load())
+    p.inject("gray_failure", "dist1-hostel_b", severity=0.6)
+    p.run_until("healed", max_ticks=30)
+    for _ in range(4):
+        p.tick()
+    top = p.rca.hypotheses[0]
+    assert (top.cause, top.target) == ("gray_failure", "dist1-hostel_b")
+    assert top.method_scores["gnn"] > 0.5  # it learned post-heal situations from the twin
