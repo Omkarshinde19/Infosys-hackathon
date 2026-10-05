@@ -7,6 +7,7 @@ publishes every event to Redpanda for the sink (TimescaleDB) and stream services
 import asyncio
 import json
 import os
+import time
 import traceback
 import urllib.request
 from contextlib import asynccontextmanager, suppress
@@ -105,12 +106,15 @@ def summary(payload) -> dict:
 
 
 async def tick_loop() -> None:
+    """One tick every TICK_S of wall-clock time: a tick's own work isn't added to the gap."""
+    next_at = time.monotonic()
     while True:
         try:
             await tick()
         except Exception:  # one bad tick must never freeze the live network
             traceback.print_exc()
-        await asyncio.sleep(TICK_S)
+        next_at = max(next_at + TICK_S, time.monotonic())  # after a slow tick: no catch-up burst
+        await asyncio.sleep(next_at - time.monotonic())
 
 
 async def tick() -> None:
