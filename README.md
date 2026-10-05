@@ -99,6 +99,33 @@ docs/           research, contracts, runbooks (RAG corpus)
 
 ## Running it
 
+### The `./netheal` launcher (easiest)
+
+One command does everything: it starts Docker Desktop if needed, builds and starts the whole stack, waits until the detector is ready and prints the URLs.
+
+```bash
+./netheal setup     # first time only: installs Python + Node dependencies, creates .env
+./netheal start     # start everything in Docker, then open http://localhost:3000
+```
+
+| Command | What it does |
+|---|---|
+| `./netheal start` | Starts Docker Desktop if needed, builds and starts all 7 services, waits for the detector's 30 s warm-up, prints the URLs |
+| `./netheal stop` | Stops everything |
+| `./netheal restart` | Stop, then start |
+| `./netheal status` | Container states plus health checks (engine, stream, dashboard, detector ready) |
+| `./netheal logs [service]` | Follows logs: `engine`, `stream`, `sink`, `frontend`, `redpanda`, `timescaledb`, `redis` |
+| `./netheal open` | Opens the dashboard in your browser |
+| `./netheal dev` | Runs engine + frontend locally **without Docker** (fast development); logs in `.netheal/` |
+| `./netheal dev-stop` | Stops the local dev servers |
+| `./netheal test` | Runs the test suite |
+| `./netheal e2e` | End-to-end test against the running Docker stack |
+| `./netheal train` | Regenerates 3,000 simulated faults and retrains all ML models |
+| `./netheal mlflow` | Opens the ML training runs at http://localhost:5001 |
+| `./netheal help` | Lists all commands |
+
+On first start the launcher adds a random `JWT_SECRET` to `.env`, so restarting the engine doesn't sign everyone out.
+
 **Everything in Docker (recommended for the demo):**
 
 ```bash
