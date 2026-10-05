@@ -290,3 +290,14 @@ def test_switching_to_the_emulated_backend(monkeypatch):
 
         assert client.post("/backend", headers=admin, json={"kind": "sim"}).json()["kind"] == "sim"
         assert type(main.net).__name__ == "Network"
+
+
+def test_evaluation_results_are_served(monkeypatch, tmp_path):
+    from services.gateway import main
+
+    results = tmp_path / "evaluation.json"
+    monkeypatch.setattr(main, "EVALUATION", results)
+    with TestClient(app) as client:
+        assert client.get("/evaluation").status_code == 404  # make eval not run yet
+        results.write_text(json.dumps({"meta": {"scenarios": 1}, "summary": {}, "runs": []}))
+        assert client.get("/evaluation").json()["meta"] == {"scenarios": 1}
