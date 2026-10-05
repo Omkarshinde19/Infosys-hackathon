@@ -22,7 +22,9 @@ type Summary = {
   scenarios: number;
   faults: number;
   healthy: number;
-  detection: { precision: number; recall: number; f1: number; false_positive_rate: number | null; median_mttd_s: number | null };
+  detection: {
+    precision: number; recall: number; f1: number; false_positive_rate: number | null; median_mttd_s: number | null; median_mttd_gradual_s: number | null;
+  };
   rca: { top1: number | null; top3: number | null; voting_007_top1: number | null };
   healing: {
     sla_impacting_faults: number; recovered_rate: number | null; median_recovery_s: number | null; healed_rate: number | null;
@@ -218,12 +220,19 @@ export default function EvaluationPage() {
           ["Alerts that were real (precision)", (x) => pct(x.detection.precision)],
           ["False alarms on healthy runs", (x) => pct(x.detection.false_positive_rate)],
           ["Median time to detect", (x) => sec(x.detection.median_mttd_s)],
+          ["Median time to detect, gradual faults", (x) => sec(x.detection.median_mttd_gradual_s)],
           ["Root cause right first time (top-1)", (x) => pct(x.rca.top1)],
           ["Root cause in top 3", (x) => pct(x.rca.top3)],
           ["007 voting alone (top-1)", (x) => pct(x.rca.voting_007_top1)],
         ]} />
+        <ul className="glass mt-4 list-disc space-y-2 p-6 pl-10 text-sm text-fg-muted">
+          <li>Reactive rules can recover a few more faults: they ignore the blast-radius guardrail (at most 5 flows moved automatically), for example moving every flow off a flapping internet uplink at once. NetHeal hands those to a human on purpose.</li>
+          <li>An overloaded access switch has no detour (the traffic starts there), so every policy escalates it.</li>
+          <li>No fix is rolled back: in the simulator every detour around the fault works. Testing on the twin pays off in safety (the guardrails see predicted load), and on real packets reality can differ.</li>
+          <li>Prediction detects gradual faults earlier; diagnosing that early occasionally names the wrong cause first, which is corrected before anything is applied.</li>
+        </ul>
         <p className="mt-3 text-xs text-fg-muted">
-          A flow breaks its SLA when loss is above 2% or latency more than doubles. Reactive rules apply the first detour without testing it on the twin or checking the safety rules; every policy still verifies a fix and rolls it back if it fails. Regenerate with ./netheal eval.
+          Every policy is judged on the same faults: those that broke the SLA without healing. A flow breaks its SLA when loss is above 2% or latency more than doubles. Reactive rules apply the first detour without testing it on the twin or checking the safety rules; every policy still verifies a fix and rolls it back if it fails. Regenerate with ./netheal eval.
         </p>
       </section>
     </div>
