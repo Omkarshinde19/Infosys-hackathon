@@ -62,6 +62,6 @@ test("backup demo video", async ({ page }) => {
   await page.goto("/dashboard/copilot");
   await page.getByPlaceholder(/Ask about the network/).fill("Why did the Hostel A connection fail and what did NetHeal do?");
   await page.getByLabel("Send").click();
-  await expect(page.getByText(/evidence cited/)).toBeVisible({ timeout: 90_000 });
+  await expect(page.getByText(/evidence cited/)).toBeVisible({ timeout: 150_000 }); // up to 3 model rounds
   await pause(page, 8);
 });
