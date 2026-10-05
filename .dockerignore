@@ -1,0 +1,11 @@
+# Never bake secrets or local junk into images.
+.env
+.venv
+.git
+documents
+frontend
+*.pptx
+*.jpeg
+**/__pycache__
+.pytest_cache
+.ruff_cache
