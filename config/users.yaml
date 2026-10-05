@@ -1,0 +1,15 @@
+# NetHeal accounts: salted PBKDF2-SHA256 hashes (never plain passwords).
+# Demo passwords are in config/DEMO_ACCOUNTS.md. Change them for any real deployment.
+users:
+  viewer:
+    role: viewer
+    salt: 3502b0182f362fb63edc6de5fc26d64f
+    hash: 988751f93cdb799ff8fe5e73f3e5358144e4856d4a381d45478160d76b59267e
+  operator:
+    role: operator
+    salt: a3eb4e525cf0aa08c49079f90a906d98
+    hash: f74b58596aedc77aac28e515050c15cc52d9c92b18ac1a4627e7c0d7bc8cf6c7
+  admin:
+    role: admin
+    salt: 928cdc06d4a2cc85ac942c84f859992a
+    hash: 2b411055c995c0a9f1e366ddfabb5fede4d0d6a149c95f208fdb9d89e64c1a74
