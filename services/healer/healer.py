@@ -4,8 +4,9 @@
    (link fault -> reroute around it, overloaded node -> drain it, misconfig -> roll back).
 2. Twin: try every candidate on a snapshot of the network for TWIN_TICKS and record
    the predicted latency / loss / peak utilisation of the links it will use.
-3. Guardrails: a candidate is allowed only if it restores the affected traffic,
-   keeps the links it uses under MAX_UTIL and doesn't hurt any other flow.
+3. Guardrails: the OPA Rego policy (policies/healing.rego) must allow the candidate:
+   it restores the traffic, keeps links under 85%, hurts no other flow, limits the
+   blast radius and the rate of automatic changes.
 4. Apply the best allowed candidate, watch the real network for VERIFY_TICKS and
    keep it if affected traffic is back to normal, otherwise roll back and try the next.
 """
@@ -17,12 +18,12 @@ import networkx as nx
 
 from contracts.models import ActionCandidate, ActionResult, RCAHypothesis, TwinPrediction
 from services.netsim.engine import Network
+from services.policy import Policy
 
 MIN_CONFIDENCE = 0.7
 MAX_CANDIDATES = 3
 TWIN_TICKS = 6  # 3 s of simulated time
 VERIFY_TICKS = 6
-MAX_UTIL = 0.85
 HEALTHY_LOSS_PCT = 1.0
 LATENCY_TOLERANCE = 1.1  # within 10% of the healthy baseline
 UNREACHABLE_MS = 1000.0  # how an unreachable flow counts in latency averages
@@ -31,7 +32,9 @@ Event = tuple[str, object]  # (kind, payload) streamed to the UI
 
 
 class Healer:
-    def __init__(self):
+    def __init__(self, policy: Policy | None = None):
+        self.policy = policy or Policy()
+        self.applied_at: list = []  # sim timestamps of applied actions (rate limit)
         self.handled: set[str] = set()  # incident ids already acted on
         self.pending: list[ActionCandidate] = []
         self.current: dict | None = None  # the action being verified
@@ -131,8 +134,17 @@ class Healer:
         max_util = max(t[lid].util or 0 for t in ticks for lid in used)
         c.twin_prediction = TwinPrediction(latency_ms=latency, loss_pct=loss, max_util=max_util)
         c.risk_score = round(max_util, 3)
-        safe = loss < HEALTHY_LOSS_PCT and max_util <= MAX_UTIL and other_loss < HEALTHY_LOSS_PCT
-        c.opa_decision = "allow" if safe else "deny"
+        target = c.params.get("avoid", [None])[0]
+        c.policy_reasons = self.policy.evaluate({
+            "action": {
+                "type": c.type,
+                "target_layer": net.graph.nodes[target]["layer"] if target in net.graph else None,
+                "flows_moved": list(c.params.get("routes", {})) or [c.params.get("flow")],
+            },
+            "prediction": {"loss_pct": loss, "max_util": max_util, "other_loss_pct": other_loss},
+            "actions_last_minute": sum((net.now - t).total_seconds() < 60 for t in self.applied_at),
+        })  # fmt: skip
+        c.opa_decision = "deny" if c.policy_reasons else "allow"
 
     # ---- executing ---------------------------------------------------------
 
@@ -149,6 +161,7 @@ class Healer:
 
     def apply(self, c: ActionCandidate, latest, net: Network, affected: list[str]) -> list[Event]:
         """Apply one action now and start verifying it."""
+        self.applied_at.append(net.now)
         self.current = {
             "candidate": c,
             "affected": affected,

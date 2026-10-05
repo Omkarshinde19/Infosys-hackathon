@@ -81,6 +81,7 @@ class ActionCandidate(BaseModel):
     params: dict[str, Any]
     twin_prediction: TwinPrediction | None = None
     opa_decision: Literal["allow", "deny"] | None = None
+    policy_reasons: list[str] = []  # why the guardrails denied it (empty when allowed)
     risk_score: float = 0.0
 
 
