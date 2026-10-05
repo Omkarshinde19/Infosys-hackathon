@@ -245,3 +245,25 @@ def test_level_2_waits_for_approval_over_the_api_and_everything_is_audited(monke
         assert client.get("/audit/verify").json()["valid"]
         assert events.index("incident.opened") < events.index("healing.awaiting_approval")
         client.post("/reset", headers=OP)
+
+
+def test_whatif_insights_settings_and_offline_copilot(monkeypatch):
+    from services.gateway import main
+
+    monkeypatch.setattr(main, "llm", None)  # no network in tests
+    with TestClient(app) as client:
+        plan = client.post("/whatif", json={"fault": "link_down", "target": "dist1-library"}).json()
+        assert plan["best"]["opa_decision"] == "allow" and plan["impact"]
+        assert client.post("/whatif", json={"fault": "link_down", "target": "x"}).status_code == 400
+
+        stats = client.get("/insights").json()
+        assert stats["models"]["rca"]["all_snapshots"]["gnn"] > 0.9
+        assert client.get("/insights/shap.png").headers["content-type"] == "image/png"
+
+        cfg = client.get("/settings").json()
+        assert {u["username"] for u in cfg["users"]} == {"viewer", "operator", "admin"}
+        assert "hash" not in str(cfg["users"]) and "package netheal.healing" in cfg["policy"]
+
+        assert client.post("/copilot", json={"question": "status?"}).status_code == 401
+        answer = client.post("/copilot", headers=bearer("viewer"), json={"question": "status?"})
+        assert answer.json()["source"] == "template"
