@@ -30,7 +30,7 @@ train = ["mlflow>=3.16", "shap>=0.52", "matplotlib>=3.10"]
 packages = [
     "contracts", "services", "services.netsim", "services.gateway", "services.detector", "services.rca",
     "services.healer", "services.llm",
-    "services.sink", "services.stream", "services.ml",
+    "services.sink", "services.stream", "services.ml", "services.ledger",
 ]
 
 [tool.ruff]

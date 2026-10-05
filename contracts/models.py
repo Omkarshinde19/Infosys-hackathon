@@ -118,6 +118,7 @@ class LedgerEntry(BaseModel):
     ts: datetime
     actor: Literal["system", "user"]
     event_type: str
+    payload: dict[str, Any] = {}
     payload_hash: str
     prev_hash: str
     hash: str
