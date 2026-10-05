@@ -14,6 +14,7 @@ import re
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
@@ -50,9 +51,43 @@ Sections, in this order:
 Keep it under 300 words. Plain English, no jargon without a short explanation."""
 
 
-def make_client() -> AsyncOpenAI | None:
+CLOUD = "Qualcomm Cloud AI (Cirrascale)"
+LOCAL = "Ollama on this laptop"
+LOCAL_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
+
+
+class Failover:
+    """OpenAI-compatible client that tries each (client, model, label) in order: the cloud
+    model first, then the local Ollama one, so the assistant and reports keep working
+    without internet. Each response is stamped with the model and provider that answered."""
+
+    def __init__(self, providers: list[tuple]):
+        self.providers = providers
+        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self.create))
+        self.cloud = next((c for c, _, label in providers if label == CLOUD), None)  # embeddings
+
+    async def create(self, model: str | None = None, **kwargs):
+        error = None
+        for client, name, label in self.providers:
+            try:
+                response = await client.chat.completions.create(model=name, **kwargs)
+            except Exception as e:  # offline, timeout, auth: try the next provider
+                error = e
+                continue
+            response.model, response.provider = name, label
+            return response
+        raise error
+
+
+def make_client() -> Failover | None:
+    providers = []
     key, endpoint = os.getenv("INFERENCE_CLOUD_API_KEY"), os.getenv("INFERENCE_CLOUD_ENDPOINT")
-    return AsyncOpenAI(api_key=key, base_url=endpoint) if key and endpoint else None
+    if key and endpoint:  # fail fast when the venue Wi-Fi drops: the local model takes over
+        cloud = AsyncOpenAI(api_key=key, base_url=endpoint, timeout=20, max_retries=1)
+        providers.append((cloud, MODEL, CLOUD))
+    if url := os.getenv("OLLAMA_URL"):  # e.g. http://localhost:11434/v1 (./netheal ollama)
+        providers.append((AsyncOpenAI(api_key="ollama", base_url=url), LOCAL_MODEL, LOCAL))
+    return Failover(providers) if providers else None
 
 
 def entity_namer(net: Network) -> Callable[[str], str]:
@@ -148,7 +183,8 @@ async def write_report(facts: dict, client: AsyncOpenAI | None, model: str = MOD
             )
             text = response.choices[0].message.content.strip()
             if _grounded(text, facts):
-                return _report(text, f"llm:{model}")
+                return _report(text, f"llm:{getattr(response, 'model', None) or model}",
+                               provider=getattr(response, "provider", CLOUD))  # fmt: skip
             reason = "AI draft failed the grounding check"
         except Exception as e:  # network, auth, timeout: the demo must go on
             reason = f"AI unavailable ({type(e).__name__})"
@@ -167,10 +203,13 @@ def _grounded(text: str, facts: dict) -> bool:
     return mttr is None or f"{mttr:g}" in text or f"{mttr:.1f}" in text
 
 
-def _report(markdown: str, source: str, fallback_reason: str | None = None) -> dict:
+def _report(
+    markdown: str, source: str, fallback_reason: str | None = None, provider: str | None = None
+) -> dict:
     return {
         "markdown": markdown,
         "source": source,
+        "provider": provider,
         "fallback_reason": fallback_reason,
         "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
     }

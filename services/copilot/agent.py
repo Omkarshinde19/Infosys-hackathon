@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 
 from services.copilot.rag import DocIndex
 from services.healer.whatif import what_if
-from services.llm.reports import MODEL, entity_namer
+from services.llm.reports import CLOUD, MODEL, entity_namer
 
 MAX_ROUNDS = 4
 TIMEOUT_S = 40
@@ -195,6 +195,7 @@ async def ask(question: str, history: list[dict], ctx: Context, client, model: s
     messages = [{"role": "system", "content": SYSTEM_PROMPT}, *history[-6:],
                 {"role": "user", "content": question}]  # fmt: skip
     used: list[str] = []
+    response = None
     try:
         for _ in range(MAX_ROUNDS):
             response = await asyncio.wait_for(
@@ -230,5 +231,7 @@ async def ask(question: str, history: list[dict], ctx: Context, client, model: s
     except Exception as e:  # network, auth, timeout, malformed tool call
         return await fallback(ctx, f"AI unavailable ({type(e).__name__})")
     cited = _cited(answer, ctx)
+    served = getattr(response, "model", None) or model  # the model that actually answered
     return {"answer": answer, "evidence": {k: v for k, v in ctx.evidence.items() if k in cited},
-            "tools": used, "source": f"llm:{model}", "fallback_reason": None}  # fmt: skip
+            "tools": used, "source": f"llm:{served}", "fallback_reason": None,
+            "provider": getattr(response, "provider", CLOUD)}  # fmt: skip
