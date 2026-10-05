@@ -1,10 +1,66 @@
 "use client";
 
-import { Bot, Brain, ClipboardCheck, Shield, Users } from "lucide-react";
+import { Bot, Brain, ClipboardCheck, Network, Shield, Users } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { useAuth } from "@/lib/auth";
+import { useAuth, useCan } from "@/lib/auth";
+import { postJSON } from "@/lib/live";
+
+type Backend = { kind: "sim" | "emu"; emulab_ready: boolean };
+
+/** Simulator vs the real-packet emulated network (Mininet + Open vSwitch). */
+function BackendCard() {
+  const [b, setB] = useState<Backend | null>(null);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const isAdmin = useCan("admin");
+  useEffect(() => {
+    fetch("/api/backend").then((r) => r.json()).then(setB);
+  }, []);
+
+  async function choose(kind: Backend["kind"]) {
+    setBusy(true);
+    setError("");
+    try {
+      setB(await postJSON("/backend", { kind }));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const options = [
+    ["sim", "Simulated", "Fast Python digital twin of the campus"],
+    ["emu", "Emulated (real packets)", "Mininet + Open vSwitch, OpenFlow routes, real pings and traffic"],
+  ] as const;
+  return (
+    <Card icon={Network} title="Network backend">
+      <div className="grid gap-2">
+        {options.map(([kind, label, text]) => (
+          <button
+            key={kind}
+            disabled={!isAdmin || busy || (kind === "emu" && !b?.emulab_ready)}
+            onClick={() => choose(kind)}
+            className={`rounded-xl border p-3 text-left text-sm disabled:cursor-not-allowed ${
+              b?.kind === kind ? "border-accent-2 bg-[var(--glass-hover)]" : "border-[var(--glass-border)] enabled:hover:bg-[var(--glass-hover)]"
+            }`}
+          >
+            <span className="font-medium">{label}</span>
+            <span className="block text-xs text-fg-muted">{text}</span>
+          </button>
+        ))}
+      </div>
+      <p className="mt-3 text-xs text-fg-muted">
+        {b?.emulab_ready ? "Emulated network is running." : "Emulated network is off. Start it with ./netheal emu."}{" "}
+        Switching resets the incident and the detector re-learns the new network for 30 s.
+        {!isAdmin && " Only an admin can switch."}
+      </p>
+      {error && <p className="mt-2 text-xs text-critical">{error}</p>}
+    </Card>
+  );
+}
 
 type Settings = {
   autonomy: { level: number; levels: Record<string, string> };
@@ -44,6 +100,7 @@ export default function SettingsPage() {
       </header>
 
       <div className="grid gap-4 md:grid-cols-2">
+        <BackendCard />
         <Card icon={ClipboardCheck} title="Comfort level">
           <p className="text-sm">Level {s.autonomy.level}: {s.autonomy.levels[String(s.autonomy.level)]}</p>
           <Link href="/dashboard/approvals" className="mt-3 inline-block text-sm underline">Change it on the Approvals page</Link>
