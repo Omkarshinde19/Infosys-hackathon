@@ -130,4 +130,7 @@ def test_providers_come_from_the_environment(monkeypatch):
     assert [label for *_, label in make_client().providers] == [LOCAL]
     monkeypatch.setenv("INFERENCE_CLOUD_API_KEY", "k")
     monkeypatch.setenv("INFERENCE_CLOUD_ENDPOINT", "https://example.invalid/v1")
-    assert [label for *_, label in make_client().providers] == [CLOUD, LOCAL]
+    client = make_client()
+    assert [label for *_, label in client.providers] == [CLOUD, LOCAL]
+    # Wi-Fi without internet hangs instead of failing: give up on the cloud fast.
+    assert client.providers[0][0].timeout.connect <= 3
