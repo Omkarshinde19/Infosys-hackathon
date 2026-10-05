@@ -10,6 +10,8 @@
    CLEAR_TICKS consecutive normal ticks.
 5. Change-aware: when the healer deliberately moves traffic, the elements on the new
    path re-learn their baseline for RELEARN_TICKS instead of raising false alerts.
+6. Optional forecaster (services/ml/forecast.py): flags flows predicted to breach their
+   SLA within 5 s ("forecast" warnings), upgraded to a real alert once they do degrade.
 """
 
 from collections import defaultdict, deque
@@ -36,8 +38,9 @@ FLOORS = {"latency_ms": 0.2, "loss_pct": 0.5, "util": 0.03, "cpu": 0.03}
 
 
 class Detector:
-    def __init__(self, warmup_ticks: int = WARMUP_TICKS):
+    def __init__(self, warmup_ticks: int = WARMUP_TICKS, forecaster=None):
         self.warmup_ticks = warmup_ticks
+        self.forecaster = forecaster
         self.ticks_seen = 0
         self.types: dict[str, str] = {}
         self.warmup: dict[str, list[list[float]]] = defaultdict(list)
@@ -69,6 +72,8 @@ class Detector:
         """Feed one tick. Returns (newly raised anomalies, entity ids that cleared)."""
         if not self.ready:
             self._collect(samples)
+            if self.forecaster is not None:
+                self.forecaster.update(samples, {})  # build up history during warm-up
             return [], []
 
         for s in samples:
@@ -79,12 +84,20 @@ class Detector:
                     self._baseline(s.entity_id, np.array(rows, dtype=float))
                     del self.relearning[s.entity_id]
         candidates = self._candidates(samples)
+        if self.forecaster is not None:
+            self._add_forecasts(samples, candidates)
         raised, cleared = [], []
         for s in samples:
             e = s.entity_id
             bad = e in candidates
             self.recent[e].append(bad)
             if e in self.active:
+                upgraded = (
+                    bad and self.active[e].detectors == ["forecast"] != candidates[e].detectors
+                )
+                if upgraded:  # the predicted breach is now real: replace the warning
+                    self.active[e] = candidates[e]
+                    raised.append(candidates[e])
                 self.normal_streak[e] = 0 if bad else self.normal_streak[e] + 1
                 if self.normal_streak[e] >= CLEAR_TICKS:
                     del self.active[e]
@@ -115,6 +128,17 @@ class Detector:
             # contamination="auto": anomalous when score > 0.5 (Liu et al., 2008)
             self.forests[t] = IsolationForest(n_estimators=100, random_state=0).fit(z)
         self.warmup.clear()
+
+    def _add_forecasts(self, samples: list[TelemetrySample], candidates: dict) -> None:
+        baseline = {e: float(m[0]) for e, m in self.median.items() if self.types[e] == "flow"}
+        for flow, p in self.forecaster.update(samples, baseline).items():
+            if flow not in candidates:
+                s = next(x for x in samples if x.entity_id == flow)
+                candidates[flow] = Anomaly(
+                    ts=s.ts, entity_id=flow, metric="predicted_sla_breach", value=round(p, 3),
+                    baseline=round(self.forecaster.threshold, 3), score=round(p, 3),
+                    detectors=["forecast"], severity="warning",
+                )  # fmt: skip
 
     def _baseline(self, e: str, x: np.ndarray) -> None:
         floors = np.array([FLOORS[m] for m in METRICS[self.types[e]]])
