@@ -21,7 +21,7 @@ Status: ⬜ not started · 🟨 in progress · ✅ done
 | 12 | Emulated network (Mininet + OVS, OpenFlow 1.3 via ovs-ofctl) | ✅ |
 | 13 | Evaluation harness + observability + CI/e2e | ✅ |
 | 14 | Stretch (RL agent, Neo4j, 3D view, Helm, Ollama) | ✅ (RL agent + Ollama; 3D view from Phase 3; Neo4j and Helm skipped by choice) |
-| 15 | Demo hardening | ⬜ |
+| 15 | Demo hardening | ✅ |
 
 ---
 
