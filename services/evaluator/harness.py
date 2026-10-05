@@ -152,7 +152,7 @@ def evaluate(scenarios: int, processes: int = 8) -> list[dict]:
 
 def _rate(rows, key) -> float | None:
     values = [r[key] for r in rows if r[key] is not None]
-    return round(sum(values) / len(values), 3) if values else None
+    return round(sum(values) / len(values), 4) if values else None
 
 
 def _median(values) -> float | None:

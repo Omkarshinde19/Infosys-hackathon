@@ -9,12 +9,12 @@ Policies: `no_heal` detects and diagnoses only. `reactive` diagnoses with rules 
 | | `no_heal` | `reactive` | `twin` | `predictive_twin` |
 |---|---|---|---|---|
 | Faults that hurt users without healing | 104 | 104 | 104 | 104 |
-| Recovered (SLA met, last 10 s) | 0% | 86% | 84% | 84% |
+| Recovered (SLA met, last 10 s) | 0% | 87% | 84% | 84% |
 | Median time to recover | – | 1.5 s | 1.5 s | 1.5 s |
-| Healed by a verified fix | 0% | 86% | 84% | 84% |
+| Healed by a verified fix | 0% | 87% | 84% | 84% |
 | Median MTTR (fault to verified fix) | – | 4.5 s | 4.5 s | 4.5 s |
 | Rollback rate (of applied fixes) | – | 0% | 0% | 0% |
-| Escalated to a human | 0% | 14% | 16% | 16% |
+| Escalated to a human | 0% | 13% | 16% | 16% |
 | SLA violation, total (s) | 5624 | 836 | 918 | 918 |
 | p95 flow latency during a fault | 1000.0 ms | 10.2 ms | 10.2 ms | 10.2 ms |
 

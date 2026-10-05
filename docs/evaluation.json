@@ -24,9 +24,9 @@
      "median_mttd_gradual_s": 2.5
     },
     "rca": {
-     "top1": 0.843,
-     "top3": 0.843,
-     "voting_007_top1": 0.033
+     "top1": 0.8431,
+     "top3": 0.8431,
+     "voting_007_top1": 0.0328
     },
     "healing": {
      "sla_impacting_faults": 104,
@@ -57,18 +57,18 @@
      "median_mttd_gradual_s": 2.5
     },
     "rca": {
-     "top1": 0.843,
-     "top3": 0.843,
-     "voting_007_top1": 0.033
+     "top1": 0.8431,
+     "top3": 0.8431,
+     "voting_007_top1": 0.0328
     },
     "healing": {
      "sla_impacting_faults": 104,
-     "recovered_rate": 0.865,
+     "recovered_rate": 0.8654,
      "median_recovery_s": 1.5,
-     "healed_rate": 0.865,
+     "healed_rate": 0.8654,
      "median_mttr_s": 4.5,
      "rollback_rate": 0.0,
-     "escalated_rate": 0.135
+     "escalated_rate": 0.1346
     },
     "sla": {
      "violation_s_total": 835.5,
@@ -90,18 +90,18 @@
      "median_mttd_gradual_s": 2.5
     },
     "rca": {
-     "top1": 0.843,
-     "top3": 0.843,
-     "voting_007_top1": 0.033
+     "top1": 0.8431,
+     "top3": 0.8431,
+     "voting_007_top1": 0.0328
     },
     "healing": {
      "sla_impacting_faults": 104,
-     "recovered_rate": 0.837,
+     "recovered_rate": 0.8365,
      "median_recovery_s": 1.5,
-     "healed_rate": 0.837,
+     "healed_rate": 0.8365,
      "median_mttr_s": 4.5,
      "rollback_rate": 0.0,
-     "escalated_rate": 0.163
+     "escalated_rate": 0.1635
     },
     "sla": {
      "violation_s_total": 918.0,
@@ -123,18 +123,18 @@
      "median_mttd_gradual_s": 1.8
     },
     "rca": {
-     "top1": 0.821,
-     "top3": 0.821,
-     "voting_007_top1": 0.033
+     "top1": 0.8212,
+     "top3": 0.8212,
+     "voting_007_top1": 0.0328
     },
     "healing": {
      "sla_impacting_faults": 104,
-     "recovered_rate": 0.837,
+     "recovered_rate": 0.8365,
      "median_recovery_s": 1.5,
-     "healed_rate": 0.837,
+     "healed_rate": 0.8365,
      "median_mttr_s": 4.5,
      "rollback_rate": 0.0,
-     "escalated_rate": 0.163
+     "escalated_rate": 0.1635
     },
     "sla": {
      "violation_s_total": 918.0,
@@ -429,7 +429,7 @@
      "rca": {
       "top1": 1.0,
       "top3": 1.0,
-      "voting_007_top1": 0.056
+      "voting_007_top1": 0.0556
      },
      "healing": {
       "sla_impacting_faults": 13,
@@ -462,7 +462,7 @@
      "rca": {
       "top1": 1.0,
       "top3": 1.0,
-      "voting_007_top1": 0.056
+      "voting_007_top1": 0.0556
      },
      "healing": {
       "sla_impacting_faults": 13,
@@ -495,7 +495,7 @@
      "rca": {
       "top1": 1.0,
       "top3": 1.0,
-      "voting_007_top1": 0.056
+      "voting_007_top1": 0.0556
      },
      "healing": {
       "sla_impacting_faults": 13,
@@ -526,9 +526,9 @@
       "median_mttd_gradual_s": 3.0
      },
      "rca": {
-      "top1": 0.833,
-      "top3": 0.833,
-      "voting_007_top1": 0.056
+      "top1": 0.8333,
+      "top3": 0.8333,
+      "voting_007_top1": 0.0556
      },
      "healing": {
       "sla_impacting_faults": 13,
@@ -563,7 +563,7 @@
      "rca": {
       "top1": 1.0,
       "top3": 1.0,
-      "voting_007_top1": 0.064
+      "voting_007_top1": 0.0638
      },
      "healing": {
       "sla_impacting_faults": 15,
@@ -596,7 +596,7 @@
      "rca": {
       "top1": 1.0,
       "top3": 1.0,
-      "voting_007_top1": 0.064
+      "voting_007_top1": 0.0638
      },
      "healing": {
       "sla_impacting_faults": 15,
@@ -629,7 +629,7 @@
      "rca": {
       "top1": 1.0,
       "top3": 1.0,
-      "voting_007_top1": 0.064
+      "voting_007_top1": 0.0638
      },
      "healing": {
       "sla_impacting_faults": 15,
@@ -662,7 +662,7 @@
      "rca": {
       "top1": 1.0,
       "top3": 1.0,
-      "voting_007_top1": 0.064
+      "voting_007_top1": 0.0638
      },
      "healing": {
       "sla_impacting_faults": 15,
