@@ -10,6 +10,9 @@
 4. Apply the best allowed candidate, watch the real network for VERIFY_TICKS and
    keep it if affected traffic is back to normal, otherwise roll back and try the next.
 5. Comfort (autonomy) level decides who pulls the trigger, see LEVELS.
+
+With a trained RL routing agent (services/ml/rl.py), its proposal joins the candidates in
+step 1 and goes through the same twin dry run and guardrails.
 """
 
 from itertools import islice
@@ -43,8 +46,9 @@ SMALL_FIX_RISK = 0.6
 
 
 class Healer:
-    def __init__(self, policy: Policy | None = None):
+    def __init__(self, policy: Policy | None = None, rl=None):
         self.policy = policy or Policy()
+        self.rl = rl  # optional RLPlanner
         self.level = 4
         self.awaiting: ActionCandidate | None = None  # waiting for a human (levels 2-3)
         self.awaiting_affected: list[str] = []
@@ -59,7 +63,7 @@ class Healer:
 
     def clear(self) -> None:
         level = self.level
-        self.__init__(self.policy)
+        self.__init__(self.policy, self.rl)
         self.level = level  # a network reset keeps the chosen comfort level
 
     def update(
@@ -84,7 +88,7 @@ class Healer:
             self.status = "alert_only"
             return [("no_action", "Comfort level 0 (alert only): no fix was planned.")]
 
-        candidates, affected = self.plan(top, net)
+        candidates, affected = self.plan(top, net, latest)
         if not affected:
             self.status = "no_action_needed"
             return [("no_action", "No user traffic is affected; flagged for maintenance.")]
@@ -129,7 +133,9 @@ class Healer:
 
     # ---- planning ----------------------------------------------------------
 
-    def plan(self, h: RCAHypothesis, net: Network) -> tuple[list[ActionCandidate], list[str]]:
+    def plan(
+        self, h: RCAHypothesis, net: Network, latest: dict | None = None
+    ) -> tuple[list[ActionCandidate], list[str]]:
         """Candidate actions ranked by twin prediction, and the flows they are meant to fix."""
         if h.cause == "misconfig":
             candidates = [
@@ -140,6 +146,17 @@ class Healer:
             affected = [h.target]
         else:
             candidates, affected = self._reroutes(h, net)
+            if (
+                self.rl
+                and latest
+                and affected
+                and (routes := self.rl.propose(net, latest, h.target))
+            ):
+                kind = "reroute" if h.target in net.links else "drain_node"
+                params = {"avoid": [h.target], "routes": routes, "planner": "rl"}
+                candidates.append(
+                    ActionCandidate(incident_id=h.incident_id, type=kind, params=params)
+                )
         for c in candidates:
             self._predict(c, net, affected)
         candidates.sort(key=lambda c: (c.opa_decision != "allow", c.twin_prediction.loss_pct,
