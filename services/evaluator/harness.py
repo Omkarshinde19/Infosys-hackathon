@@ -306,11 +306,16 @@ def markdown(results: dict) -> str:
         "- `reactive` can recover a few more faults than `twin`: it ignores the blast-radius "
         "guardrail (at most 5 flows moved automatically), e.g. it moves every flow off a "
         "flapping internet uplink at once. NetHeal hands those to a human on purpose.",
-        "- An overloaded access switch has no detour (the traffic starts there), so every "
-        "policy escalates it.",
-        "- No fix is rolled back: in the simulator every detour around the fault works, so "
-        "testing on the twin first can't beat a plain detour on recovery here. Its value is "
-        "safety (the guardrails see predicted load), and on real packets reality can differ.",
+        "- An overloaded access switch has no detour (the traffic starts there), so the rules "
+        "escalate it. The RL agent sometimes *mitigates* it instead, moving the switch's flows "
+        "onto less-loaded paths further up so latency is back within 10% of normal.",
+        "- Without the RL agent no fix is rolled back: in the simulator every detour around the "
+        "fault works, so testing on the twin first can't beat a plain detour on recovery. The "
+        "agent's mitigations are closer calls: some pass the twin but fail the 3 s check on the "
+        "network and are rolled back, ending no worse than without the agent.",
+        "- A mitigation of a *gradually worsening* overload can pass its check and break later. "
+        "NetHeal does not re-plan after a verified fix yet, which is why `rl` heals more "
+        "faults than it keeps recovered.",
         "- The forecaster's value is earlier detection of gradual faults. Diagnosing earlier "
         "occasionally names the wrong cause first; it is corrected before anything is applied.",
         "",
