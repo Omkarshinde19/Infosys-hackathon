@@ -24,6 +24,7 @@ dist/
 
 # ML artifacts
 mlruns/
+mlflow.db
 *.parquet
 *.pt
 *.ckpt
