@@ -60,6 +60,13 @@ export function Sidebar() {
   const connected = useLive((s) => s.connected);
   const alertCount = useLive((s) => Object.keys(s.anomalies).length);
   const pathname = usePathname();
+  const [backend, setBackend] = useState<string>("");
+  useEffect(() => {
+    const load = () => fetch("/api/backend").then((r) => r.json()).then((b) => setBackend(b.kind)).catch(() => {});
+    load();
+    const timer = setInterval(load, 10000);
+    return () => clearInterval(timer);
+  }, []);
   const waiting = useLive((s) => s.incident.awaiting !== null);
   const session = useAuth((s) => s.session);
   const logout = useAuth((s) => s.logout);
@@ -76,6 +83,11 @@ export function Sidebar() {
   return (
     <aside className="glass fixed inset-y-4 left-4 z-20 flex w-60 flex-col rounded-2xl! p-4 print:hidden">
       <Logo className="px-2 py-1 text-lg" />
+      {backend && (
+        <Link href="/dashboard/settings" className="mx-2 mt-2 w-fit rounded-full border border-[var(--glass-border)] px-2.5 py-0.5 text-[11px] text-fg-muted hover:text-fg">
+          {backend === "emu" ? "Emulated · real packets" : "Simulated network"}
+        </Link>
+      )}
 
       <nav className="mt-8 flex flex-col gap-1 text-sm">
         <Link href="/" className="flex items-center gap-3 rounded-xl px-3 py-2 text-fg-muted hover:bg-[var(--glass-hover)] hover:text-fg">
