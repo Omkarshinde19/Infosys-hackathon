@@ -177,3 +177,13 @@ def test_gnn_still_names_the_root_cause_after_traffic_was_rerouted():
     top = p.rca.hypotheses[0]
     assert (top.cause, top.target) == ("gray_failure", "dist1-hostel_b")
     assert top.method_scores["gnn"] > 0.5  # it learned post-heal situations from the twin
+
+
+def test_policy_blocks_draining_a_core_router_and_escalates():
+    p = Pipeline()
+    p.inject("node_overload", "core1", severity=0.6)
+    p.run_until("escalated", max_ticks=20)
+    proposed = next(payload for kind, payload in p.events if kind == "proposed")
+    assert all(c.opa_decision == "deny" for c in proposed)
+    assert all(any("core router" in r for r in c.policy_reasons) for c in proposed)
+    assert all(kind != "applied" for kind, _ in p.events)
