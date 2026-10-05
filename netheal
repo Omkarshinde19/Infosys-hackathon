@@ -54,7 +54,14 @@ cmd_start() {
   urls
 }
 
-cmd_stop() { bold "Stopping NetHeal…"; docker compose down; ok "Stopped"; }
+cmd_stop() { bold "Stopping NetHeal…"; docker compose --profile emu down; ok "Stopped"; }
+
+cmd_emu() {
+  ensure_docker
+  bold "Starting the emulated network (Mininet + Open vSwitch, real packets)…"
+  docker compose --profile emu up --build --detach --wait emulab
+  ok "Emulated network ready: switch to it in Settings → Network backend (admin)"
+}
 
 cmd_status() {
   bold "Containers"
@@ -115,6 +122,7 @@ NetHeal launcher
   ./netheal status         Containers, health checks, detector readiness
   ./netheal logs [service] Follow logs (engine, stream, sink, frontend, redpanda, timescaledb, redis)
   ./netheal open           Open the dashboard in your browser
+  ./netheal emu            Also start the emulated network (Mininet + Open vSwitch, real packets)
 
   ./netheal dev            Run engine + frontend locally without Docker (fast development)
   ./netheal dev-stop       Stop the local dev servers
@@ -134,6 +142,7 @@ case "${1:-help}" in
   status)   cmd_status ;;
   logs)     docker compose logs --follow --tail=100 ${2:-} ;;
   open)     open "$FRONTEND" ;;
+  emu)      cmd_emu ;;
   dev)      cmd_dev ;;
   dev-stop) cmd_dev_stop ;;
   setup)    cmd_setup ;;
