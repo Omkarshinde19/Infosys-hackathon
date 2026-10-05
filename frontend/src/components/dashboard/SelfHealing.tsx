@@ -21,7 +21,19 @@ const STATUS: Record<string, string> = {
   rolled_back: "Fix didn't help and was rolled back; trying the next one",
   no_action_needed: "No user traffic affected; flagged for maintenance",
   escalated: "Escalated: no safe automatic fix, a human needs to step in",
+  alert_only: "Comfort level 0: alerting only, no fix was planned",
+  recommended: "Comfort level 1: a tested fix is recommended, a human applies it",
+  awaiting_approval: "Waiting for a human to approve the fix",
+  rejected: "The proposed fix was rejected by a human",
 };
+
+/** "Reroute around Distribution North A ↔ Library · via Distribution North B → Core Router 1" */
+export function describeAction(c: ActionCandidate, name: (id: string) => string): string {
+  if (c.type === "rollback_config") return `Roll back forwarding rules of ${name(c.params.flow!)}`;
+  const verb = c.type === "drain_node" ? "Drain" : "Reroute around";
+  const via = Object.values(c.params.routes ?? {})[0]?.slice(1, -1).map(name).join(" → ");
+  return `${verb} ${name(c.params.avoid![0])}${via ? ` · via ${via}` : ""}`;
+}
 
 function seconds(from: string, to: string) {
   return ((new Date(to).getTime() - new Date(from).getTime()) / 1000).toFixed(1);
@@ -105,6 +117,11 @@ export function SelfHealing() {
         </div>
         <Stepper incident={incident} />
         {message && <p className="mt-6 text-sm text-fg-muted">{message}</p>}
+        {healer_status === "awaiting_approval" && (
+          <Link href="/dashboard/approvals" className="mt-6 inline-flex items-center gap-1.5 rounded-full bg-fg px-4 py-2 text-sm font-medium text-bg">
+            Review the fix on the Approvals page <ArrowRight className="size-3.5" />
+          </Link>
+        )}
       </div>
 
       <HealingResults incident={incident} actions={actions} />
@@ -121,13 +138,6 @@ export function HealingResults({ incident, actions }: { incident: Incident; acti
     actions.filter((a) => a.kind === "result").map((a) => [(a.payload as ActionResult).action_id, a.payload as ActionResult]),
   );
   const final = [...results.values()].at(-1);
-
-  function describe(c: ActionCandidate) {
-    if (c.type === "rollback_config") return `Roll back forwarding rules of ${name(c.params.flow!)}`;
-    const verb = c.type === "drain_node" ? "Drain" : "Reroute around";
-    const via = Object.values(c.params.routes ?? {})[0]?.slice(1, -1).map(name).join(" → ");
-    return `${verb} ${name(c.params.avoid![0])}${via ? ` · via ${via}` : ""}`;
-  }
 
   return (
     <>
@@ -168,7 +178,12 @@ export function HealingResults({ incident, actions }: { incident: Incident; acti
                 return (
                   <tr key={c.id} className="border-t border-[var(--glass-border)]">
                     <td className="py-2.5 text-fg-muted">{i + 1}</td>
-                    <td className="py-2.5">{describe(c)}</td>
+                    <td className="py-2.5">
+                      {describeAction(c, name)}
+                      {c.policy_reasons?.map((r) => (
+                        <p key={r} className="text-xs text-critical">Blocked: {r}</p>
+                      ))}
+                    </td>
                     <td className="py-2.5 text-right tabular-nums">{c.twin_prediction?.latency_ms.toFixed(1)} ms</td>
                     <td className="py-2.5 text-right tabular-nums">{c.twin_prediction?.loss_pct.toFixed(2)}%</td>
                     <td className="py-2.5 text-right tabular-nums">{Math.round((c.twin_prediction?.max_util ?? 0) * 100)}%</td>
