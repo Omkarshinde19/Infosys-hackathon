@@ -18,6 +18,7 @@ import {
   LogOut,
   Network,
   ScrollText,
+  Scale,
   Stethoscope,
 } from "lucide-react";
 import Link from "next/link";
@@ -76,6 +77,7 @@ export function Sidebar() {
     { href: "/dashboard/incidents", label: "Incidents & reports", icon: FileText, badge: false },
     { href: "/dashboard/approvals", label: "Approvals", icon: ClipboardCheck, badge: waiting },
     { href: "/dashboard/insights", label: "Insights", icon: BarChart3, badge: false },
+    { href: "/dashboard/evaluation", label: "Evaluation", icon: Scale, badge: false },
     { href: "/dashboard/audit", label: "Audit log", icon: ScrollText, badge: false },
     { href: "/dashboard/settings", label: "Settings", icon: Settings, badge: false },
   ];
