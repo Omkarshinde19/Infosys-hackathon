@@ -13,23 +13,32 @@ import asyncpg
 import pytest
 import websockets
 
+from tests.accounts import demo_password
+
 pytestmark = pytest.mark.skipif(not os.getenv("NETHEAL_E2E"), reason="needs `make demo` running")
 
 ENGINE = "http://localhost:8001"
 STREAM = "ws://localhost:8002/ws/live"
 DATABASE = "postgresql://netheal:netheal@localhost:5433/netheal"
+session = {}  # filled by login()
 
 
 def call(path: str, body: dict | None = None) -> dict:
     req = urllib.request.Request(
         ENGINE + path,
         data=json.dumps(body).encode() if body is not None else None,
-        headers={"content-type": "application/json"},
+        headers={"content-type": "application/json", **session},
     )
     return json.load(urllib.request.urlopen(req, timeout=10))
 
 
+def login() -> None:
+    token = call("/auth/login", {"username": "operator", "password": demo_password("operator")})
+    session["Authorization"] = f"Bearer {token['token']}"
+
+
 async def heal_through_the_stack() -> dict:
+    login()
     call("/reset", {})
     deadline = time.monotonic() + 60
     while not call("/anomalies")["ready"]:  # detector warm-up after a cold start
@@ -58,7 +67,9 @@ async def stored(incident_id: str) -> tuple:
         telemetry = await conn.fetchval(
             "SELECT count(*) FROM telemetry WHERE ts > now() - interval '1 minute'"
         )
-        events = await conn.fetchval("SELECT count(DISTINCT topic) FROM events")
+        events = await conn.fetchval(
+            "SELECT count(DISTINCT topic) FROM events WHERE topic <> 'audit'"
+        )
         return row, telemetry, events
     finally:
         await conn.close()
