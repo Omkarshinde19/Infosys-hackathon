@@ -17,7 +17,8 @@ from services.healer.whatif import what_if
 from services.llm.reports import CLOUD, MODEL, entity_namer
 
 MAX_ROUNDS = 4
-TIMEOUT_S = 40
+TIMEOUT_S = 40  # one model call
+TOTAL_S = 75  # the whole answer, however many rounds: nobody waits minutes in a demo
 
 SYSTEM_PROMPT = """You are "Ask NetHeal", the assistant of NetHeal, a self-healing campus \
 network platform. Answer questions about the live network, alerts, diagnoses, incidents, the \
@@ -25,6 +26,7 @@ audit log, how NetHeal works, and what-if scenarios.
 
 Rules:
 - Use the tools to look things up; never guess.
+- For a past incident, call list_incidents first and pass its id to get_incident.
 - Every factual sentence must cite evidence IDs exactly as the tools give them, like [E3].
   Never invent an ID.
 - You are read-only. If asked to change the network, explain that an operator can do that
@@ -197,38 +199,43 @@ async def ask(question: str, history: list[dict], ctx: Context, client, model: s
     used: list[str] = []
     response = None
     try:
-        for _ in range(MAX_ROUNDS):
-            response = await asyncio.wait_for(
-                client.chat.completions.create(
-                    model=model, messages=messages, tools=TOOLS, max_tokens=500, temperature=0.1
-                ),  # fmt: skip
-                timeout=TIMEOUT_S,
-            )
-            msg = response.choices[0].message
-            if not msg.tool_calls:
-                break
-            messages.append({"role": "assistant", "content": msg.content or "",
-                             "tool_calls": [c.model_dump() for c in msg.tool_calls]})  # fmt: skip
-            for call in msg.tool_calls:
-                used.append(call.function.name)
-                args = json.loads(call.function.arguments or "{}")
-                result = await run_tool(ctx, call.function.name, args)
-                messages.append({"role": "tool", "tool_call_id": call.id, "content": result})
-        answer = (msg.content or "").strip()
-        if ctx.evidence and not _cited(answer, ctx):  # one chance to fix missing citations
-            messages += [{"role": "assistant", "content": answer},
-                         {"role": "user", "content": "Rewrite that answer citing the evidence "
-                          "IDs from the tool results in square brackets, like [E1]."}]  # fmt: skip
-            response = await asyncio.wait_for(
-                client.chat.completions.create(
-                    model=model, messages=messages, max_tokens=500, temperature=0.1
-                ),  # fmt: skip
-                timeout=TIMEOUT_S,
-            )
-            answer = (response.choices[0].message.content or "").strip()
-        if ctx.evidence and not _cited(answer, ctx):
-            return await fallback(ctx, "AI answer did not cite its evidence")
-    except Exception as e:  # network, auth, timeout, malformed tool call
+        async with asyncio.timeout(TOTAL_S):
+            for _ in range(MAX_ROUNDS):
+                response = await asyncio.wait_for(
+                    client.chat.completions.create(
+                        model=model, messages=messages, tools=TOOLS, max_tokens=500, temperature=0.1
+                    ),  # fmt: skip
+                    timeout=TIMEOUT_S,
+                )
+                msg = response.choices[0].message
+                if not msg.tool_calls:
+                    break
+                calls = [c.model_dump() for c in msg.tool_calls]
+                messages.append({"role": "assistant", "content": msg.content or "",
+                                 "tool_calls": calls})  # fmt: skip
+                for call in msg.tool_calls:
+                    used.append(call.function.name)
+                    args = json.loads(call.function.arguments or "{}")
+                    result = await run_tool(ctx, call.function.name, args)
+                    messages.append({"role": "tool", "tool_call_id": call.id, "content": result})
+            answer = (msg.content or "").strip()
+            if ctx.evidence and not _cited(answer, ctx):  # one chance to fix missing citations
+                messages += [{"role": "assistant", "content": answer},
+                             {"role": "user", "content": "Rewrite that answer citing the "
+                              "evidence IDs from the tool results in square brackets, like "
+                              "[E1]."}]  # fmt: skip
+                response = await asyncio.wait_for(
+                    client.chat.completions.create(
+                        model=model, messages=messages, max_tokens=500, temperature=0.1
+                    ),  # fmt: skip
+                    timeout=TIMEOUT_S,
+                )
+                answer = (response.choices[0].message.content or "").strip()
+            if ctx.evidence and not _cited(answer, ctx):
+                return await fallback(ctx, "AI answer did not cite its evidence")
+    except TimeoutError:
+        return await fallback(ctx, "AI took too long to answer")
+    except Exception as e:  # network, auth, malformed tool call
         return await fallback(ctx, f"AI unavailable ({type(e).__name__})")
     cited = _cited(answer, ctx)
     served = getattr(response, "model", None) or model  # the model that actually answered
