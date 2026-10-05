@@ -70,7 +70,11 @@ export default function CopilotPage() {
   const [step, setStep] = useState(0);
   const end = useRef<HTMLDivElement>(null);
 
-  useEffect(() => end.current?.scrollIntoView({ behavior: "smooth" }), [messages, busy]);
+  useEffect(() => {
+    // Block body on purpose: scrollIntoView() now returns a Promise in Chrome, and an effect
+    // must not return anything but a cleanup function.
+    end.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, busy]);
   useEffect(() => {
     if (!busy) return;
     const timer = setInterval(() => setStep((s) => (s + 1) % THINKING.length), 3500);
