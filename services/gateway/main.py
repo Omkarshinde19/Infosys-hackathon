@@ -31,7 +31,7 @@ from services.healer.incidents import IncidentTracker
 from services.healer.whatif import what_if
 from services.ledger.ledger import Ledger
 from services.llm.reports import MODEL, entity_namer, incident_facts, make_client, write_report
-from services.ml import forecast, gnn, lstm_ae
+from services.ml import forecast, gnn, lstm_ae, rl
 from services.netsim.emu import EmuNetwork
 from services.netsim.engine import TICK_S, Network
 from services.rca.engine import RCAEngine
@@ -61,7 +61,7 @@ def emulab_ready() -> bool:
 net = new_network()
 detector = new_detector()
 rca = RCAEngine(gnn=gnn.load())
-healer = Healer()
+healer = Healer(rl=rl.load())  # the RL agent's proposal joins the twin-tested candidates
 incidents = IncidentTracker()
 ledger = Ledger()
 last_samples: list = []  # latest tick, for fixes approved between ticks
@@ -472,6 +472,7 @@ def settings() -> dict:
             "gnn": rca.gnn is not None,
             "forecaster": detector.forecaster is not None,
             "lstm_autoencoder": detector.autoencoder is not None,
+            "rl_router": healer.rl is not None,
         },  # fmt: skip
     }
 
