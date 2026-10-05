@@ -9,6 +9,7 @@
    blast radius and the rate of automatic changes.
 4. Apply the best allowed candidate, watch the real network for VERIFY_TICKS and
    keep it if affected traffic is back to normal, otherwise roll back and try the next.
+5. Comfort (autonomy) level decides who pulls the trigger, see LEVELS.
 """
 
 from itertools import islice
@@ -30,10 +31,23 @@ UNREACHABLE_MS = 1000.0  # how an unreachable flow counts in latency averages
 
 Event = tuple[str, object]  # (kind, payload) streamed to the UI
 
+LEVELS = {
+    0: "Alert only: detect and diagnose, no fix planned",
+    1: "Recommend: plan and test fixes, a human applies them",
+    2: "Ask approval: apply a fix only after a human approves it",
+    3: "Auto for small fixes: one flow at low risk is automatic, bigger fixes need approval",
+    4: "Fully automatic",
+}
+SMALL_FIX_FLOWS = 1
+SMALL_FIX_RISK = 0.6
+
 
 class Healer:
     def __init__(self, policy: Policy | None = None):
         self.policy = policy or Policy()
+        self.level = 4
+        self.awaiting: ActionCandidate | None = None  # waiting for a human (levels 2-3)
+        self.awaiting_affected: list[str] = []
         self.applied_at: list = []  # sim timestamps of applied actions (rate limit)
         self.handled: set[str] = set()  # incident ids already acted on
         self.pending: list[ActionCandidate] = []
@@ -41,7 +55,9 @@ class Healer:
         self.status = "idle"
 
     def clear(self) -> None:
-        self.__init__()
+        level = self.level
+        self.__init__(self.policy)
+        self.level = level  # a network reset keeps the chosen comfort level
 
     def update(
         self, samples, hypotheses: list[RCAHypothesis], net: Network, baseline: dict[str, float]
@@ -50,11 +66,16 @@ class Healer:
         latest = {s.entity_id: s for s in samples}
         if self.current:
             return self._verify(latest, net, baseline)
+        if self.awaiting and not hypotheses:  # the incident ended before anyone decided
+            self.awaiting, self.status = None, "idle"
 
         top = hypotheses[0] if hypotheses else None
         if not top or top.incident_id in self.handled or top.confidence < MIN_CONFIDENCE:
             return []
         self.handled.add(top.incident_id)
+        if self.level == 0:
+            self.status = "alert_only"
+            return [("no_action", "Comfort level 0 (alert only): no fix was planned.")]
 
         candidates, affected = self.plan(top, net)
         if not affected:
@@ -68,7 +89,34 @@ class Healer:
             self.status = "escalated"
             reason = "No candidate passed the safety checks; a human needs to step in."
             return [("proposed", candidates), ("escalated", reason)]
+        best = self.pending[0]
+        if self.level == 1:
+            self.status = "recommended"
+            return [("proposed", candidates), ("recommended", best)]
+        small = (
+            len(best.params.get("routes", {})) <= SMALL_FIX_FLOWS
+            and best.risk_score <= SMALL_FIX_RISK
+        )
+        if self.level == 2 or (self.level == 3 and not small):
+            self.awaiting, self.awaiting_affected = best, affected
+            self.status = "awaiting_approval"
+            return [("proposed", candidates), ("awaiting_approval", best)]
         return [("proposed", candidates), *self._apply_next(latest, net, affected)]
+
+    def approve(self, action_id: str, latest, net: Network) -> list[Event]:
+        """A human approved the waiting fix: apply it and start verifying."""
+        if not self.awaiting or self.awaiting.id != action_id:
+            raise KeyError(action_id)
+        c, affected = self.awaiting, self.awaiting_affected
+        self.awaiting = None
+        self.pending.remove(c)
+        return [("approved", c.id), *self.apply(c, latest, net, affected)]
+
+    def reject(self, action_id: str) -> list[Event]:
+        if not self.awaiting or self.awaiting.id != action_id:
+            raise KeyError(action_id)
+        self.awaiting, self.status = None, "rejected"
+        return [("rejected", action_id)]
 
     # ---- planning ----------------------------------------------------------
 
