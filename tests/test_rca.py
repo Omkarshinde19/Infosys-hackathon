@@ -118,3 +118,19 @@ def test_without_a_model_rca_is_unchanged():
     for _ in range(5):
         step(net, det, rca)
     assert "gnn" not in rca.hypotheses[0].method_scores
+
+
+@pytest.mark.parametrize("value", [0.0, float("nan")])
+def test_ensemble_ignores_a_gnn_with_no_valid_pick(value):
+    """Seen live after an emu -> sim switch: masked probabilities with no usable maximum made
+    the GNN's "top pick" the 'none' class, and building that hypothesis crashed RCA each tick."""
+    import torch
+
+    from services.ml.gnn import ensemble
+    from services.ml.graph import CAUSES
+
+    ids = ["dist1-library", "core1"]
+    probs = torch.full((len(ids), len(CAUSES)), value)
+    ranked = ensemble([("link_failure", "dist1-library", 0.9, 1.0)], probs, ids)
+    assert [(c, t) for c, t, *_ in ranked] == [("link_failure", "dist1-library")]
+    assert ranked[0][3] == 0.0

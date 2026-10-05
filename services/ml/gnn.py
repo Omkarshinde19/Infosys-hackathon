@@ -54,16 +54,18 @@ def ensemble(rules: list[tuple], probs: torch.Tensor, ids: list[str]) -> list[tu
     """Combine rule hypotheses (cause, target, signature, vote) with the GNN.
 
     Returns (cause, target, confidence, gnn_probability) best first. If the GNN's own top
-    pick isn't among the rule hypotheses it is added with signature 0 and vote 0.5.
+    pick isn't among the rule hypotheses it is added with signature 0 and vote 0.5. A GNN with
+    no valid pick (every masked probability 0 or NaN) adds nothing.
     """
+    probs = probs.nan_to_num(0.0)
     index = {v: i for i, v in enumerate(ids)}
 
     def p(cause: str, target: str) -> float:
         return float(probs[index[target], CAUSES.index(cause)])
 
     candidates = [(c, t, s, v) for c, t, s, v in rules]
-    g_cause, g_target, _ = top(probs, ids)
-    if all((c, t) != (g_cause, g_target) for c, t, *_ in candidates):
+    g_cause, g_target, g_p = top(probs, ids)
+    if g_p > 0 and all((c, t) != (g_cause, g_target) for c, t, *_ in candidates):
         candidates.append((g_cause, g_target, 0.0, 0.5))
     ranked = [
         (c, t, W_SIGNATURE * s + W_VOTE * v + W_GNN * p(c, t), p(c, t)) for c, t, s, v in candidates
