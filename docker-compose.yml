@@ -1,0 +1,99 @@
+# NetHeal demo stack: `make demo` (see README).
+#   engine   - sim -> detect -> diagnose -> heal loop + REST API   http://localhost:8001
+#   stream   - Redpanda -> WebSocket fan-out (+ Redis catch-up)    ws://localhost:8002/ws/live
+#   sink     - Redpanda -> TimescaleDB history                      postgres://localhost:5433
+#   frontend - Next.js dashboard                                    http://localhost:3000
+name: netheal
+
+x-python: &python
+  build: { context: ., dockerfile: docker/python.Dockerfile }
+  image: netheal-python
+  restart: on-failure
+
+services:
+  redpanda:
+    image: redpandadata/redpanda:v26.2.3
+    command:
+      - redpanda
+      - start
+      - --mode=dev-container
+      - --smp=1
+      - --memory=1G
+      - --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr=internal://redpanda:9092,external://localhost:19092
+    ports: ["19092:19092"]
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -E 'Healthy:.+true'"]
+      interval: 3s
+      retries: 30
+
+  timescaledb:
+    image: timescale/timescaledb:latest-pg17
+    environment:
+      POSTGRES_USER: netheal
+      POSTGRES_PASSWORD: netheal
+      POSTGRES_DB: netheal
+    volumes:
+      - ./infra/timescale/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - tsdata:/var/lib/postgresql/data
+    ports: ["5433:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U netheal -d netheal"]
+      interval: 3s
+      retries: 30
+
+  redis:
+    image: redis:8-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      retries: 30
+
+  engine:
+    <<: *python
+    command: uvicorn services.gateway.main:app --host 0.0.0.0 --port 8000
+    environment:
+      KAFKA_BOOTSTRAP: redpanda:9092
+    env_file: [{ path: .env, required: false }]  # LLM key, passed at runtime only
+    ports: ["8001:8000"]
+    depends_on:
+      redpanda: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/topology')"]
+      interval: 3s
+      retries: 30
+
+  sink:
+    <<: *python
+    command: python -m services.sink.main
+    environment:
+      KAFKA_BOOTSTRAP: redpanda:9092
+      DATABASE_URL: postgresql://netheal:netheal@timescaledb:5432/netheal
+    depends_on:
+      redpanda: { condition: service_healthy }
+      timescaledb: { condition: service_healthy }
+
+  stream:
+    <<: *python
+    command: uvicorn services.stream.main:app --host 0.0.0.0 --port 8000
+    environment:
+      KAFKA_BOOTSTRAP: redpanda:9092
+      REDIS_URL: redis://redis:6379
+    ports: ["8002:8000"]
+    depends_on:
+      redpanda: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 3s
+      retries: 30
+
+  frontend:
+    build: { context: frontend }
+    ports: ["3000:3000"]
+    depends_on:
+      engine: { condition: service_healthy }
+      stream: { condition: service_healthy }
+
+volumes:
+  tsdata:
