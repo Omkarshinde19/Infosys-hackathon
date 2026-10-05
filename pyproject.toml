@@ -31,6 +31,7 @@ packages = [
     "contracts", "services", "services.netsim", "services.gateway", "services.detector", "services.rca",
     "services.healer", "services.llm",
     "services.sink", "services.stream", "services.ml", "services.ledger",
+    "services.copilot",
 ]
 
 [tool.ruff]
