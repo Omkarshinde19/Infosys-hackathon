@@ -1,6 +1,6 @@
 PY := .venv/bin/python
 
-.PHONY: install test lint dev demo down logs e2e train mlflow
+.PHONY: install test lint dev demo down logs e2e train mlflow eval
 
 install:
 	python3 -m venv .venv
@@ -40,3 +40,7 @@ train:
 # Browse training runs at http://localhost:5001
 mlflow:
 	$(PY) -m mlflow ui --port 5001
+
+# Hundreds of held-out fault scenarios x 4 policies -> docs/EVALUATION.md + docs/evaluation.json
+eval:
+	$(PY) -m services.evaluator.harness
