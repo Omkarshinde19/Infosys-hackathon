@@ -277,3 +277,49 @@ def test_replans_when_a_premature_diagnosis_is_corrected():
     healer.status = "healed"
     third = healer.update(samples, hypothesis("flapping", "dist1-library"), net, baseline)
     assert third == []  # once a fix is applied, a refined diagnosis doesn't trigger another
+
+
+class FakeRL:
+    """Stands in for the trained agent: proposes fixed routes."""
+
+    def __init__(self, routes):
+        self.routes, self.calls = routes, []
+
+    def propose(self, net, latest, target):
+        self.calls.append(target)
+        return self.routes
+
+
+def _broken_library(healer):
+    from contracts.models import RCAHypothesis
+
+    net = Network(seed=3)
+    net.inject_fault("link_down", "dist1-library")
+    latest = {s.entity_id: s for s in net.step()}
+    h = RCAHypothesis(incident_id="i", cause="link_failure", target="dist1-library",
+                      confidence=0.9, evidence=[], method_scores={})  # fmt: skip
+    return healer.plan(h, net, latest)
+
+
+def test_rl_proposal_is_twin_tested_and_policy_checked_like_any_fix():
+    detour = ["library", "dist2", "core1", "internet"]
+    rl = FakeRL({"library-internet": detour})
+    candidates, affected = _broken_library(Healer(rl=rl))
+    assert rl.calls == ["dist1-library"] and affected == ["library-internet"]
+    proposal = next(c for c in candidates if c.params.get("planner") == "rl")
+    assert proposal.params["routes"] == {"library-internet": detour}
+    assert proposal.params["avoid"] == ["dist1-library"]
+    assert proposal.twin_prediction.loss_pct < 1 and proposal.opa_decision == "allow"
+
+
+def test_a_bad_rl_proposal_loses_to_the_rule_fixes():
+    through_fault = ["library", "dist1", "core2", "internet"]  # still crosses the dead link
+    candidates, _ = _broken_library(Healer(rl=FakeRL({"library-internet": through_fault})))
+    assert candidates[0].params.get("planner") != "rl"
+    assert candidates[-1].params.get("planner") == "rl"
+    assert candidates[-1].twin_prediction.loss_pct > 50
+
+
+def test_no_rl_candidate_when_the_agent_moves_nothing():
+    candidates, _ = _broken_library(Healer(rl=FakeRL({})))
+    assert all(c.params.get("planner") != "rl" for c in candidates)
