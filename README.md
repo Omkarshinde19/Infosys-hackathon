@@ -117,6 +117,8 @@ make down      # stop it
 
 Before the venue (offline), run `make demo` once so all images are built and pulled.
 
+**Sign in:** anyone can watch the dashboard. To inject faults, approve fixes or change the comfort level, sign in at http://localhost:3000/login. Demo accounts (viewer / operator / admin) are in [config/DEMO_ACCOUNTS.md](config/DEMO_ACCOUNTS.md).
+
 **Machine learning:** `make train` regenerates 3,000 simulated faults and retrains the GNN, forecaster and LSTM autoencoder (~3 min); `make mlflow` opens the training runs at http://localhost:5001. See [theory/ML.md](theory/ML.md).
 
 **Local development (no Docker):**
