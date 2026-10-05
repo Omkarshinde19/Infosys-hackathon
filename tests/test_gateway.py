@@ -243,4 +243,5 @@ def test_level_2_waits_for_approval_over_the_api_and_everything_is_audited(monke
                          "healing.result"]:  # fmt: skip
             assert expected in events
         assert client.get("/audit/verify").json()["valid"]
+        assert events.index("incident.opened") < events.index("healing.awaiting_approval")
         client.post("/reset", headers=OP)

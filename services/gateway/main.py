@@ -104,20 +104,17 @@ async def heal(samples) -> None:
 
 async def handle(events: list) -> None:
     """Apply side effects of healing events, record them, update and stream the incident."""
+    before = incidents.current
+    changed = incidents.update(net.now, detector.active, rca.hypotheses, events)
+    switched = incidents.current is not before
+    if switched and incidents.current:  # audit in causal order: opened, healing steps, closed
+        await audit("system", "incident.opened", {"incident": incidents.current.id})
     for kind, payload in events:
         if kind == "rebaseline":  # traffic moved on purpose: new normal for the new path
             detector.relearn(payload)
         await audit("system", f"healing.{kind}", summary(payload))
-    before = incidents.current
-    changed = incidents.update(net.now, detector.active, rca.hypotheses, events)
-    if incidents.current is not before:
-        opened, closed = incidents.current, before
-        if closed:
-            await audit(
-                "system", "incident.closed", {"incident": closed.id, "status": closed.status}
-            )
-        if opened:
-            await audit("system", "incident.opened", {"incident": opened.id})
+    if switched and before:
+        await audit("system", "incident.closed", {"incident": before.id, "status": before.status})
     if changed:
         for kind, payload in events:
             await broadcast(Envelope(type="action", data={"kind": kind, "payload": payload}))
