@@ -16,7 +16,8 @@ NetHeal combines **classic statistics, machine learning and a language model**. 
 | Predict | **Gradient-boosted forecaster** + **SHAP** | Supervised ML + explainability | ~600,000 labelled flow moments from 3,000 simulated faults | "Will this flow breach its SLA in the next 5 s?" (early warning) |
 | Diagnose | **Fault signatures + 007 voting** | Expert rules | Networking knowledge + the 007 paper | "What broke, and where?" |
 | Diagnose | **Graph neural network (GraphSAGE)** | Supervised deep learning on graphs | ~6,300 labelled network snapshots | A learned, independent second opinion on the root cause |
-| Explain | **Llama-3.3-70B** (Qualcomm Cloud AI) | Large language model | Pre-trained (not trained by us) | Plain-English incident reports, grounded in facts |
+| Heal | **PPO reinforcement-learning agent** (Stable-Baselines3) | Reinforcement learning | 300,000 healing decisions tried in the digital twin | Proposes which flows to move where; tested on the twin like every other fix |
+| Explain | **Llama-3.3-70B** (Qualcomm Cloud AI), **qwen2.5:7b** (Ollama) offline | Large language models | Pre-trained (not trained by us) | Plain-English incident reports and Ask NetHeal, grounded in facts |
 
 > **Golden rule:** no ML model and no LLM can change the network on its own. Models raise alerts and give opinions. Fixes are chosen by the healer, tested on the digital twin and checked against safety rules first.
 
@@ -32,6 +33,7 @@ flowchart LR
     R --> E[Ensemble diagnosis]
     G --> E
     E --> H[Healer + digital twin]
+    RL[RL routing agent] -.->|one more candidate| H
     H --> L[LLM report]
 ```
 
@@ -56,7 +58,7 @@ For each of **3,000 scenarios**:
    - What the **rules** and **007 voting alone** answered at that moment, for a fair comparison.
    - Every flow's latency and loss over time, for the forecaster.
 
-Snapshots are taken **after diagnosis but before healing** within each tick, the same order the live engine uses. An early version took them after healing, and the GNN never saw "link broken, traffic still failing", which is exactly when it is needed live (see §8).
+Snapshots are taken **after diagnosis but before healing** within each tick, the same order the live engine uses. An early version took them after healing, and the GNN never saw "link broken, traffic still failing", which is exactly when it is needed live (see §9).
 
 **Split:** by scenario: 70% train, 15% validation, 15% test. A model is never tested on a scenario it trained on.
 **Speed:** 3,000 scenarios in ~74 s on 8 CPU cores.
@@ -200,17 +202,48 @@ The Diagnosis section shows all three as bars, and the evidence includes *"Graph
 
 ---
 
-## 6. Explanation: the language model
+## 6. Healing: the RL routing agent
+
+**Code:** [`services/ml/rl.py`](../services/ml/rl.py) (live) · [`ml/train_rl.py`](../ml/train_rl.py) (training)
+
+- **What it decides:** for every one of the 9 flows, one of its 8 candidate paths (every distribution × core combination). Moving a flow = choosing a different path.
+- **What it sees:** link load, loss and latency, device CPU, each flow's loss, latency and current path, and where the diagnosis says the fault is (a 237-number vector).
+- **How it is trained (PPO, Stable-Baselines3):** 300,000 one-step episodes in the digital twin. Each episode, a warmed-up campus gets a random link or device fault (the same generator as the GNN's data), the agent picks routes, and the choice is judged **exactly the way NetHeal judges any fix**: a 3-second twin dry run plus the OPA guardrails.
+  ```
+  reward = +1 if the affected traffic is healthy again and the guardrails allow it
+           − packet loss of the affected traffic
+           − 0.02 per flow moved          (smaller changes are safer)
+           − 1 if the guardrails deny it
+  ```
+- **Safety (a "shield"):** the agent never touches the network. Its proposal joins the rule-based candidates, gets the same twin test and policy check, and is chosen only if the twin predicts it is better. In safe-RL terms, the twin + OPA are a *shield* that blocks unsafe actions at run time.
+
+**Results** on 600 held-out decisions (networks and seeds never seen in training), from [`rl_eval.json`](../services/ml/models/rl_eval.json):
+
+| | Fixed (healthy + allowed) | Overloaded device | Link / gray / congestion / flapping | Flows moved |
+|---|---|---|---|---|
+| Rule planner (twin-ranked) | 77.3% | 53.5% | same as RL | 1.43 |
+| **RL agent** | **80.0%** | **61.5%** | same as rules | 1.82 |
+| Twin picks the better of the two (live) | 80.5% | 63.0% | same | 1.57 |
+
+What it learned (checked episode by episode):
+- On link faults the obvious detour is already the best move, so the agent matches the rules.
+- All of its wins (21 of the 600) are **overloaded access switches**. The rules have no candidate there: the traffic starts at that switch, so it can't be drained. The agent instead moves one flow onto a less-loaded distribution/core path; the lower queueing elsewhere brings the flow's latency back within 10% of normal while the switch itself is still overloaded. That is load-aware traffic engineering: a **mitigation**, not a repair. The switch stays flagged for a human.
+- It is worse than the rules on 3 overloaded distribution switches, and it moves a few more flows than needed on average. That is why it only proposes: the twin picks whichever candidate is predicted to be better.
+
+---
+
+## 7. Explanation: the language model
 
 **Code:** [`services/llm/reports.py`](../services/llm/reports.py)
 
 - **Model:** **Llama-3.3-70B** on **Qualcomm Cloud AI** (Cirrascale AI Suite), via its OpenAI-compatible API.
 - **We don't train it.** We give it a *fact sheet* built from the incident (devices, cause, evidence, fix, MTTD/MTTR, before/after) and instructions to use only those facts.
 - **Grounding check:** a draft is rejected unless it names the real cause, every device at the root cause, and the real time-to-heal. Rejected or unavailable means a built-in template writes the report instead, so it works offline.
+- **Offline backup:** if the cloud model can't be reached (e.g. venue Wi-Fi), the same request goes to **qwen2.5:7b** running locally in Ollama (`./netheal ollama`), which also supports the assistant's tool calls. Every answer and report says which model and provider wrote it.
 
 ---
 
-## 7. MLflow: tracking every training run
+## 8. MLflow: tracking every training run
 
 Each training script logs its **parameters, per-epoch metrics, final evaluation and model files** to MLflow (`./mlruns`):
 
@@ -219,15 +252,16 @@ Each training script logs its **parameters, per-epoch metrics, final evaluation 
 | `netheal-rca-gnn` | graphsage-3x64 | train loss, validation accuracy per epoch, test accuracy for rules / GNN / ensemble / 007 |
 | `netheal-forecaster` | hgb-sla-breach-5s | warned-before-breach %, lead time, false warnings, precision, SHAP plot |
 | `netheal-lstm-autoencoder` | lstm-ae-16 | training MSE per epoch, detection rate, false-positive rate |
+| `netheal-rl-router` | ppo-mlp-2x128 | fixed / denied / flows moved for the agent, the rules and the better of both |
 
 ```bash
 make mlflow   # open http://localhost:5001
-make train    # regenerate the scenarios and retrain all three models (~3 min)
+make train    # regenerate the scenarios and retrain every model (~30 min, the RL agent is ~25 of it)
 ```
 
 ---
 
-## 8. Lessons learned while building this
+## 9. Lessons learned while building this
 
 1. **Measure before trusting a threshold.** The first Isolation Forest threshold silently vetoed real faults.
 2. **Make training data match production timing.** Snapshotting after healing hid the exact moment the GNN is used live. The GNN said "0%" on a real fault until this was fixed.
@@ -239,7 +273,7 @@ make train    # regenerate the scenarios and retrain all three models (~3 min)
 
 **Retraining note (Phase 12):** the GNN and LSTM autoencoder were retrained after the detector's latency noise floor changed (0.2 → 0.5 ms), because both take z-scores as input; their results above are from that retrain. The forecaster's inputs don't depend on the floor, so it was kept: a retrain on a fresh random scenario set came out worse (85.9% warned early, 3 false warnings) and was discarded.
 
-## 9. Files
+## 10. Files
 
 | File | What |
 |---|---|
@@ -251,4 +285,6 @@ make train    # regenerate the scenarios and retrain all three models (~3 min)
 | [`services/ml/gnn.py`](../services/ml/gnn.py) | GNN model, ensemble, loading |
 | [`services/ml/forecast.py`](../services/ml/forecast.py) | Forecaster features and live scorer |
 | [`services/ml/lstm_ae.py`](../services/ml/lstm_ae.py) | Autoencoder model and live scorer |
+| [`ml/train_rl.py`](../ml/train_rl.py) | RL environment (one healing decision per episode), PPO training, comparison with the rules |
+| [`services/ml/rl.py`](../services/ml/rl.py) | RL observation, candidate paths and live planner |
 | [`services/ml/models/`](../services/ml/models/) | Trained models + evaluation JSONs + SHAP plot |
