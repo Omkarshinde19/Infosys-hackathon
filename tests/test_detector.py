@@ -144,3 +144,25 @@ def test_clear_restores_warmup_baselines_and_forgets_ml_history():
     det.clear()  # e.g. the network was reset
     assert (det.median["dist2-library"] == original).all()
     assert det.relearning == {} and len(det.forecaster.history) == 0
+
+
+def bump_latency(samples, link: str, ms: float):
+    return [s.model_copy(update={"latency_ms": s.latency_ms + ms}) if s.entity_id == link else s
+            for s in samples]  # fmt: skip
+
+
+def test_brief_latency_only_blip_does_not_alert_but_sustained_does():
+    """Latency rising without load or loss (e.g. a CPU hiccup) must persist ~3-4 s to alert."""
+    net, det = trained()
+    for _ in range(4):  # 2 s blip on a lightly loaded link
+        raised, _ = det.update(bump_latency(net.step(), "dist1-library", 6.0))
+        assert "dist1-library" not in {a.entity_id for a in raised}
+    for _ in range(10):
+        det.update(net.step())
+    alerted_at = None
+    for tick in range(10):  # now it stays high
+        raised, _ = det.update(bump_latency(net.step(), "dist1-library", 6.0))
+        if any(a.entity_id == "dist1-library" for a in raised):
+            alerted_at = tick
+            break
+    assert alerted_at is not None and alerted_at >= 5  # held back until sustained
