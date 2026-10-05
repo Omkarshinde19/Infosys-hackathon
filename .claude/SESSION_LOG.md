@@ -30,7 +30,7 @@
 | 16 | 10-05 | Build Phase 9 (advanced ML) + theory/ML.md | see entry 16 | `dd76719`…`b86c5a3` |
 | 17 | 10-05 | Build Phase 10 (safety + control) | see entry 17 | `d5aa1a9`…`5e04f23` |
 | 18 | 10-06 | Build Phase 11 (remaining pages + Ask NetHeal) + `./netheal` launcher; README commands | see entry 18 | `9d7a32b`…`5d6fc47` |
-| 19 | 10-06 | Session log entry for msg 18, then Phase 12 (emulated network) | see entry 19 | (this commit) |
+| 19 | 10-06 | Session log entry for msg 18, then Phase 12 (emulated network) | see entry 19 | `c3e2b36`…`a282402` + log commit |
 
 ---
 
@@ -365,3 +365,39 @@
   - Ask NetHeal answers take ~15–30 s (multi-round tool calls), so the UI shows rotating "thinking" text.
   - The copilot stage stays dark in light theme, matching the reference.
   - The turn ended at the usage limit; this entry was written in msg 19.
+
+### Msg 19 · Session log for msg 18, then Phase 12: emulated network ✅
+- Request: "no worries about the time, do the session log entry and then begin with the phase 12"
+- Research (Rule 3):
+  - Docker Desktop's kernel has Open vSwitch built in (`CONFIG_OPENVSWITCH=y`), so `ovs-ctl`'s `modprobe` fails and Mininet hangs. Fix: start `ovsdb-server` with `ovs-ctl --no-ovs-vswitchd`, then run `ovs-vswitchd` by hand.
+  - os-ken controller dropped: the engine already owns path computation, so OpenFlow 1.3 rules go straight to the switches with `ovs-ofctl` (one cookie per flow, `add-flows` / `replace-flows` from a file). Less to run, same real data plane.
+  - iperf3 UDP `--pacing-timer 100` (default 1000 µs) smooths the bursts that made queue-delay samples spiky.
+- **Created:**
+  - `emulab/Dockerfile`, `emulab/entrypoint.sh`, `emulab/agent.py` (Mininet campus from `topology/campus.yaml`; TCLink htb + netem at bandwidth × 0.01; iperf3 per flow; 10 pings per tick; faults via tc / link status / OpenFlow drop rules; `/health /reset /route /fault /clear_faults /rollback_config /telemetry`)
+  - `services/netsim/emu.py` (`EmuNetwork`: simulator interface, agent-backed, simulator twin for dry runs)
+  - `tests/test_emu.py` (FakeAgent, 4 tests), `tests/e2e/test_emulated.py`
+- **Modified:**
+  - `docker-compose.yml` (`emulab` service, profile `emu`, privileged, port 9000; engine `EMULAB_URL`)
+  - `services/gateway/main.py` (`GET/POST /backend` admin switch, 409 if the emulator isn't ready, clears emulator faults when leaving emu, audited `backend.switched`; `net.step` runs in a thread)
+  - `services/healer/healer.py` (`tried` / `acted` instead of `handled`: re-plan when a diagnosis is corrected before any fix)
+  - `services/detector/detector.py` (latency-only anomalies need 6 of the last 8 ticks; latency floor 0.5 ms)
+  - `services/ml/gnn.py:53-72` (ensemble ignores a GNN with no valid pick: NaN → 0, no "none" candidate)
+  - `services/ml/models/{rca_gnn.pt,rca_eval.json,lstm_ae.pt,lstm_ae_eval.json}` (retrained for the new floor; the forecaster got worse, 85.9% with 3 false warnings, so it was kept as before)
+  - `frontend/src/app/dashboard/settings/page.tsx` (`BackendCard`), `frontend/src/components/dashboard/Sidebar.tsx` (backend badge)
+  - `netheal` (`./netheal emu`; `stop` also stops the emulator)
+  - `tests/{test_gateway,test_healer,test_detector,test_rca}.py`
+  - `README.md` (simulated vs emulated table), `docs/CONTRACTS.md` (backend + agent API), `theory/ML.md` (new numbers, persistence rule), `.claude/PHASES.md` (Phase 12 ✅)
+- **Verified:**
+  - emulated e2e on real packets: `MTTD 1.5 s, MTTR 4.5 s, latency 1000.0 -> 8.4 ms, loss 100% -> 0.0%`
+  - `test_emulated` then `test_stack` in one run (emu → sim switch): 2 passed; no `ValidationError` in the engine log
+  - 135 unit tests pass, ruff clean
+  - zero false alerts over 240 s of idle emulated traffic
+- Bugs found and fixed:
+  1. `POST /backend` timed out: the agent's `/reset` took ~15 s (30 `ovs-ofctl` calls per route). Cookie-tagged batched rules: reset 0.49 s, reroute 0.14 s.
+  2. Emulated healing never happened: a flow alert arrived before its link alert, RCA said misconfig, the healer escalated and never looked again. The healer now re-plans for a new (cause, target) unless it already acted (test first).
+  3. False latency alerts on busy access links from real queue snapshots (z ≈ 20–30). EWMA alone (0.2, then 0.1) didn't fix it; the persistence rule plus the 0.5 ms floor did (test first).
+  4. Switching back to the simulator left emulator faults in place: now cleared on switch.
+  5. After an emu → sim switch, RCA crashed every tick building an `RCAHypothesis` with cause "none": the GNN's top pick had no valid probability. Could not reproduce in-process or against the real emulator, so it was fixed defensively in `ensemble()` with a regression test (all-zero and NaN probabilities).
+- Notes:
+  - One full-suite failure was seen once under emulator CPU load; reruns pass. Watch for it in Phase 13 CI.
+  - Node overload is emulated as extra delay + loss on attached links; node CPU stays modelled (Mininet switches have no real CPU to load).
