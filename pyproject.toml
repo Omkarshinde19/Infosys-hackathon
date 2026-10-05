@@ -18,6 +18,8 @@ dependencies = [
     "redis>=8.1",
     "torch>=2.14",
     "torch-geometric>=2.8",
+    "regopy>=1.5",
+    "pyjwt>=2.15",
 ]
 
 [project.optional-dependencies]
