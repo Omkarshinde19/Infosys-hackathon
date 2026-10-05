@@ -8,6 +8,7 @@ RUN_DIR=.netheal            # pids + logs for `dev` mode
 ENGINE=http://localhost:8001
 FRONTEND=http://localhost:3000
 STREAM=http://localhost:8002
+OTLP=http://jaeger:4317
 bold() { printf "\033[1m%s\033[0m\n" "$*"; }
 ok()   { printf "  \033[32m✔\033[0m %s\n" "$*"; }
 bad()  { printf "  \033[31m✘\033[0m %s\n" "$*"; }
@@ -45,22 +46,40 @@ wait_ready() {
   echo; bad "Detector not ready yet (check ./netheal logs engine)"
 }
 
+keep_tracing() {
+  # After ./netheal obs, keep sending traces when the stack is restarted.
+  [[ -n $(docker compose --profile obs ps -q jaeger 2>/dev/null) ]] && export NETHEAL_OTLP=$OTLP
+  return 0
+}
+
 cmd_start() {
   ensure_secret
   ensure_docker
+  keep_tracing
   bold "Building and starting the stack (first time takes a few minutes)…"
   docker compose up --build --detach --wait
   wait_ready
   urls
 }
 
-cmd_stop() { bold "Stopping NetHeal…"; docker compose --profile emu down; ok "Stopped"; }
+cmd_stop() { bold "Stopping NetHeal…"; docker compose --profile emu --profile obs down; ok "Stopped"; }
 
 cmd_emu() {
   ensure_docker
   bold "Starting the emulated network (Mininet + Open vSwitch, real packets)…"
   docker compose --profile emu up --build --detach --wait emulab
   ok "Emulated network ready: switch to it in Settings → Network backend (admin)"
+}
+
+cmd_obs() {
+  ensure_secret
+  ensure_docker
+  bold "Starting Prometheus, Grafana and Jaeger, and turning on tracing…"
+  NETHEAL_OTLP=$OTLP docker compose --profile obs up --build --detach --wait
+  wait_ready
+  echo "  Grafana     http://localhost:3001   (NetHeal platform dashboard)"
+  echo "  Traces      http://localhost:16686  (Jaeger: pick netheal-engine)"
+  echo "  Prometheus  http://localhost:9090"
 }
 
 cmd_status() {
@@ -123,6 +142,7 @@ NetHeal launcher
   ./netheal logs [service] Follow logs (engine, stream, sink, frontend, redpanda, timescaledb, redis)
   ./netheal open           Open the dashboard in your browser
   ./netheal emu            Also start the emulated network (Mininet + Open vSwitch, real packets)
+  ./netheal obs            Also start Grafana, Prometheus and Jaeger (NetHeal's own metrics + traces)
 
   ./netheal dev            Run engine + frontend locally without Docker (fast development)
   ./netheal dev-stop       Stop the local dev servers
@@ -130,6 +150,7 @@ NetHeal launcher
   ./netheal setup          First-time install of Python and Node dependencies
   ./netheal test           Run the test suite
   ./netheal e2e            End-to-end test against the running Docker stack
+  ./netheal eval           Replay hundreds of faults under 4 policies -> docs/EVALUATION.md
   ./netheal train          Regenerate simulated faults and retrain all ML models
   ./netheal mlflow         Browse training runs at http://localhost:5001
 EOF
@@ -143,11 +164,13 @@ case "${1:-help}" in
   logs)     docker compose logs --follow --tail=100 ${2:-} ;;
   open)     open "$FRONTEND" ;;
   emu)      cmd_emu ;;
+  obs)      cmd_obs ;;
   dev)      cmd_dev ;;
   dev-stop) cmd_dev_stop ;;
   setup)    cmd_setup ;;
   test)     make test ;;
   e2e)      make e2e ;;
+  eval)     make eval ;;
   train)    make train ;;
   mlflow)   make mlflow ;;
   help|-h|--help) cmd_help ;;
