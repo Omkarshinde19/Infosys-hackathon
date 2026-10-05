@@ -1,0 +1,146 @@
+#!/usr/bin/env bash
+# NetHeal launcher: one command to run, stop and inspect everything.
+# Usage: ./netheal <command>   (./netheal help for the list)
+set -euo pipefail
+cd "$(dirname "$0")"
+
+RUN_DIR=.netheal            # pids + logs for `dev` mode
+ENGINE=http://localhost:8001
+FRONTEND=http://localhost:3000
+STREAM=http://localhost:8002
+bold() { printf "\033[1m%s\033[0m\n" "$*"; }
+ok()   { printf "  \033[32m✔\033[0m %s\n" "$*"; }
+bad()  { printf "  \033[31m✘\033[0m %s\n" "$*"; }
+
+ensure_secret() {
+  # A stable session secret, so restarting the engine doesn't sign everyone out.
+  touch .env
+  grep -q '^JWT_SECRET' .env && return
+  [[ -s .env && $(tail -c1 .env) != "" ]] && echo >> .env  # never glue onto the last line
+  echo "JWT_SECRET=$(openssl rand -hex 32)" >> .env
+  ok "Created a session secret in .env"
+}
+
+ensure_docker() {
+  docker info >/dev/null 2>&1 && return
+  bold "Starting Docker Desktop…"
+  open -a Docker 2>/dev/null || { bad "Docker isn't installed or can't be started"; exit 1; }
+  for _ in $(seq 1 60); do docker info >/dev/null 2>&1 && { ok "Docker is up"; return; }; sleep 2; done
+  bad "Docker didn't start within 2 minutes"; exit 1
+}
+
+urls() {
+  bold "NetHeal is running"
+  echo "  Dashboard   $FRONTEND"
+  echo "  Engine API  $ENGINE/docs"
+  echo "  Sign in     $FRONTEND/login   (accounts: config/DEMO_ACCOUNTS.md)"
+}
+
+wait_ready() {
+  printf "  Detector learning the healthy baseline (≈30 s)"
+  for _ in $(seq 1 60); do
+    if curl -s "$ENGINE/anomalies" | grep -q '"ready":true'; then echo; ok "Detector ready"; return; fi
+    printf "."; sleep 2
+  done
+  echo; bad "Detector not ready yet (check ./netheal logs engine)"
+}
+
+cmd_start() {
+  ensure_secret
+  ensure_docker
+  bold "Building and starting the stack (first time takes a few minutes)…"
+  docker compose up --build --detach --wait
+  wait_ready
+  urls
+}
+
+cmd_stop() { bold "Stopping NetHeal…"; docker compose down; ok "Stopped"; }
+
+cmd_status() {
+  bold "Containers"
+  docker compose ps --format '  {{.Service}}\t{{.Status}}' 2>/dev/null || bad "Docker isn't running"
+  bold "Health"
+  curl -sf "$ENGINE/topology" >/dev/null && ok "Engine      $ENGINE" || bad "Engine      $ENGINE"
+  curl -sf "$STREAM/health" >/dev/null && ok "Stream      $STREAM" || bad "Stream      $STREAM (only in Docker mode)"
+  curl -sf -o /dev/null "$FRONTEND" && ok "Dashboard   $FRONTEND" || bad "Dashboard   $FRONTEND"
+  curl -s "$ENGINE/anomalies" | grep -q '"ready":true' && ok "Detector ready" || bad "Detector still learning (or engine down)"
+}
+
+cmd_dev() {
+  if curl -sf "$ENGINE/topology" >/dev/null || curl -sf -o /dev/null "$FRONTEND"; then
+    bad "Ports 8001/3000 are busy. Run ./netheal stop (Docker) or ./netheal dev-stop first."; exit 1
+  fi
+  ensure_secret
+  mkdir -p "$RUN_DIR"
+  bold "Starting engine and frontend locally (no Docker)…"
+  nohup .venv/bin/uvicorn services.gateway.main:app --port 8001 >"$RUN_DIR/engine.log" 2>&1 &
+  echo $! >"$RUN_DIR/engine.pid"
+  GATEWAY_URL=$ENGINE NEXT_PUBLIC_GATEWAY_WS=ws://localhost:8001/ws/live \
+    nohup npm --prefix frontend run dev >"$RUN_DIR/frontend.log" 2>&1 &
+  echo $! >"$RUN_DIR/frontend.pid"
+  for _ in $(seq 1 30); do curl -sf "$ENGINE/topology" >/dev/null && break; sleep 1; done
+  wait_ready
+  urls
+  echo "  Logs        $RUN_DIR/engine.log, $RUN_DIR/frontend.log"
+}
+
+cmd_dev_stop() {
+  for name in engine frontend; do
+    pid_file="$RUN_DIR/$name.pid"
+    if [[ -f $pid_file ]]; then
+      pkill -P "$(cat "$pid_file")" 2>/dev/null || true
+      kill "$(cat "$pid_file")" 2>/dev/null || true
+      rm -f "$pid_file"; ok "Stopped $name"
+    fi
+  done
+}
+
+cmd_setup() {
+  bold "Installing backend (Python) and frontend (Node) dependencies…"
+  python3 -m venv .venv
+  .venv/bin/pip install -q -e ".[dev,train]"
+  npm --prefix frontend install
+  [[ -f .env ]] || { cp .env.example .env; ok "Created .env (add your Cirrascale key for AI features)"; }
+  ensure_secret
+  ok "Setup done. Next: ./netheal start"
+}
+
+cmd_help() {
+  cat <<'EOF'
+NetHeal launcher
+
+  ./netheal start          Start everything in Docker (starts Docker Desktop if needed)
+  ./netheal stop           Stop everything
+  ./netheal restart        Stop, then start
+  ./netheal status         Containers, health checks, detector readiness
+  ./netheal logs [service] Follow logs (engine, stream, sink, frontend, redpanda, timescaledb, redis)
+  ./netheal open           Open the dashboard in your browser
+
+  ./netheal dev            Run engine + frontend locally without Docker (fast development)
+  ./netheal dev-stop       Stop the local dev servers
+
+  ./netheal setup          First-time install of Python and Node dependencies
+  ./netheal test           Run the test suite
+  ./netheal e2e            End-to-end test against the running Docker stack
+  ./netheal train          Regenerate simulated faults and retrain all ML models
+  ./netheal mlflow         Browse training runs at http://localhost:5001
+EOF
+}
+
+case "${1:-help}" in
+  start)    cmd_start ;;
+  stop)     cmd_stop ;;
+  restart)  cmd_stop; cmd_start ;;
+  status)   cmd_status ;;
+  logs)     docker compose logs --follow --tail=100 ${2:-} ;;
+  open)     open "$FRONTEND" ;;
+  dev)      cmd_dev ;;
+  dev-stop) cmd_dev_stop ;;
+  setup)    cmd_setup ;;
+  test)     make test ;;
+  e2e)      make e2e ;;
+  train)    make train ;;
+  mlflow)   make mlflow ;;
+  help|-h|--help) cmd_help ;;
+  *) bad "Unknown command: $1"; cmd_help; exit 1 ;;
+esac

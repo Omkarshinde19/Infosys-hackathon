@@ -37,3 +37,6 @@ data/
 
 # Trained models shipped with the app (small; regenerate with `make train`)
 !services/ml/models/*.pt
+
+# ./netheal dev (pids + logs)
+.netheal/
