@@ -33,8 +33,16 @@ def call(path: str, body: dict | None = None) -> dict:
 
 
 def login() -> None:
-    token = call("/auth/login", {"username": "operator", "password": demo_password("operator")})
-    session["Authorization"] = f"Bearer {token['token']}"
+    """Sign in as operator, waiting for a freshly (re)started engine to accept connections."""
+    deadline = time.monotonic() + 60
+    while True:
+        try:
+            body = {"username": "operator", "password": demo_password("operator")}
+            session["Authorization"] = f"Bearer {call('/auth/login', body)['token']}"
+            return
+        except OSError:
+            assert time.monotonic() < deadline, "engine never came up"
+            time.sleep(1)
 
 
 async def heal_through_the_stack() -> dict:
