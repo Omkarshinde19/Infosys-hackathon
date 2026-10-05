@@ -1,0 +1,24 @@
+{
+  "threshold": 0.6387520062765416,
+  "train_examples": 565150,
+  "test_healthy_false_warnings": 1,
+  "test_healthy_examples": 28620,
+  "gradual_breaches": 96,
+  "warned_before_breach": 82,
+  "warned_before_breach_pct": 0.8541666666666666,
+  "median_lead_time_s": 2.25,
+  "precision_at_threshold": 0.9244644870349493,
+  "recall_at_threshold": 0.5842536515853224,
+  "shap_mean_abs": {
+    "max_loss_pct": 5.1786,
+    "mean_loss_pct": 1.9693,
+    "mean_latency_ratio": 1.528,
+    "latency_ratio_std": 1.2792,
+    "loss_change_2.5s": 0.8861,
+    "latency_change_2.5s": 0.2549,
+    "loss_change_5s": 0.2502,
+    "latency_ratio": 0.1432,
+    "latency_change_5s": 0.0679,
+    "loss_pct": 0.0329
+  }
+}
