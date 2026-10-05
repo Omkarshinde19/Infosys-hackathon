@@ -116,6 +116,7 @@ One command does everything: it starts Docker Desktop if needed, builds and star
 | `./netheal status` | Container states plus health checks (engine, stream, dashboard, detector ready) |
 | `./netheal logs [service]` | Follows logs: `engine`, `stream`, `sink`, `frontend`, `redpanda`, `timescaledb`, `redis` |
 | `./netheal open` | Opens the dashboard in your browser |
+| `./netheal emu` | Also starts the **emulated network**: Mininet + Open vSwitch with real packets (then switch to it in Settings → Network backend, as admin) |
 | `./netheal dev` | Runs engine + frontend locally **without Docker** (fast development); logs in `.netheal/` |
 | `./netheal dev-stop` | Stops the local dev servers |
 | `./netheal test` | Runs the test suite |
@@ -125,6 +126,20 @@ One command does everything: it starts Docker Desktop if needed, builds and star
 | `./netheal help` | Lists all commands |
 
 On first start the launcher adds a random `JWT_SECRET` to `.env`, so restarting the engine doesn't sign everyone out.
+
+### Simulated or emulated network
+
+NetHeal can run against two interchangeable networks. The detect → diagnose → heal pipeline is identical on both:
+
+| | Simulated (default) | Emulated (`./netheal emu`) |
+|---|---|---|
+| What | Python model of the campus (queueing, loss) | Mininet + Open vSwitch: 15 OVS switches, 9 hosts, 27 shaped links, real packets |
+| Traffic | Modelled | Real iperf3 UDP streams per flow (bandwidth scaled 1:100 to fit a laptop) |
+| Telemetry | Computed | Real pings per flow; link load, loss and queueing from interface counters and `tc` |
+| Healing actions | Route changes in the model | **OpenFlow 1.3 rules** installed with `ovs-ofctl` |
+| Digital twin for dry-runs | Simulator | Simulator (same routes and faults) |
+
+Measured on real packets: a link failure is detected in 1.5 s and healed in 4.5 s (unreachable → 8.4 ms). `make e2e` includes this test when the emulator is running.
 
 **Everything in Docker (recommended for the demo):**
 
