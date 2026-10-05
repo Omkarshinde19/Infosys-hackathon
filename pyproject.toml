@@ -23,7 +23,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=9.1", "httpx2>=2.13", "ruff>=0.16"]
+dev = ["pytest>=9.1", "pytest-timeout>=2.4", "httpx2>=2.13", "ruff>=0.16"]
 train = ["mlflow>=3.16", "shap>=0.52", "matplotlib>=3.10"]
 
 [tool.setuptools]
@@ -41,3 +41,4 @@ select = ["E", "F", "I", "UP", "B"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+timeout = 120  # a hung loop fails the test instead of stalling the suite
