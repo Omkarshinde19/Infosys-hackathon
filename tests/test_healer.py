@@ -247,3 +247,33 @@ def test_level_3_automates_only_small_fixes(fault, target, status):
     p.healer.level = 3
     p.inject(fault, target, severity=0.6)
     p.run_until(status, max_ticks=20)
+
+
+def test_replans_when_a_premature_diagnosis_is_corrected():
+    """On real networks the flow's alarm can arrive before its link's. RCA then first blames a
+    misconfiguration; once the link alarm arrives it corrects to link failure, and the healer
+    must act on the corrected diagnosis instead of staying escalated."""
+    from contracts.models import RCAHypothesis
+
+    net, healer = Network(seed=1), Healer()
+    net.inject_fault("link_down", "dist1-library")
+    samples = net.step()
+    baseline = {f: 9.0 for f in net.flows}
+
+    def hypothesis(cause, target):
+        return [
+            RCAHypothesis(
+                incident_id="inc-1", cause=cause, target=target, confidence=0.9, evidence=[]
+            )
+        ]
+
+    first = healer.update(samples, hypothesis("misconfig", "library-internet"), net, baseline)
+    assert healer.status == "escalated" and "applied" not in [k for k, _ in first]
+
+    second = healer.update(samples, hypothesis("link_failure", "dist1-library"), net, baseline)
+    assert "applied" in [k for k, _ in second]  # acted on the corrected diagnosis
+
+    healer.current = None  # pretend verification finished
+    healer.status = "healed"
+    third = healer.update(samples, hypothesis("flapping", "dist1-library"), net, baseline)
+    assert third == []  # once a fix is applied, a refined diagnosis doesn't trigger another
