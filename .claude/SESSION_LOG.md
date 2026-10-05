@@ -8,7 +8,7 @@
 
 ## Index
 
-### Session 1: 2026-10-02 → 2026-10-05 · messages used: 19 / 25
+### Session 1: 2026-10-02 → 2026-10-05 · messages used: 20 / 25
 
 | Msg | Date | Request | Files touched | Commit(s) |
 |---|---|---|---|---|
@@ -31,6 +31,7 @@
 | 17 | 10-05 | Build Phase 10 (safety + control) | see entry 17 | `d5aa1a9`…`5e04f23` |
 | 18 | 10-06 | Build Phase 11 (remaining pages + Ask NetHeal) + `./netheal` launcher; README commands | see entry 18 | `9d7a32b`…`5d6fc47` |
 | 19 | 10-06 | Session log entry for msg 18, then Phase 12 (emulated network) | see entry 19 | `c3e2b36`…`a282402` + log commit |
+| 20 | 10-05 | Phase 13: evaluation harness, observability, CI + Playwright | see entry 20 | `5aeba41`…(log commit) |
 
 ---
 
@@ -401,3 +402,45 @@
 - Notes:
   - One full-suite failure was seen once under emulator CPU load; reruns pass. Watch for it in Phase 13 CI.
   - Node overload is emulated as extra delay + loss on attached links; node CPU stays modelled (Mininet switches have no real CPU to load).
+
+### Msg 20 · Phase 13: evaluation, observability, CI ✅
+- Request: "go ahead with phase 13"
+- Research (Rule 3):
+  - PyPI: prometheus-client 0.26, opentelemetry-sdk / OTLP exporter 1.45, instrumentation-fastapi / aiokafka 0.66b0. The aiokafka instrumentation carries trace context in Kafka headers, so one trace spans engine → Redpanda → stream + sink.
+  - Docker Hub: jaegertracing/jaeger 2.21.0 (takes OTLP directly, no collector needed), prom/prometheus v3.15.0, grafana/grafana 13.2.3. GitHub: actions/checkout, setup-python, setup-node, upload-artifact all at v7. npm: @playwright/test 1.63.0.
+  - Plan §5 (PLAN.md) for policies and metrics. Training seeds 0..N and base seeds 101–404 are avoided, so every eval scenario is held out.
+- **Created:**
+  - `services/evaluator/{__init__,harness}.py` (4 policies, paired scenarios, summary + markdown); `tests/test_evaluator.py`
+  - `docs/EVALUATION.md`, `docs/evaluation.json` (300 scenarios × 4 policies)
+  - `services/observability.py` (metrics + opt-in tracing); `tests/test_observability.py`
+  - `infra/prometheus/prometheus.yml`, `infra/grafana/provisioning/{datasources,dashboards}/*.yml`, `infra/grafana/dashboards/netheal.json` (12 panels)
+  - `frontend/src/app/dashboard/evaluation/page.tsx` (charts with PNG export, tables, trade-off notes)
+  - `frontend/playwright.config.ts`, `frontend/e2e/demo.spec.ts`
+  - `.github/workflows/ci.yml` (python, frontend, then docker e2e with test_stack + Playwright)
+- **Modified:**
+  - `services/gateway/main.py` (stage spans/timers in `tick()`, healing/incident/MTTD/MTTR metrics, `/metrics`, `GET /evaluation`, WebSocket gauge, copilot timer)
+  - `services/stream/main.py`, `services/sink/main.py` (bus message metrics, tracing)
+  - `services/copilot/rag.py` (Ask NetHeal also searches `docs/EVALUATION.md`)
+  - `docker-compose.yml` (profile `obs`: jaeger, prometheus, grafana; `OTEL_EXPORTER_OTLP_ENDPOINT` from `NETHEAL_OTLP`)
+  - `netheal` (`obs`, `eval`; `start` keeps tracing while Jaeger runs; `stop` also stops obs)
+  - `Makefile` (`make eval`), `pyproject.toml` (5 deps, `services.evaluator`)
+  - `frontend/src/components/dashboard/Sidebar.tsx`, `frontend/package.json` (+`e2e` script), `frontend/.gitignore`
+  - `tests/test_gateway.py`, `README.md`, `docs/CONTRACTS.md`, `.claude/PHASES.md` (Phase 13 ✅)
+- **Results** (300 held-out faults; 104 hurt users without healing):
+  - recovered: no healing 0%, reactive 87%, NetHeal 84%, NetHeal + prediction 84%; median MTTR 4.5 s; SLA violation 5,624 s → 918 s
+  - detection 100% recall, 0 false alarms on 26 healthy runs; gradual-fault MTTD 2.5 s → 1.75 s with prediction; root cause top-1 84% (007 alone 3%)
+- **Verified:**
+  - 145 unit tests, ruff, eslint, `next build`
+  - Playwright demo test passes on the local Docker stack
+  - `./netheal obs`: all 4 Prometheus targets up; Grafana dashboard provisioned with data; one Jaeger trace per tick across netheal-engine, -stream and -sink
+  - Evaluation page checked in the browser (labels/legend fixed after a first look)
+  - CI green on `main` on the first run (run 37349644947: python 2 min, frontend 1 min, e2e 5 min)
+- Findings and decisions:
+  1. Policies were first compared on different denominators (a fast fix keeps some gradual faults from ever breaking the SLA). Fixed: every policy is judged on the faults that hurt users *without* healing (test first).
+  2. Reactive recovers a few more faults than NetHeal only because it ignores the blast-radius guardrail (max 5 flows moved automatically), e.g. moving 8 flows off a flapping internet uplink. Kept the guardrail; explained in the report and on the page rather than tuning the policy to the benchmark.
+  3. Overloaded access switches have no detour; every policy escalates. No rollbacks happen in the simulator because every detour around a fault works there.
+  4. Prediction's measurable value is earlier detection of gradual faults; its earlier first diagnosis is wrong on 6 slow gray failures (corrected before acting).
+  5. Rates are stored with 4 decimals so the report and the page round the same way (90/104 was stored as 0.865).
+  6. Metrics showed the live loop at ≈1.84 ticks/s (it sleeps 0.5 s after each ~40–85 ms tick). Pre-existing, so flagged as a separate task instead of changed here.
+  7. No mypy or Vitest in CI (plan listed them): the code has no type-check baseline and the frontend has no unit tests; adding them would be new scope.
+
