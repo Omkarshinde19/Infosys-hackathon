@@ -1,6 +1,6 @@
 PY := .venv/bin/python
 
-.PHONY: install test lint dev demo down logs e2e
+.PHONY: install test lint dev demo down logs e2e train mlflow
 
 install:
 	python3 -m venv .venv
@@ -29,3 +29,14 @@ logs:
 # End-to-end test against the running `make demo` stack
 e2e:
 	NETHEAL_E2E=1 $(PY) -m pytest -q tests/e2e
+
+# Regenerate simulator data and retrain every model (logs to ./mlruns)
+train:
+	$(PY) -m pip install -q -e ".[train]"
+	$(PY) -m ml.train_gnn
+	$(PY) -m ml.train_forecast
+	$(PY) -m ml.train_lstm_ae
+
+# Browse training runs at http://localhost:5001
+mlflow:
+	$(PY) -m mlflow ui --port 5001
