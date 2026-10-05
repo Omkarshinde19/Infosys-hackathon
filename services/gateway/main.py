@@ -18,6 +18,7 @@ from services.detector.detector import Detector
 from services.healer.healer import Healer
 from services.healer.incidents import IncidentTracker
 from services.llm.reports import entity_namer, incident_facts, make_client, write_report
+from services.ml import gnn
 from services.netsim.engine import TICK_S, Network
 from services.rca.engine import RCAEngine
 
@@ -28,7 +29,7 @@ def new_network() -> Network:
 
 net = new_network()
 detector = Detector()
-rca = RCAEngine()
+rca = RCAEngine(gnn=gnn.load())
 healer = Healer()
 incidents = IncidentTracker()
 llm = make_client()
@@ -55,7 +56,7 @@ async def tick_loop() -> None:
         await broadcast(Envelope(type="telemetry", data=samples))
         if raised or cleared:
             await broadcast(Envelope(type="anomaly", data={"raised": raised, "cleared": cleared}))
-        if rca.update(samples, detector.active, net):
+        if rca.update(samples, detector.active, net, detector=detector):
             await broadcast(Envelope(type="rca", data=rca.hypotheses))
         await heal(samples)
         await asyncio.sleep(TICK_S)
