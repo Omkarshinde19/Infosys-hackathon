@@ -1,0 +1,13 @@
+# Scrapes NetHeal's own services (./netheal obs). Metric names: services/observability.py
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  - job_name: engine
+    static_configs: [{targets: ["engine:8000"]}]
+  - job_name: stream
+    static_configs: [{targets: ["stream:8000"]}]
+  - job_name: sink
+    static_configs: [{targets: ["sink:9464"]}]
+  - job_name: prometheus
+    static_configs: [{targets: ["localhost:9090"]}]
