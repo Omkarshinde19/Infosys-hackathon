@@ -102,7 +102,10 @@ def main() -> None:
 
         results = {
             "all_snapshots": accuracy(model, snaps["test"]),
-            "first_diagnosis": accuracy(model, [s for s in snaps["test"] if s["offset"] == 0]),
+            "first_diagnosis": accuracy(
+                model, [s for s in snaps["test"] if s["phase"] == "diagnosis" and s["offset"] == 0]
+            ),
+            "post_heal": accuracy(model, [s for s in snaps["test"] if s["phase"] == "post_heal"]),
             "test_snapshots": len(snaps["test"]),
         }
         per_cause = {}
@@ -110,7 +113,7 @@ def main() -> None:
             subset = [s for s in snaps["test"] if truth(s)[0] == cause]
             per_cause[cause] = accuracy(model, subset) if subset else None
         results["per_cause"] = per_cause
-        for scope in ("all_snapshots", "first_diagnosis"):
+        for scope in ("all_snapshots", "first_diagnosis", "post_heal"):
             mlflow.log_metrics({f"test_{scope}_{k}": v for k, v in results[scope].items()})
 
         MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
