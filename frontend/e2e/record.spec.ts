@@ -60,8 +60,16 @@ test("backup demo video", async ({ page }) => {
   await pause(page, 5);
 
   await page.goto("/dashboard/copilot");
-  await page.getByPlaceholder(/Ask about the network/).fill("Why did the Hostel A connection fail and what did NetHeal do?");
+  // Typing before React hydrates is lost; Send only enables once React holds the text.
+  await expect(async () => {
+    await page.getByPlaceholder(/Ask about the network/).fill("Why did the Hostel A connection fail and what did NetHeal do?");
+    await expect(page.getByLabel("Send")).toBeEnabled({ timeout: 1000 });
+  }).toPass();
   await page.getByLabel("Send").click();
   await expect(page.getByText(/evidence cited/)).toBeVisible({ timeout: 150_000 }); // up to 3 model rounds
-  await pause(page, 8);
+  // A video can't scroll back: show the answer from its first line.
+  await page.getByText(/evidence cited/).evaluate((footer) =>
+    footer.parentElement?.scrollIntoView({ block: "start", behavior: "smooth" }),
+  );
+  await pause(page, 10);
 });
