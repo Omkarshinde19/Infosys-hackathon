@@ -6,7 +6,9 @@ publishes every event to Redpanda for the sink (TimescaleDB) and stream services
 
 import asyncio
 import json
+import os
 import traceback
+import urllib.request
 from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime
 from pathlib import Path
@@ -28,16 +30,34 @@ from services.healer.whatif import what_if
 from services.ledger.ledger import Ledger
 from services.llm.reports import MODEL, entity_namer, incident_facts, make_client, write_report
 from services.ml import forecast, gnn, lstm_ae
+from services.netsim.emu import EmuNetwork
 from services.netsim.engine import TICK_S, Network
 from services.rca.engine import RCAEngine
 
+EMULAB_URL = os.getenv("EMULAB_URL", "http://localhost:9000")
+backend = "sim"  # "sim" (Python simulator) or "emu" (Mininet + Open vSwitch, real packets)
+
 
 def new_network() -> Network:
+    if backend == "emu":
+        return EmuNetwork(EMULAB_URL, t0=datetime.now(UTC))
     return Network(t0=datetime.now(UTC))
 
 
+def new_detector() -> Detector:
+    return Detector(forecaster=forecast.load(), autoencoder=lstm_ae.load())
+
+
+def emulab_ready() -> bool:
+    try:
+        with urllib.request.urlopen(EMULAB_URL + "/health", timeout=2) as res:
+            return json.load(res)["ready"]
+    except OSError:
+        return False
+
+
 net = new_network()
-detector = Detector(forecaster=forecast.load(), autoencoder=lstm_ae.load())
+detector = new_detector()
 rca = RCAEngine(gnn=gnn.load())
 healer = Healer()
 incidents = IncidentTracker()
@@ -92,7 +112,7 @@ async def tick_loop() -> None:
 
 async def tick() -> None:
     global last_samples
-    samples = last_samples = net.step()
+    samples = last_samples = await asyncio.to_thread(net.step)  # emulator pings take ~0.2 s
     raised, cleared = detector.update(samples)
     await broadcast(Envelope(type="telemetry", data=samples))
     if raised or cleared:
@@ -417,3 +437,34 @@ def settings() -> dict:
             "lstm_autoencoder": detector.autoencoder is not None,
         },  # fmt: skip
     }
+
+
+class BackendRequest(BaseModel):
+    kind: str
+
+
+@app.get("/backend")
+def get_backend() -> dict:
+    return {"kind": backend, "emulab_url": EMULAB_URL, "emulab_ready": emulab_ready()}
+
+
+@app.post("/backend")
+async def set_backend(req: BackendRequest, user: Admin) -> dict:
+    """Swap simulator <-> emulated network. The detector re-learns the new network's normal."""
+    global net, detector, backend
+    if req.kind not in ("sim", "emu"):
+        raise HTTPException(400, "kind must be sim or emu")
+    if req.kind == "emu" and not emulab_ready():
+        raise HTTPException(409, "The emulated network isn't running (start it with ./netheal emu)")
+    cleared = list(detector.active)
+    backend = req.kind
+    net, detector = new_network(), new_detector()
+    rca.clear()
+    healer.clear()
+    incidents.close(net.now)
+    await audit("user", "backend.switched", {"by": user["username"], "to": backend})
+    if cleared:
+        await broadcast(Envelope(type="anomaly", data={"raised": [], "cleared": cleared}))
+        await broadcast(Envelope(type="rca", data=[]))
+    await broadcast(Envelope(type="incident", data=incident_state()))
+    return get_backend()
