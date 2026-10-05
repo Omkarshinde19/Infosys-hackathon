@@ -26,6 +26,20 @@ def test_reactive_policy_applies_untested_detours(link_down):
     assert candidates and all(c.opa_decision == "allow" for c in candidates)
 
 
+def test_rl_policy_adds_the_agents_proposal(link_down, monkeypatch):
+    calls = []
+
+    class Agent:
+        def propose(self, net, latest, target):
+            calls.append(target)
+            return {}
+
+    monkeypatch.setattr(harness.rl, "load", lambda: Agent())
+    r = harness.run(harness.FIRST_SEED, "rl")
+    assert calls and calls[0] == "dist1-library"
+    assert r["healed"]  # with no proposal the rule candidates still heal it
+
+
 def test_healthy_control_raises_no_alarm(monkeypatch):
     monkeypatch.setattr(harness, "random_fault", lambda rng, net: None)
     r = harness.run(harness.FIRST_SEED, "twin")
@@ -46,7 +60,7 @@ def test_summary_and_report():
     assert s["twin"]["detection"]["median_mttd_gradual_s"] == 1.5
     md = harness.markdown({"summary": harness.summarize(runs),
                            "meta": {"scenarios": 2, "run_s": 60}})  # fmt: skip
-    assert "| Recovered (SLA met, last 10 s) | 0% | – | 100% | – |" in md
+    assert "| Recovered (SLA met, last 10 s) | 0% | – | 100% | – | – |" in md
 
 
 def test_policies_are_compared_on_the_faults_that_hurt_users_without_healing():
