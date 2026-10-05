@@ -135,3 +135,19 @@ LLM settings come from `.env`: `INFERENCE_CLOUD_API_KEY`, `INFERENCE_CLOUD_ENDPO
 - **Approvals:** `GET /approvals` returns `{ awaiting: ActionCandidate | null, incident_id }`. New healing event kinds: `recommended`, `awaiting_approval`, `approved`, `rejected`. The incident state gains `awaiting`.
 - **Policy:** `ActionCandidate.policy_reasons` lists why `policies/healing.rego` denied a fix.
 - **Audit:** `GET /audit?limit=200` returns the newest `LedgerEntry` first (with `payload`); `GET /audit/verify` returns `{ valid, broken_at, entries }`.
+
+## Network backend (Phase 12)
+
+- `GET /backend` returns `{ kind: "sim" | "emu", emulab_url, emulab_ready }`.
+- `POST /backend {kind}` (admin) swaps the network. The detector re-learns the new network's normal (30 s); the incident, diagnosis and healer state reset; audited as `backend.switched`. Returns 409 if the emulator isn't running.
+
+**Emulab agent** (`emulab/agent.py`, port 9000, used by `services/netsim/emu.py`):
+
+| Call | Does |
+|---|---|
+| `GET /health` | `{ ready, switches, hosts, links }` |
+| `GET /telemetry` | `TelemetrySample` rows without `ts` (the engine stamps them) |
+| `POST /reset {routes}` | clears faults; replaces every switch's OpenFlow table (~0.5 s) |
+| `POST /route {flow, path}` | reroutes one flow (cookie-tagged rules, ~0.15 s) |
+| `POST /fault {type, target, severity, ramp_s}` | link down / gray loss (netem) / congestion (bandwidth cut) / flapping / node overload (extra port delay; CPU modelled) / misconfig (drop rule) |
+| `POST /clear_faults`, `POST /rollback_config {flow}` | undo |
