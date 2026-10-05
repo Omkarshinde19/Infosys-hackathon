@@ -1,0 +1,53 @@
+{
+  "all_snapshots": {
+    "rules": 0.9411396368190357,
+    "gnn": 0.9411396368190357,
+    "ensemble": 0.9411396368190357,
+    "voting_007_target": 0.053224796493425174
+  },
+  "first_diagnosis": {
+    "rules": 0.8239700374531835,
+    "gnn": 0.8239700374531835,
+    "ensemble": 0.8239700374531835,
+    "voting_007_target": 0.05056179775280899
+  },
+  "test_snapshots": 1597,
+  "per_cause": {
+    "link_failure": {
+      "rules": 1.0,
+      "gnn": 1.0,
+      "ensemble": 1.0,
+      "voting_007_target": 0.07216494845360824
+    },
+    "gray_failure": {
+      "rules": 1.0,
+      "gnn": 1.0,
+      "ensemble": 1.0,
+      "voting_007_target": 0.12162162162162163
+    },
+    "congestion": {
+      "rules": 1.0,
+      "gnn": 1.0,
+      "ensemble": 1.0,
+      "voting_007_target": 0.04924242424242424
+    },
+    "flapping": {
+      "rules": 0.6666666666666666,
+      "gnn": 0.6666666666666666,
+      "ensemble": 0.6666666666666666,
+      "voting_007_target": 0.0851063829787234
+    },
+    "node_overload": {
+      "rules": 1.0,
+      "gnn": 1.0,
+      "ensemble": 1.0,
+      "voting_007_target": 0.0
+    },
+    "misconfig": {
+      "rules": 1.0,
+      "gnn": 1.0,
+      "ensemble": 1.0,
+      "voting_007_target": 0.0
+    }
+  }
+}
