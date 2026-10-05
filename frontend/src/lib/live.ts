@@ -51,7 +51,7 @@ export type Hypothesis = {
 export type ActionCandidate = {
   id: string;
   type: string;
-  params: { avoid?: string[]; routes?: Record<string, string[]>; flow?: string };
+  params: { avoid?: string[]; routes?: Record<string, string[]>; flow?: string; planner?: "rl" };
   twin_prediction: { latency_ms: number; loss_pct: number; max_util: number } | null;
   opa_decision: "allow" | "deny" | null;
   policy_reasons: string[];

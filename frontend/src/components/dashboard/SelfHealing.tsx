@@ -180,6 +180,11 @@ export function HealingResults({ incident, actions }: { incident: Incident; acti
                     <td className="py-2.5 text-fg-muted">{i + 1}</td>
                     <td className="py-2.5">
                       {describeAction(c, name)}
+                      {c.params.planner === "rl" && (
+                        <span className="ml-2 rounded-full border border-[var(--glass-border)] px-2 py-0.5 text-[11px] text-fg-muted">
+                          RL agent · moves {Object.keys(c.params.routes ?? {}).length} flow{Object.keys(c.params.routes ?? {}).length === 1 ? "" : "s"}
+                        </span>
+                      )}
                       {c.policy_reasons?.map((r) => (
                         <p key={r} className="text-xs text-critical">Blocked: {r}</p>
                       ))}
