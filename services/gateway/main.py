@@ -439,6 +439,17 @@ def shap_plot() -> FileResponse:
     return FileResponse(MODELS_DIR / "forecast_shap.png")
 
 
+EVALUATION = Path(__file__).resolve().parents[2] / "docs" / "evaluation.json"
+
+
+@app.get("/evaluation")
+def evaluation() -> FileResponse:
+    """Results of `make eval`: summary per policy and fault type, plus every run."""
+    if not EVALUATION.exists():
+        raise HTTPException(404, "No evaluation yet: run make eval")
+    return FileResponse(EVALUATION, media_type="application/json")
+
+
 @app.get("/settings")
 def settings() -> dict:
     return {
