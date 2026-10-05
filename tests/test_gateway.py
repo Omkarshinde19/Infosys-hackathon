@@ -1,7 +1,9 @@
+import json
 import time
 
 from fastapi.testclient import TestClient
 
+from services import bus
 from services.gateway.main import app
 
 
@@ -156,3 +158,24 @@ def test_incident_history_detail_and_offline_report(monkeypatch):
         assert report["source"] == "template" and "Admin Block" in report["markdown"]
         assert client.get(f"/incidents/{inc_id}").json()["report"] == report
         assert client.get("/incidents/nope").status_code == 404
+
+
+def test_events_are_published_to_their_bus_topic(monkeypatch):
+    from services.gateway import main
+
+    sent = []
+
+    class FakeProducer:
+        async def send(self, topic, value):
+            sent.append((topic, json.loads(value)))
+
+        async def stop(self):
+            pass
+
+    monkeypatch.setattr(main, "producer", FakeProducer())
+    with TestClient(app) as client, client.websocket_connect("/ws/live") as ws:
+        ws.receive_json()
+        ws.receive_json()
+    telemetry = [v for t, v in sent if t == "telemetry.raw"]
+    assert telemetry and telemetry[0]["type"] == "telemetry"
+    assert {t for t, _ in sent} <= set(bus.TOPICS.values())
