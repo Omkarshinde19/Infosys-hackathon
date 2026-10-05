@@ -118,13 +118,14 @@ One command does everything: it starts Docker Desktop if needed, builds and star
 | `./netheal logs [service]` | Follows logs: `engine`, `stream`, `sink`, `frontend`, `redpanda`, `timescaledb`, `redis` |
 | `./netheal open` | Opens the dashboard in your browser |
 | `./netheal emu` | Also starts the **emulated network**: Mininet + Open vSwitch with real packets (then switch to it in Settings → Network backend, as admin) |
+| `./netheal ollama` | Installs and starts the **offline AI model** (Ollama + qwen2.5:7b, ≈4.7 GB once). Ask NetHeal and reports switch to it when the cloud model is unreachable |
 | `./netheal obs` | Also starts **Grafana** (http://localhost:3001), **Prometheus** (:9090) and **Jaeger** (:16686) and turns on tracing: NetHeal's own metrics and traces |
 | `./netheal eval` | Replays 300 held-out faults under 4 policies (≈17 min on 8 cores) → `docs/EVALUATION.md` + the dashboard's Evaluation page |
 | `./netheal dev` | Runs engine + frontend locally **without Docker** (fast development); logs in `.netheal/` |
 | `./netheal dev-stop` | Stops the local dev servers |
 | `./netheal test` | Runs the test suite |
 | `./netheal e2e` | End-to-end test against the running Docker stack |
-| `./netheal train` | Regenerates 3,000 simulated faults and retrains all ML models |
+| `./netheal train` | Regenerates 3,000 simulated faults and retrains all ML models, including the RL routing agent (`make train-rl` for that one alone) |
 | `./netheal mlflow` | Opens the ML training runs at http://localhost:5001 |
 | `./netheal help` | Lists all commands |
 

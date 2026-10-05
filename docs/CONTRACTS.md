@@ -62,7 +62,8 @@ Detection, RCA and healing run inside the engine (the healer's digital twin need
 ```json
 { "id": "uuid", "incident_id": "uuid",
   "type": "reroute",               // reroute | ecmp_split | rate_limit | drain_node | rollback_config | quarantine_link
-  "params": { "avoid": ["core1-library"], "new_path": ["core1", "dist2", "library"] },
+  "params": { "avoid": ["core1-library"], "routes": { "library-internet": ["library", "dist2", "core1", "internet"] },
+              "planner": "rl" },  // planner only on the RL agent's proposal
   "twin_prediction": { "latency_ms": 22.0, "loss_pct": 0.2, "max_util": 0.58 },
   "opa_decision": "allow", "risk_score": 0.12 }
 ```
@@ -122,11 +123,12 @@ Healing events (one per step) and the incident state after every change:
 - `GET /incidents/{id}`: `{ "incident", "anomalies": [Anomaly], "diagnosis": [RCAHypothesis], "actions": [action event data], "report": Report | null }`
 - `POST /incidents/{id}/report?refresh=false`: generates (or returns the cached) report:
   ```json
-  { "markdown": "## Summary ...", "source": "llm:Llama-3.3-70B" | "template",
+  { "markdown": "## Summary ...", "source": "llm:Llama-3.3-70B" | "llm:qwen2.5:7b" | "template",
+    "provider": "Qualcomm Cloud AI (Cirrascale)" | "Ollama on this laptop" | null,
     "fallback_reason": null | "No AI credentials configured" | "AI draft failed the grounding check" | "AI unavailable (...)",
     "generated_at": "2026-10-07T10:43:12+00:00" }
   ```
-LLM settings come from `.env`: `INFERENCE_CLOUD_API_KEY`, `INFERENCE_CLOUD_ENDPOINT` (Cirrascale AI Suite, OpenAI-compatible), and optional `LLM_MODEL` (default `Llama-3.3-70B`).
+LLM settings come from `.env`: `INFERENCE_CLOUD_API_KEY`, `INFERENCE_CLOUD_ENDPOINT` (Cirrascale AI Suite, OpenAI-compatible), and optional `LLM_MODEL` (default `Llama-3.3-70B`). With `OLLAMA_URL` set (Docker sets it), a local model (`OLLAMA_MODEL`, default `qwen2.5:7b`) answers when the cloud is unreachable; `POST /copilot` answers carry the same `source` and `provider` fields.
 
 ## Safety and control (Phase 10)
 
