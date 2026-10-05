@@ -323,3 +323,39 @@ def test_a_bad_rl_proposal_loses_to_the_rule_fixes():
 def test_no_rl_candidate_when_the_agent_moves_nothing():
     candidates, _ = _broken_library(Healer(rl=FakeRL({})))
     assert all(c.params.get("planner") != "rl" for c in candidates)
+
+
+def test_replans_when_a_verified_fix_stops_holding():
+    p = Pipeline()
+    p.inject("link_down", "dist1-library")
+    p.run_until("healed", max_ticks=30)
+    assert p.net.routes["library-internet"][1] == "dist2"
+    p.net.inject_fault("gray_failure", "dist2-library", severity=1.0)  # the detour breaks too
+    p.run_until("escalated", max_ticks=30)  # no third path: a human, not a false "healed"
+    kinds = [k for k, _ in p.events]
+    assert kinds.count("relapsed") == 1
+    assert kinds.index("relapsed") > kinds.index("result")
+    assert p.incidents.current.status == "failed"
+
+
+def test_a_fix_that_keeps_holding_is_left_alone():
+    p = Pipeline()
+    p.inject("link_down", "dist1-library")
+    p.run_until("healed", max_ticks=30)
+    for _ in range(30):
+        p.tick()
+    assert p.healer.status == "healed"
+    assert "relapsed" not in [k for k, _ in p.events]
+
+
+def test_a_clear_new_cause_after_a_relapse_is_fixed_again():
+    p = Pipeline()
+    p.inject("link_down", "dist1-library")
+    p.run_until("healed", max_ticks=30)
+    detour = p.net.routes["library-internet"]
+    uplink = p.net.path_links(detour)[1]  # e.g. dist2 -> core2: the detour's own uplink
+    p.net.inject_fault("link_down", uplink)
+    p.run_until("relapsed", max_ticks=10)
+    p.run_until("healed", max_ticks=40)
+    assert uplink not in p.net.path_links(p.net.routes["library-internet"])
+    assert [k for k, _ in p.events].count("relapsed") == 1
