@@ -5,22 +5,28 @@ publishes every event to Redpanda for the sink (TimescaleDB) and stream services
 """
 
 import asyncio
+import json
 import traceback
 from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Annotated
 
 from aiokafka import AIOKafkaProducer
 from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from contracts.models import Envelope
 from services import auth, bus
-from services.detector.detector import Detector
+from services.copilot.agent import Context, ask
+from services.copilot.rag import EMBED_MODEL, DocIndex
+from services.detector.detector import Z_THRESHOLD, Detector
 from services.healer.healer import LEVELS, Healer
 from services.healer.incidents import IncidentTracker
+from services.healer.whatif import what_if
 from services.ledger.ledger import Ledger
-from services.llm.reports import entity_namer, incident_facts, make_client, write_report
+from services.llm.reports import MODEL, entity_namer, incident_facts, make_client, write_report
 from services.ml import forecast, gnn, lstm_ae
 from services.netsim.engine import TICK_S, Network
 from services.rca.engine import RCAEngine
@@ -38,6 +44,7 @@ incidents = IncidentTracker()
 ledger = Ledger()
 last_samples: list = []  # latest tick, for fixes approved between ticks
 llm = make_client()
+docs = DocIndex(llm)
 reports: dict[str, dict] = {}  # incident id -> generated report
 clients: set[WebSocket] = set()
 producer: AIOKafkaProducer | None = None
@@ -56,6 +63,7 @@ async def broadcast(envelope: Envelope) -> None:
 
 Operator = Annotated[dict, Depends(auth.require("operator"))]
 Admin = Annotated[dict, Depends(auth.require("admin"))]
+Viewer = Annotated[dict, Depends(auth.require("viewer"))]
 
 
 async def audit(actor: str, event_type: str, payload: dict) -> None:
@@ -326,3 +334,86 @@ def audit_log(limit: int = 200) -> list:
 @app.get("/audit/verify")
 def audit_verify() -> dict:
     return ledger.verify()
+
+
+class WhatIfRequest(BaseModel):
+    fault: str
+    target: str
+    severity: float = 1.0
+
+
+@app.post("/whatif")
+def simulate(req: WhatIfRequest) -> dict:
+    """Read-only: runs the fault and NetHeal's plan on a digital twin."""
+    try:
+        return what_if(net, healer, req.fault, req.target, req.severity)
+    except (ValueError, KeyError) as e:
+        raise HTTPException(400, str(e)) from e
+
+
+class CopilotRequest(BaseModel):
+    question: str
+    history: list[dict] = []
+
+
+@app.post("/copilot")
+async def copilot(req: CopilotRequest, user: Viewer) -> dict:
+    await audit("user", "copilot.asked", {"by": user["username"], "question": req.question[:300]})
+    latest = {s.entity_id: s for s in last_samples}
+    ctx = Context(net=net, latest=latest, detector=detector, rca=rca, incidents=incidents,
+                  ledger=ledger, healer=healer, docs=docs)  # fmt: skip
+    return await ask(req.question, req.history, ctx, llm)
+
+
+MODELS_DIR = Path(__file__).resolve().parents[1] / "ml" / "models"
+
+
+@app.get("/insights")
+def insights() -> dict:
+    every = [*incidents.history, *([incidents.current] if incidents.current else [])]
+    done = [i for i in every if i.mttr_s is not None]
+    causes: dict[str, int] = {}
+    for i in every:
+        top = incidents.context[i.id]["diagnosis"][:1]
+        if top:
+            causes[top[0].cause] = causes.get(top[0].cause, 0) + 1
+    return {
+        "models": {
+            name: json.loads((MODELS_DIR / f"{name}_eval.json").read_text())
+            for name in ("rca", "forecast", "lstm_ae")
+        },  # fmt: skip
+        "incidents": {
+            "total": len(every),
+            "healed": len(done),
+            "escalated": sum(i.status == "failed" for i in every),
+            "avg_mttd_s": round(sum(i.mttd_s for i in every) / len(every), 2) if every else None,
+            "avg_mttr_s": round(sum(i.mttr_s for i in done) / len(done), 2) if done else None,
+            "by_cause": causes,
+        },
+    }
+
+
+@app.get("/insights/shap.png")
+def shap_plot() -> FileResponse:
+    return FileResponse(MODELS_DIR / "forecast_shap.png")
+
+
+@app.get("/settings")
+def settings() -> dict:
+    return {
+        "autonomy": get_autonomy(),
+        "policy": healer.policy.source,
+        "users": [{"username": u, "role": d["role"]} for u, d in auth.USERS.items()],
+        "llm": {"model": MODEL, "configured": llm is not None, "embeddings": EMBED_MODEL},
+        "detector": {
+            "warmup_s": detector.warmup_ticks * TICK_S,
+            "z_threshold": Z_THRESHOLD,
+            "raise_after": "3 of 4 bad readings",
+            "clear_after": "6 good readings",
+        },  # fmt: skip
+        "models_loaded": {
+            "gnn": rca.gnn is not None,
+            "forecaster": detector.forecaster is not None,
+            "lstm_autoencoder": detector.autoencoder is not None,
+        },  # fmt: skip
+    }
