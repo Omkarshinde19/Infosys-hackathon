@@ -8,7 +8,7 @@
 
 ## Index
 
-### Session 1: 2026-10-02 → 2026-10-05 · messages used: 14 / 25
+### Session 1: 2026-10-02 → 2026-10-05 · messages used: 15 / 25
 
 | Msg | Date | Request | Files touched | Commit(s) |
 |---|---|---|---|---|
@@ -26,6 +26,7 @@
 | 12 | 10-05 | Build Phase 5 (root cause analysis) | see entry 12 | `a1b229a`…`094a23a` |
 | 13 | 10-05 | Build Phase 6 (self-healing, core demo loop) | see entry 13 | `3ddb98c`…`4baa3f4` |
 | 14 | 10-05 | Build Phase 7 (incidents + AI reports) | see entry 14 | `ceacd8f`…`ead2396` |
+| 15 | 10-05 | Build Phase 8 (data platform, Docker) | see entry 15 | `ca94b46`…(this commit) |
 
 ---
 
@@ -217,3 +218,37 @@
   2. The grounding check was too literal: it rejected an accurate draft that wrote "between Distribution North A and Hostel A". It now requires the cause name, every device name and the real MTTR.
   3. **Healing caused a false alert**: traffic moved onto an idle backup link was flagged against its idle baseline, so the incident could never close. Fixed with change-aware detection: the healer emits `rebaseline` for newly used links and nodes, and the detector re-learns their normal for 10 s.
 - Decision: the template uses f-strings instead of Jinja2 (Rule 2, one less dependency).
+
+### Msg 15 · Phase 8: data platform ✅
+- Decisions (asked first, Rule 1):
+  - "Event backbone": the loop stays in one `engine`, everything goes to Redpanda, and consumers are `sink` (TimescaleDB) and `stream` (WebSocket + Redis).
+  - The full microservices split was rejected because the twin needs live state, it adds latency, and it's high risk with 2 days left.
+  - Everything, including the frontend, runs in Docker.
+- Research (Rule 3):
+  - Redpanda Docker quickstart (internal/external listeners)
+  - Redpanda v26 rejects `--set` on `redpanda start`; verified empirically that `--mode dev-container` already has `auto_create_topics_enabled=true`, so the flag was dropped
+  - all images checked for arm64 (Redpanda v26.2.3, timescaledb latest-pg17, redis 8-alpine, python 3.13-slim, node 24-alpine)
+- **Created:**
+  - `services/bus.py` (topic map, `KAFKA_BOOTSTRAP`)
+  - `services/sink/{__init__,main}.py` (`to_rows`, `write`, consumer group "sink")
+  - `services/stream/{__init__,main}.py` (Kafka → WS fan-out, Redis `last:*` catch-up)
+  - `infra/timescale/init.sql` (telemetry hypertable + anomalies/incidents/events)
+  - `docker/python.Dockerfile`, `.dockerignore` (excludes `.env`, so the key is never baked into an image), `frontend/Dockerfile`, `frontend/.dockerignore`
+  - `docker-compose.yml` (ports: frontend 3000, engine 8001, stream 8002, timescale 5433, redpanda 19092; 8000 avoided because another local app uses it)
+  - `tests/test_sink.py`, `tests/test_stream.py`, `tests/e2e/{__init__,test_stack}.py`
+- **Modified:**
+  - `services/gateway/main.py` (AIOKafkaProducer in lifespan; `broadcast()` also publishes)
+  - `tests/test_gateway.py` (fake producer test)
+  - `pyproject.toml` (aiokafka 0.14, asyncpg 0.31, redis 8.1; sink/stream packages)
+  - `Makefile` (`demo`, `down`, `logs`, `e2e`)
+  - `README.md` (Docker section), `docs/CONTRACTS.md` (implemented topics), `.claude/PHASES.md`
+- **Verified:**
+  - 84 unit tests pass (e2e skipped without the stack)
+  - `docker compose down -v` then `make demo`: all 7 containers healthy in 9 s (cached images)
+  - `make e2e` passes on a fresh DB: link_down → healed incident received over the **stream** WS (via Redpanda) → `incidents` row resolved in TimescaleDB, telemetry rows, rca + action events stored
+  - browser on the Docker frontend: dashboard live (health 100), with the stream service showing 1 client
+  - the whole stack uses ~580 MB RAM
+- Notes:
+  - Docker Desktop wasn't running; Claude started it with `open -a Docker`.
+  - The local dev path (`make dev` / `.claude/launch.json` on 8001) still works without Kafka.
+  - Before the venue, run `make demo` once while online so the images are cached.
