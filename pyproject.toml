@@ -20,6 +20,11 @@ dependencies = [
     "torch-geometric>=2.8",
     "regopy>=1.5",
     "pyjwt>=2.15",
+    "prometheus-client>=0.26",
+    "opentelemetry-sdk>=1.45",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.45",
+    "opentelemetry-instrumentation-fastapi>=0.66b0",
+    "opentelemetry-instrumentation-aiokafka>=0.66b0",
 ]
 
 [project.optional-dependencies]
