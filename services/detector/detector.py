@@ -7,7 +7,9 @@
    metric can't raise an alert. Unreachable links/flows are hard failures and alert
    without a vote.
 4. Debounce: raise after RAISE_K of the last RAISE_N ticks are bad; clear after
-   CLEAR_TICKS consecutive normal ticks.
+   CLEAR_TICKS consecutive normal ticks. A *latency-only* anomaly (latency up while load
+   and loss are normal, e.g. a CPU hiccup on an emulated host) must be sustained:
+   SUSTAIN_K of the last SUSTAIN_N ticks, like a Prometheus `for:` clause.
 5. Change-aware: when the healer deliberately moves traffic, the elements on the new
    path re-learn their baseline for RELEARN_TICKS instead of raising false alerts.
 6. Optional forecaster (services/ml/forecast.py): flags flows predicted to breach their
@@ -26,6 +28,7 @@ from contracts.models import Anomaly, TelemetrySample
 WARMUP_TICKS = 60  # 30 s at 2 ticks/s
 Z_THRESHOLD = 6.0
 RAISE_K, RAISE_N = 3, 4
+SUSTAIN_K, SUSTAIN_N = 6, 8  # latency-only anomalies (~3-4 s)
 CLEAR_TICKS = 6
 RELEARN_TICKS = 20  # 10 s
 
@@ -36,7 +39,7 @@ METRICS = {
     "node": ("cpu",),
 }
 # Minimum spread so near-constant metrics don't turn tiny noise into huge z-scores.
-FLOORS = {"latency_ms": 0.2, "loss_pct": 0.5, "util": 0.03, "cpu": 0.03}
+FLOORS = {"latency_ms": 0.5, "loss_pct": 0.5, "util": 0.03, "cpu": 0.03}
 
 
 class Detector:
@@ -50,7 +53,8 @@ class Detector:
         self.median: dict[str, np.ndarray] = {}
         self.scale: dict[str, np.ndarray] = {}
         self.forests: dict[str, IsolationForest] = {}
-        self.recent: dict[str, deque[bool]] = defaultdict(lambda: deque(maxlen=RAISE_N))
+        self.recent: dict[str, deque[bool]] = defaultdict(lambda: deque(maxlen=SUSTAIN_N))
+        self.latency_only: set[str] = set()  # this tick's candidates whose only signal is latency
         self.normal_streak: dict[str, int] = defaultdict(int)
         self.active: dict[str, Anomaly] = {}
         self.relearning: dict[str, list[list[float]]] = {}
@@ -112,7 +116,11 @@ class Detector:
                 if self.normal_streak[e] >= CLEAR_TICKS:
                     del self.active[e]
                     cleared.append(e)
-            elif sum(self.recent[e]) >= RAISE_K and bad:
+            elif bad and (
+                sum(self.recent[e]) >= SUSTAIN_K
+                if e in self.latency_only
+                else sum(list(self.recent[e])[-RAISE_N:]) >= RAISE_K
+            ):
                 self.active[e] = candidates[e]
                 raised.append(candidates[e])
         return raised, cleared
@@ -160,6 +168,7 @@ class Detector:
     # ---- detection -------------------------------------------------------
 
     def _candidates(self, samples: list[TelemetrySample]) -> dict[str, Anomaly]:
+        self.latency_only = set()
         out: dict[str, Anomaly] = {}
         to_vote: dict[str, list[tuple[TelemetrySample, np.ndarray]]] = defaultdict(list)
         for s in samples:
@@ -177,6 +186,11 @@ class Detector:
                 self.autoencoder.observe(s.entity_id, z)
             if z.max() > Z_THRESHOLD:
                 to_vote[s.entity_type].append((s, z))
+                over = {
+                    m for m, v in zip(METRICS[s.entity_type], z, strict=True) if v > Z_THRESHOLD
+                }
+                if over == {"latency_ms"}:
+                    self.latency_only.add(s.entity_id)
 
         for t, items in to_vote.items():
             votes = self.forests[t].predict(np.vstack([z for _, z in items]))
