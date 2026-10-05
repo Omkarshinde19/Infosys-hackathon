@@ -82,6 +82,7 @@ Format: **5 min demo + 5 min judge Q&A**.
 2. **[docs/RESEARCH.md](docs/RESEARCH.md)**: papers, existing apps and what each of us should learn
 3. **[docs/CONTRACTS.md](docs/CONTRACTS.md)**: the message formats every service must follow
 4. **[CONTRIBUTING.md](CONTRIBUTING.md)**: branching, commits and PR workflow
+5. **[theory/ML.md](theory/ML.md)**: the machine learning in NetHeal: every model, how it's trained on simulated faults, and the measured results
 
 ## Repository layout (target)
 
@@ -115,6 +116,8 @@ make down      # stop it
 | redpanda / timescaledb / redis | Event bus / history / live-state cache | localhost:19092 / 5433 / internal |
 
 Before the venue (offline), run `make demo` once so all images are built and pulled.
+
+**Machine learning:** `make train` regenerates 3,000 simulated faults and retrains the GNN, forecaster and LSTM autoencoder (~3 min); `make mlflow` opens the training runs at http://localhost:5001. See [theory/ML.md](theory/ML.md).
 
 **Local development (no Docker):**
 
