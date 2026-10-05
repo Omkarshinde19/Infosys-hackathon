@@ -8,7 +8,7 @@
 
 ## Index
 
-### Session 1: 2026-10-02 → 2026-10-05 · messages used: 21 / 25
+### Session 1: 2026-10-02 → 2026-10-05 · messages used: 22 / 25
 
 | Msg | Date | Request | Files touched | Commit(s) |
 |---|---|---|---|---|
@@ -33,6 +33,7 @@
 | 19 | 10-06 | Session log entry for msg 18, then Phase 12 (emulated network) | see entry 19 | `c3e2b36`…`a282402` + log commit |
 | 20 | 10-05 | Phase 13: evaluation harness, observability, CI + Playwright | see entry 20 | `5aeba41`…(log commit) |
 | 21 | 10-06 | Phase 14 (stretch): RL routing agent + Ollama offline LLM | see entry 21 | `f8eaed7`…(log commit) |
+| 22 | 10-06 | Finish the two follow-ups (tick cadence, re-plan after a fix), Phase 15 demo hardening; what's left? | see entry 22 | `6b1c9e7`…(log commit) |
 
 ---
 
@@ -484,4 +485,54 @@
   4. My first explanation of the RL wins was wrong ("rules move too many flows"). An episode-by-episode check showed the wins are access-switch mitigations, and the doc was corrected.
   5. The agent moves an unaffected flow in 33 of 600 decisions. Restricting it would cost 4 of its 480 fixes, so it is kept and documented.
   6. Gradually worsening overloads: a mitigation can pass verification and break later, and the healer never re-plans after a verified fix. Flagged as a separate task (needs a test plus an eval rerun).
+
+### Msg 22 · Follow-ups + Phase 15: demo hardening ✅
+- Request: "go ahead with phase 15 and make sure to complete the two running tasks, then i guess we are done with the coding part? what are the remaining tasks or the features?"
+- The two follow-up chips had never been started (no sessions, worktrees or branches existed), so both were done here.
+- Research (Rule 3):
+  - React #418 is a hydration mismatch. Found by bisecting on a local production build with Playwright request interception (which slows script loading enough to reproduce it).
+  - Web search found no specific Motion issue, so the fix is based on the bisect.
+- **Follow-up 1, tick cadence:** `services/gateway/main.py` `tick_loop()` now ticks on a fixed 0.5 s cadence (no catch-up burst after a slow tick). Test: `tests/test_gateway.py::test_loop_keeps_two_ticks_per_second_when_a_tick_takes_time`.
+- **Follow-up 2, re-plan after a fix:** `services/healer/healer.py` now watches a verified fix (`holding`).
+  - If the fixed traffic breaks again for 6 ticks during the same incident, it emits `relapsed` and re-plans once.
+  - If the cause is unclear (confidence < 0.7), it escalates right away. The first version waited forever on a 0.6 diagnosis; the test caught it.
+  - `services/healer/incidents.py`: a relapse puts the incident back to "healing". The UI status text was added.
+  - Tests: `test_replans_when_a_verified_fix_stops_holding`, `test_a_fix_that_keeps_holding_is_left_alone`, `test_a_clear_new_cause_after_a_relapse_is_fixed_again`.
+  - Eval rerun: `rl` escalations 12% → 16% (broken mitigations now go to a human instead of a false "healed"); recovered unchanged at 85%.
+- **Phase 15, created:**
+  - `frontend/e2e/helpers.ts` (`blockInternet`, `signIn`, `demoPassword`)
+  - `frontend/e2e/offline.spec.ts` (every page: no internet requests, no page errors)
+  - `frontend/e2e/record.spec.ts` (backup video, RECORD=1)
+  - `docs/DEMO.md` (checklist, 5-minute script, fallbacks, Q&A)
+  - `demo/netheal-demo.webm` (1:45, gitignored)
+- **Phase 15, modified:**
+  - `frontend/e2e/demo.spec.ts` (internet blocked; plus the script's drills: gray failure heals, core router escalates)
+  - `netheal` (`reset`, `rehearse`, `record`), `Makefile` (`reset`), `.gitignore` (`demo/`)
+  - `frontend/src/components/landing/HeroCanvas.tsx` (lazy + mount after hydration)
+  - `frontend/src/components/Reveal.tsx` (CSS + IntersectionObserver instead of motion; `motion` dependency removed)
+  - `frontend/src/components/dashboard/FaultLab.tsx` (resync after a reset)
+  - `frontend/src/components/dashboard/{Sidebar,SelfHealing,ReportPanel}.tsx`, `frontend/src/app/dashboard/layout.tsx` (phone menu, relapsed status, neutral "AI is writing" text)
+  - `services/copilot/agent.py` (whole answer capped at 75 s; list_incidents before get_incident)
+  - `tests/test_copilot.py`, `README.md`, `.claude/launch.json` (dev preview on :3005), `.claude/PHASES.md`
+- **Verified:**
+  - `./netheal rehearse`: pre-flight all green; the 2 demo tests ×5 = 10 of 10 with the internet blocked; page tour clean
+  - 158 unit tests, ruff, eslint, `next build`
+  - no horizontal overflow on 8 pages at 390 px and 1024 px
+  - the CS Lab gray-failure drill healed 3 of 3 (MTTD 2.5 s, MTTR 9 s)
+  - Ask NetHeal answers the past-incident question correctly (list_incidents → get_incident)
+- Bugs found and fixed:
+  1. **Landing hydration error (React #418), intermittent.**
+     - A first fix for the `next/dynamic` ssr:false hero canvas wasn't enough.
+     - Bisected on a production build: with Motion's `whileInView`, 1 in 4 slow loads failed; without it, 0 in 16. Replaced with a CSS fade-in.
+     - This matters because a hydration error makes React re-render the page, wiping its state.
+  2. **Stale alert after a reset:** the WebSocket "cleared" message could arrive before an older `/anomalies` snapshot, which then overwrote it. The dashboard now re-fetches after a reset.
+  3. **Recording typed before hydration**, so the question was lost. The test now waits until Send is enabled; Ask NetHeal itself was fine (manual and probe runs).
+  4. **Ask NetHeal answered "couldn't find" about a past incident** (it guessed ids). The prompt now says to list incidents first.
+  5. **A whole answer could take about 200 s** with a slow cloud. It is now capped at 75 s, then a template answer.
+  6. **Phone layout:** the fixed sidebar covered the screen. It is now a slide-in menu.
+- Not done / known:
+  - CI on GitHub could not run the Python job: GitHub Actions incident ("delays in assigning hosted runners"). Rerun when resolved.
+  - Assistant times are in UTC, not IST.
+  - Range citations like "[E5-E11]" aren't turned into chips.
+  - A real Wi-Fi-off rehearsal on the demo laptop is still to do (`docs/DEMO.md`).
 
