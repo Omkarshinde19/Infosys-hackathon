@@ -15,10 +15,13 @@ const DETECTOR_NAMES: Record<string, string> = {
   zscore: "Robust z-score",
   iforest: "IsolationForest",
   reachability: "Reachability",
+  lstm_ae: "LSTM autoencoder",
+  forecast: "Forecaster",
 };
 
 function describe(a: Anomaly) {
   if (a.metric === "reachability") return "Unreachable: traffic can't get through";
+  if (a.metric === "predicted_sla_breach") return `SLA breach predicted within 5 s (${Math.round(a.value * 100)}% risk)`;
   const m = METRIC[a.metric];
   return `${m.label} ${m.fmt(a.value)} (normal ${m.fmt(a.baseline)})`;
 }
