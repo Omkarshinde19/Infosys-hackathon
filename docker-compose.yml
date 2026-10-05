@@ -3,6 +3,7 @@
 #   stream   - Redpanda -> WebSocket fan-out (+ Redis catch-up)    ws://localhost:8002/ws/live
 #   sink     - Redpanda -> TimescaleDB history                      postgres://localhost:5433
 #   frontend - Next.js dashboard                                    http://localhost:3000
+#   emulab   - optional (profile "emu"): Mininet + Open vSwitch campus with real packets
 name: netheal
 
 x-python: &python
@@ -54,6 +55,7 @@ services:
     command: uvicorn services.gateway.main:app --host 0.0.0.0 --port 8000
     environment:
       KAFKA_BOOTSTRAP: redpanda:9092
+      EMULAB_URL: http://emulab:9000  # used only when the emulated backend is switched on
     env_file: [{ path: .env, required: false }]  # LLM key, passed at runtime only
     ports: ["8001:8000"]
     depends_on:
@@ -94,6 +96,12 @@ services:
     depends_on:
       engine: { condition: service_healthy }
       stream: { condition: service_healthy }
+
+  emulab:
+    profiles: ["emu"]  # ./netheal emu
+    build: { context: ., dockerfile: emulab/Dockerfile }
+    privileged: true  # namespaces, Open vSwitch datapath, tc
+    ports: ["9000:9000"]
 
 volumes:
   tsdata:
