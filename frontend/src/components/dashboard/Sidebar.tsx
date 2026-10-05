@@ -16,10 +16,12 @@ import {
   LineChart,
   LogIn,
   LogOut,
+  Menu,
   Network,
   ScrollText,
   Scale,
   Stethoscope,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -69,6 +71,12 @@ export function Sidebar() {
     return () => clearInterval(timer);
   }, []);
   const waiting = useLive((s) => s.incident.awaiting !== null);
+  const [open, setOpen] = useState(false); // phones: the sidebar slides in from the left
+  const [shownFor, setShownFor] = useState(pathname);
+  if (shownFor !== pathname) {  // navigated: close the menu
+    setShownFor(pathname);
+    setOpen(false);
+  }
   const session = useAuth((s) => s.session);
   const logout = useAuth((s) => s.logout);
   const pages = [
@@ -83,7 +91,18 @@ export function Sidebar() {
   ];
 
   return (
-    <aside className="glass fixed inset-y-4 left-4 z-20 flex w-60 flex-col rounded-2xl! p-4 print:hidden">
+    <>
+    <header className="glass fixed inset-x-3 top-3 z-20 flex items-center justify-between rounded-2xl! px-4 py-2 md:hidden print:hidden">
+      <Logo className="text-base" />
+      <button onClick={() => setOpen(true)} aria-label="Open menu" className="grid size-9 place-items-center rounded-full hover:bg-[var(--glass-hover)]">
+        <Menu className="size-5" />
+      </button>
+    </header>
+    {open && <div onClick={() => setOpen(false)} className="fixed inset-0 z-20 bg-black/50 md:hidden" />}
+    <aside className={`glass fixed inset-y-4 left-4 z-30 flex w-60 flex-col overflow-y-auto rounded-2xl! p-4 transition-transform md:translate-x-0 print:hidden ${open ? "translate-x-0" : "-translate-x-[110%]"}`}>
+      <button onClick={() => setOpen(false)} aria-label="Close menu" className="absolute top-4 right-3 text-fg-muted hover:text-fg md:hidden">
+        <X className="size-5" />
+      </button>
       <Logo className="px-2 py-1 text-lg" />
       {backend && (
         <Link href="/dashboard/settings" className="mx-2 mt-2 w-fit rounded-full border border-[var(--glass-border)] px-2.5 py-0.5 text-[11px] text-fg-muted hover:text-fg">
@@ -91,7 +110,7 @@ export function Sidebar() {
         </Link>
       )}
 
-      <nav className="mt-8 flex flex-col gap-1 text-sm">
+      <nav onClick={() => setOpen(false)} className="mt-8 flex flex-col gap-1 text-sm">
         <Link href="/" className="flex items-center gap-3 rounded-xl px-3 py-2 text-fg-muted hover:bg-[var(--glass-hover)] hover:text-fg">
           <Home className="size-4" /> Home
         </Link>
@@ -152,5 +171,6 @@ export function Sidebar() {
         <ThemeToggle />
       </div>
     </aside>
+    </>
   );
 }
