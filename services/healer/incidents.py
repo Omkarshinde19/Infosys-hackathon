@@ -86,6 +86,8 @@ class IncidentTracker:
                 self._mark(ts, "rollback", payload.action_id)
             elif kind == "escalated":
                 inc.status = "failed"
+            elif kind == "relapsed":  # the verified fix stopped holding
+                inc.status = "healing"
             elif kind == "no_action":
                 inc.status = "resolved"
         if not active:  # after the events, so a fix that ends the incident is recorded

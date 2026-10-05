@@ -9,6 +9,8 @@
    blast radius and the rate of automatic changes.
 4. Apply the best allowed candidate, watch the real network for VERIFY_TICKS and
    keep it if affected traffic is back to normal, otherwise roll back and try the next.
+   After that, keep watching: if the fixed traffic breaks again for VERIFY_TICKS while the
+   incident is still open (e.g. a worsening fault outgrew a mitigation), plan once more.
 5. Comfort (autonomy) level decides who pulls the trigger, see LEVELS.
 
 With a trained RL routing agent (services/ml/rl.py), its proposal joins the candidates in
@@ -58,6 +60,8 @@ class Healer:
         self.tried: set[tuple[str, str, str]] = set()  # (incident, cause, target)
         self.acted: set[str] = set()  # incident ids
         self.pending: list[ActionCandidate] = []
+        self.holding: dict | None = None  # a verified fix being watched: incident, flows, bad
+        self.relapsed: set[str] = set()  # incidents re-planned once already
         self.current: dict | None = None  # the action being verified
         self.status = "idle"
 
@@ -73,6 +77,8 @@ class Healer:
         latest = {s.entity_id: s for s in samples}
         if self.current:
             return self._verify(latest, net, baseline)
+        if self.holding and (relapse := self._watch(latest, hypotheses, baseline)):
+            return relapse
         if self.awaiting and not hypotheses:  # the incident ended before anyone decided
             self.awaiting, self.status = None, "idle"
 
@@ -249,6 +255,26 @@ class Healer:
         changed = _changed(self.current["undo"], net)
         return [("applied", c), *([("rebaseline", changed)] if changed else [])]
 
+    def _watch(self, latest, hypotheses, baseline: dict[str, float]) -> list[Event]:
+        """After a verified fix: re-plan (once) if the fixed traffic breaks again."""
+        h = self.holding
+        if not hypotheses or hypotheses[0].incident_id != h["incident"]:
+            self.holding = None  # the incident ended (or a new one began)
+            return []
+        h["bad"] = 0 if _healthy(latest, h["affected"], baseline) else h["bad"] + 1
+        if h["bad"] < VERIFY_TICKS or h["incident"] in self.relapsed:
+            return []
+        self.holding = None
+        self.relapsed.add(h["incident"])
+        events = [("relapsed", "The fix stopped holding: the traffic it fixed broke again.")]
+        if hypotheses[0].confidence < MIN_CONFIDENCE:  # whatever broke it isn't clear yet
+            self.status = "escalated"
+            return [*events, ("escalated", "The new cause isn't clear; a human needs to step in.")]
+        self.acted.discard(h["incident"])  # plan again from the current diagnosis
+        self.tried = {k for k in self.tried if k[0] != h["incident"]}
+        self.status = "relapsed"
+        return events
+
     def _apply_next(self, latest, net: Network, affected: list[str]) -> list[Event]:
         if not self.pending:
             self.status = "escalated"
@@ -289,9 +315,21 @@ class Healer:
         self.current = None
         if verified:
             self.status = "healed"
+            self.holding = {
+                "incident": cur["candidate"].incident_id,
+                "affected": affected,
+                "bad": 0,
+            }
             return [("result", result)]
         self.status = "rolled_back"
         return [("result", result), *events, *self._apply_next(latest, net, affected)]
+
+
+def _healthy(latest, flows: list[str], baseline: dict[str, float]) -> bool:
+    now = _averages(latest, flows)
+    return now["loss_pct"] < HEALTHY_LOSS_PCT and now["latency_ms"] <= LATENCY_TOLERANCE * fmean(
+        baseline[f] for f in flows
+    )
 
 
 def _changed(old_routes: dict[str, list[str]], net: Network) -> list[str]:
