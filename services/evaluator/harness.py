@@ -130,7 +130,7 @@ def run(seed: int, policy: str) -> dict:
         "escalated": bool(escalated),
         "sla_impact": bool(bad_ticks),
         "recovered": recovered,
-        "recovery_s": seconds(bad_ticks[-1]) if recovered and bad_ticks else None,
+        "recovery_s": (seconds(bad_ticks[-1]) if bad_ticks else 0.0) if recovered else None,
         "sla_violation_s": round(sum(not g for g in ok) * TICK_S, 1),
         "p95_latency_ms": round(float(np.percentile(latencies, 95)), 2),
         "mean_loss_pct": round(float(np.mean(losses)), 3),
@@ -160,10 +160,12 @@ def _median(values) -> float | None:
     return round(median(values), 1) if values else None
 
 
-def policy_summary(rows: list[dict]) -> dict:
+def policy_summary(rows: list[dict], hurt: set[int]) -> dict:
+    """hurt: seeds whose fault broke the SLA without healing. Every policy is judged on that
+    same set, so a fix that lands before the SLA breaks counts as a recovery."""
     faults = [r for r in rows if r["fault"]]
     healthy = [r for r in rows if not r["fault"]]
-    impact = [r for r in faults if r["sla_impact"]]
+    impact = [r for r in faults if r["seed"] in hurt]
     tp = sum(r["detected"] for r in faults)
     fp = sum(r["detected"] for r in healthy)
     precision = tp / (tp + fp) if tp + fp else 0.0
@@ -179,6 +181,7 @@ def policy_summary(rows: list[dict]) -> dict:
             "f1": round(2 * precision * recall / (precision + recall), 3) if tp else 0.0,
             "false_positive_rate": round(fp / len(healthy), 3) if healthy else None,
             "median_mttd_s": _median(r["mttd_s"] for r in faults),
+            "median_mttd_gradual_s": _median(r["mttd_s"] for r in faults if r["fault"]["ramp_s"]),
         },
         "rca": {
             "top1": _rate(faults, "top1"),
@@ -210,11 +213,12 @@ def policy_summary(rows: list[dict]) -> dict:
 def summarize(runs: list[dict]) -> dict:
     by_policy = {p: [r for r in runs if r["policy"] == p] for p in POLICIES}
     types = sorted({r["fault"]["type"] for r in runs if r["fault"]})
+    hurt = {r["seed"] for r in by_policy["no_heal"] if r["sla_impact"]}
     return {
-        "policies": {p: policy_summary(rows) for p, rows in by_policy.items()},
+        "policies": {p: policy_summary(rows, hurt) for p, rows in by_policy.items()},
         "by_fault": {
             t: {
-                p: policy_summary([r for r in rows if r["fault"] and r["fault"]["type"] == t])
+                p: policy_summary([r for r in rows if r["fault"] and r["fault"]["type"] == t], hurt)
                 for p, rows in by_policy.items()
             }
             for t in types
@@ -249,7 +253,10 @@ def markdown(results: dict) -> str:
         "## Headline",
         "",
         head,
-        row("Faults that hurt users (SLA)", lambda x: str(x["healing"]["sla_impacting_faults"])),
+        row(
+            "Faults that hurt users without healing",
+            lambda x: str(x["healing"]["sla_impacting_faults"]),
+        ),
         row("Recovered (SLA met, last 10 s)", lambda x: _pct(x["healing"]["recovered_rate"])),
         row("Median time to recover", lambda x: _s(x["healing"]["median_recovery_s"])),
         row("Healed by a verified fix", lambda x: _pct(x["healing"]["healed_rate"])),
@@ -267,6 +274,7 @@ def markdown(results: dict) -> str:
         row("Detection F1", lambda x: _pct(x["detection"]["f1"])),
         row("False alarms on healthy runs", lambda x: _pct(x["detection"]["false_positive_rate"])),
         row("Median MTTD", lambda x: _s(x["detection"]["median_mttd_s"])),
+        row("Median MTTD, gradual faults", lambda x: _s(x["detection"]["median_mttd_gradual_s"])),
         row("Root cause, top-1", lambda x: _pct(x["rca"]["top1"])),
         row("Root cause, top-3", lambda x: _pct(x["rca"]["top3"])),
         row("007 voting alone, top-1", lambda x: _pct(x["rca"]["voting_007_top1"])),
@@ -281,8 +289,22 @@ def markdown(results: dict) -> str:
             f"({per[p]['healing']['sla_impacting_faults']})" for p in POLICIES) + " |")  # fmt: skip
     lines += [
         "",
-        "In brackets: faults of that type that broke the SLA. A flow breaks its SLA when loss "
-        "is above 2% or latency is more than double its healthy value.",
+        "In brackets: faults of that type that broke the SLA without healing. Every policy is "
+        "judged on those same faults. A flow breaks its SLA when loss is above 2% or latency "
+        "is more than double its healthy value.",
+        "",
+        "## Reading these numbers",
+        "",
+        "- `reactive` can recover a few more faults than `twin`: it ignores the blast-radius "
+        "guardrail (at most 5 flows moved automatically), e.g. it moves every flow off a "
+        "flapping internet uplink at once. NetHeal hands those to a human on purpose.",
+        "- An overloaded access switch has no detour (the traffic starts there), so every "
+        "policy escalates it.",
+        "- No fix is rolled back: in the simulator every detour around the fault works, so "
+        "testing on the twin first can't beat a plain detour on recovery here. Its value is "
+        "safety (the guardrails see predicted load), and on real packets reality can differ.",
+        "- The forecaster's value is earlier detection of gradual faults. Diagnosing earlier "
+        "occasionally names the wrong cause first; it is corrected before anything is applied.",
         "",
     ]
     return "\n".join(lines)
