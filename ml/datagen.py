@@ -2,8 +2,9 @@
 
 Each scenario: copy a warmed-up network + detector + RCA, inject one random fault
 (type, target, severity, sudden or gradual), run it, and record
-  - rca:    entity-graph snapshots at the first diagnosis and +2 / +6 ticks, with the
-            true root cause, plus what the rules and voting-only would have answered
+  - rca:    entity-graph snapshots at the first diagnosis (+2 / +6 ticks) and after the
+            healer has rerouted around the fault (+2 / +8 ticks), with the true root cause,
+            plus what the rules and voting-only would have answered
   - series: per-flow latency/loss over time (+ healthy baseline) for the forecaster
 Healthy scenarios (no fault) are mixed in for negatives.
 """
@@ -14,6 +15,7 @@ from multiprocessing import Pool
 import numpy as np
 
 from services.detector.detector import WARMUP_TICKS, Detector
+from services.healer.healer import Healer
 from services.ml.graph import CAUSES, EntityGraph, features, link_flips
 from services.netsim.engine import Network
 from services.rca.engine import RCAEngine
@@ -24,6 +26,7 @@ FAULT_TO_CAUSE = {
 }  # fmt: skip
 PRE_TICKS, POST_TICKS = 12, 40
 SNAPSHOT_OFFSETS = (0, 2, 6)  # ticks after the first diagnosis
+POST_HEAL_OFFSETS = (2, 8)  # ticks after a verified fix
 BASE_SEEDS = (101, 202, 303, 404)
 
 _bases: dict[int, tuple] = {}
@@ -76,7 +79,8 @@ def scenario(seed: int) -> dict:
     fault = random_fault(rng, net)
     baseline = {f: float(det.median[f][0]) for f in net.flows}
     series = {f: [] for f in net.flows}
-    rca_snaps, first_diag = [], None
+    healer = Healer()
+    rca_snaps, first_diag, healed = [], None, None
 
     for t in range(PRE_TICKS + POST_TICKS):
         if t == PRE_TICKS and fault:
@@ -90,12 +94,18 @@ def scenario(seed: int) -> dict:
 
         if fault and rca.hypotheses and first_diag is None:
             first_diag = t
-        if first_diag is not None and t - first_diag in SNAPSHOT_OFFSETS:
+        phase = (
+            "diagnosis" if first_diag is not None and t - first_diag in SNAPSHOT_OFFSETS
+            else "post_heal" if healed is not None and t - healed in POST_HEAL_OFFSETS
+            else None
+        )  # fmt: skip
+        if phase and rca.hypotheses:
             graph = EntityGraph(net)
             y = np.zeros(len(graph.ids), dtype=np.int64)
             y[graph.index[fault[1]]] = CAUSES.index(FAULT_TO_CAUSE[fault[0]])
             rca_snaps.append({
-                "offset": t - first_diag,
+                "phase": phase,
+                "offset": t - (first_diag if phase == "diagnosis" else healed),
                 "x": features(graph, latest, det, link_flips(rca)),
                 "edge_index": graph.edge_index,
                 "y": y,
@@ -107,6 +117,12 @@ def scenario(seed: int) -> dict:
                 ],
                 "voting_target": voting_only(net, det.active),
             })  # fmt: skip
+        # Heal after the snapshot: the live engine also diagnoses before it heals each tick.
+        for kind, payload in healer.update(samples, rca.hypotheses, net, baseline):
+            if kind == "rebaseline":
+                det.relearn(payload)
+            if kind == "result" and payload.verified:
+                healed = t
     return {
         "seed": seed,
         "fault": fault,
