@@ -9,6 +9,7 @@ ENGINE=http://localhost:8001
 FRONTEND=http://localhost:3000
 STREAM=http://localhost:8002
 OTLP=http://jaeger:4317
+OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:7b}
 bold() { printf "\033[1m%s\033[0m\n" "$*"; }
 ok()   { printf "  \033[32m✔\033[0m %s\n" "$*"; }
 bad()  { printf "  \033[31m✘\033[0m %s\n" "$*"; }
@@ -82,6 +83,15 @@ cmd_obs() {
   echo "  Prometheus  http://localhost:9090"
 }
 
+cmd_ollama() {
+  bold "Setting up the offline AI model (Ollama + $OLLAMA_MODEL, ≈4.7 GB the first time)…"
+  command -v ollama >/dev/null || brew install ollama
+  brew services start ollama >/dev/null
+  for _ in $(seq 1 30); do curl -sf localhost:11434/api/version >/dev/null && break; sleep 1; done
+  ollama pull "$OLLAMA_MODEL"
+  ok "Offline AI ready: Ask NetHeal and reports switch to it when the cloud model is unreachable"
+}
+
 cmd_status() {
   bold "Containers"
   docker compose ps --format '  {{.Service}}\t{{.Status}}' 2>/dev/null || bad "Docker isn't running"
@@ -90,6 +100,7 @@ cmd_status() {
   curl -sf "$STREAM/health" >/dev/null && ok "Stream      $STREAM" || bad "Stream      $STREAM (only in Docker mode)"
   curl -sf -o /dev/null "$FRONTEND" && ok "Dashboard   $FRONTEND" || bad "Dashboard   $FRONTEND"
   curl -s "$ENGINE/anomalies" | grep -q '"ready":true' && ok "Detector ready" || bad "Detector still learning (or engine down)"
+  curl -sf localhost:11434/api/version >/dev/null && ok "Offline AI  Ollama ($OLLAMA_MODEL)" || bad "Offline AI  Ollama not running (./netheal ollama)"
 }
 
 cmd_dev() {
@@ -99,7 +110,8 @@ cmd_dev() {
   ensure_secret
   mkdir -p "$RUN_DIR"
   bold "Starting engine and frontend locally (no Docker)…"
-  nohup .venv/bin/uvicorn services.gateway.main:app --port 8001 >"$RUN_DIR/engine.log" 2>&1 &
+  OLLAMA_URL=http://localhost:11434/v1 \
+    nohup .venv/bin/uvicorn services.gateway.main:app --port 8001 >"$RUN_DIR/engine.log" 2>&1 &
   echo $! >"$RUN_DIR/engine.pid"
   GATEWAY_URL=$ENGINE NEXT_PUBLIC_GATEWAY_WS=ws://localhost:8001/ws/live \
     nohup npm --prefix frontend run dev >"$RUN_DIR/frontend.log" 2>&1 &
@@ -142,6 +154,7 @@ NetHeal launcher
   ./netheal logs [service] Follow logs (engine, stream, sink, frontend, redpanda, timescaledb, redis)
   ./netheal open           Open the dashboard in your browser
   ./netheal emu            Also start the emulated network (Mininet + Open vSwitch, real packets)
+  ./netheal ollama         Install and start the offline AI model (Ollama + qwen2.5:7b), used when offline
   ./netheal obs            Also start Grafana, Prometheus and Jaeger (NetHeal's own metrics + traces)
 
   ./netheal dev            Run engine + frontend locally without Docker (fast development)
@@ -165,6 +178,7 @@ case "${1:-help}" in
   open)     open "$FRONTEND" ;;
   emu)      cmd_emu ;;
   obs)      cmd_obs ;;
+  ollama)   cmd_ollama ;;
   dev)      cmd_dev ;;
   dev-stop) cmd_dev_stop ;;
   setup)    cmd_setup ;;
