@@ -132,7 +132,7 @@ export default function SettingsPage() {
         <Card icon={Bot} title="AI assistant & reports">
           <ol className="space-y-1 text-sm">
             {s.llm.providers.map((p, i) => (
-              <li key={p.label}>{i === 0 ? "Language model" : "If that is unreachable"}: <b>{p.model}</b> on {p.label}</li>
+              <li key={p.label}>{i === 0 ? "Language model" : "If that is unreachable"}: <b>{p.model}</b> · {p.label}</li>
             ))}
           </ol>
           <p className="text-sm">Document search: <b>{s.llm.embeddings}</b></p>

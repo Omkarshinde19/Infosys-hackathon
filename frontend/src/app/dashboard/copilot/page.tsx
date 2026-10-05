@@ -176,7 +176,7 @@ export default function CopilotPage() {
                       <p className="mt-3 flex flex-wrap items-center gap-2 border-t border-[var(--glass-border)] pt-2 text-[11px] text-[#7da0ca]">
                         <Wrench className="size-3" /> {m.answer.tools.join(", ") || "no tools"} ·{" "}
                         {m.answer.source.startsWith("llm:")
-                          ? `${m.answer.source.slice(4)} on ${m.answer.provider ?? "Qualcomm Cloud AI"}`
+                          ? `${m.answer.source.slice(4)} · ${m.answer.provider ?? "Qualcomm Cloud AI"}`
                           : `offline answer (${m.answer.fallback_reason})`}{" "}
                         · {Object.keys(m.answer.evidence).length} evidence cited
                       </p>
