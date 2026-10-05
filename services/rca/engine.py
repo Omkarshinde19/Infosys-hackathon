@@ -10,6 +10,9 @@ A flow that is unreachable although every element on its path looks healthy poin
 at its own forwarding rules (misconfig).
 
 confidence = 0.6 * signature strength + 0.4 * vote share
+
+With a trained root-cause GNN (services/ml/gnn.py) the ranking becomes an ensemble:
+confidence = 0.45 * signature + 0.25 * vote + 0.30 * GNN probability.
 """
 
 from collections import defaultdict, deque
@@ -25,7 +28,8 @@ SIGNATURE_WEIGHT, VOTE_WEIGHT = 0.6, 0.4
 
 
 class RCAEngine:
-    def __init__(self):
+    def __init__(self, gnn=None):
+        self.gnn = gnn  # optional RootCauseGNN
         self.link_down: dict[str, deque[bool]] = defaultdict(lambda: deque(maxlen=FLAP_WINDOW))
         self.incident_id: str | None = None
         self.hypotheses: list[RCAHypothesis] = []
@@ -36,8 +40,9 @@ class RCAEngine:
         self.hypotheses = []
 
     def update(
-        self, samples: list[TelemetrySample], active: dict[str, Anomaly], net: Network
-    ) -> bool:
+        self, samples: list[TelemetrySample], active: dict[str, Anomaly], net: Network,
+        detector=None,
+    ) -> bool:  # fmt: skip
         """Feed one tick. Returns True when the ranked diagnosis changed."""
         latest = {s.entity_id: s for s in samples}
         for lid in net.links:
@@ -49,6 +54,8 @@ class RCAEngine:
         else:
             self.incident_id = self.incident_id or new_id()
             self.hypotheses = self._diagnose(latest, active, net)
+            if self.gnn is not None and detector is not None:
+                self.hypotheses = self._with_gnn(self.hypotheses, latest, net, detector)
         return before != [(h.cause, h.target) for h in self.hypotheses]
 
     # ---- diagnosis ---------------------------------------------------------
@@ -94,6 +101,30 @@ class RCAEngine:
                 )
 
         return sorted(hypotheses, key=lambda h: h.confidence, reverse=True)
+
+    def _with_gnn(self, hypotheses, latest, net: Network, detector) -> list[RCAHypothesis]:
+        from services.ml.gnn import W_GNN, ensemble, probabilities
+        from services.ml.graph import EntityGraph, features, link_flips
+
+        graph = EntityGraph(net)
+        x = features(graph, latest, detector, link_flips(self))
+        probs = probabilities(self.gnn, x, graph.edge_index, graph.kinds)
+        rules = [(h.cause, h.target, h.method_scores["signature"], h.method_scores["voting"])
+                 for h in hypotheses]  # fmt: skip
+        by_key = {(h.cause, h.target): h for h in hypotheses}
+        ranked = []
+        for cause, target, confidence, p in ensemble(rules, probs, graph.ids):
+            h = by_key.get((cause, target)) or RCAHypothesis(
+                incident_id=self.incident_id, cause=cause, target=target, confidence=0,
+                evidence=[], method_scores={"signature": 0.0, "voting": 0.5},
+            )  # fmt: skip
+            h.confidence = round(confidence, 3)
+            h.method_scores["gnn"] = round(p, 3)
+            h.evidence.append(
+                Evidence(description=f"Graph neural network agrees: {p:.0%}", weight=W_GNN)
+            )
+            ranked.append(h)
+        return ranked
 
     def _link_signature(self, lid: str, s: TelemetrySample, a: Anomaly) -> tuple[str, float, str]:
         history = list(self.link_down[lid])

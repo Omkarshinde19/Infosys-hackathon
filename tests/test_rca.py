@@ -90,3 +90,31 @@ def test_fault_on_idle_standby_link_is_reported_without_inflated_confidence():
     assert (top.cause, top.target) == ("gray_failure", "dist4-cafeteria")
     assert top.method_scores["voting"] == 0.5  # no affected flows: voting is neutral
     assert "No user traffic is affected yet" in top.evidence[1].description
+
+
+def test_gnn_adds_a_third_opinion_when_a_model_is_loaded():
+    from services.ml.gnn import load
+
+    model = load()
+    assert model is not None, "train it with: python -m ml.train_gnn"
+    net, det, _ = trained()
+    rca = RCAEngine(gnn=model)
+    net.inject_fault("link_down", "dist1-library")
+    for _ in range(5):
+        samples = net.step()
+        det.update(samples)
+        rca.update(samples, det.active, net, detector=det)
+    top = rca.hypotheses[0]
+    assert (top.cause, top.target) == ("link_failure", "dist1-library")
+    # Calibrated, not certain: a link that has just gone down is a flapping link about half the
+    # time in the training data, so the GNN keeps some doubt until it sees the link stay down.
+    assert top.method_scores["gnn"] > 0.5
+    assert any("Graph neural network" in e.description for e in top.evidence)
+
+
+def test_without_a_model_rca_is_unchanged():
+    net, det, rca = trained()
+    net.inject_fault("link_down", "dist1-library")
+    for _ in range(5):
+        step(net, det, rca)
+    assert "gnn" not in rca.hypotheses[0].method_scores
