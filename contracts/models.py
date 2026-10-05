@@ -127,5 +127,5 @@ class LedgerEntry(BaseModel):
 class Envelope(BaseModel):
     """WebSocket message from the gateway to the frontend."""
 
-    type: Literal["telemetry", "anomaly", "rca", "action", "incident", "kpi"]
+    type: Literal["telemetry", "anomaly", "rca", "action", "incident", "kpi", "audit"]
     data: Any
