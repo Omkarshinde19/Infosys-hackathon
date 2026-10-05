@@ -66,10 +66,17 @@ class Detector:
                 self.relearning[e] = []
 
     def clear(self) -> None:
-        """Forget active alerts (e.g. after a network reset) but keep the baseline."""
+        """After a network reset: forget alerts and short-term history, restore the warm-up
+        baselines (re-learned ones belonged to routes that no longer exist)."""
         self.recent.clear()
         self.normal_streak.clear()
         self.active.clear()
+        self.relearning.clear()
+        if self.ready:
+            self.median, self.scale = dict(self.warmup_median), dict(self.warmup_scale)
+        for model in (self.forecaster, self.autoencoder):
+            if model is not None:
+                model.history.clear()
 
     def update(self, samples: list[TelemetrySample]) -> tuple[list[Anomaly], list[str]]:
         """Feed one tick. Returns (newly raised anomalies, entity ids that cleared)."""
@@ -131,6 +138,7 @@ class Detector:
             # contamination="auto": anomalous when score > 0.5 (Liu et al., 2008)
             self.forests[t] = IsolationForest(n_estimators=100, random_state=0).fit(z)
         self.warmup.clear()
+        self.warmup_median, self.warmup_scale = dict(self.median), dict(self.scale)
 
     def _add_forecasts(self, samples: list[TelemetrySample], candidates: dict) -> None:
         baseline = {e: float(m[0]) for e, m in self.median.items() if self.types[e] == "flow"}
