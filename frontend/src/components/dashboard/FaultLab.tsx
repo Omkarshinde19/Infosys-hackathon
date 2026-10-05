@@ -76,6 +76,7 @@ export function FaultLab() {
 
   async function reset() {
     await postJSON("/reset");
+    await useLive.getState().loadAnomalies(); // resync: a snapshot fetched before the reset may have landed after it
     log("Network reset to healthy baseline", true);
   }
 
