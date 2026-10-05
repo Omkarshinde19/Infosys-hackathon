@@ -6,16 +6,17 @@ Every service talks through these messages, on Redpanda topics and over the gate
 
 ## Topics
 
-| Topic | Producer | Consumers | Message |
+Implemented (Phase 8). Every message value is the full WebSocket envelope JSON `{ "type", "data" }`; topic map in `services/bus.py`.
+
+| Topic | Producer | Consumers | Envelope `data` |
 |---|---|---|---|
-| `telemetry.raw` | collector | detector, gateway, timescale sink | `TelemetrySample` |
-| `telemetry.features` | collector | detector | `FeatureVector` |
-| `anomalies` | detector | rca, gateway, llm | `Anomaly` |
-| `rca.hypotheses` | rca | healer, gateway, llm | `RCAHypothesis` |
-| `actions.proposed` | healer | gateway (approvals), llm | `ActionCandidate` |
-| `actions.applied` | healer | gateway, llm, evaluator | `ActionResult` |
-| `incidents` | healer | gateway, llm, evaluator | `Incident` |
-| `audit` | all | ledger | `LedgerEntry` |
+| `telemetry.raw` | engine | sink → `telemetry` hypertable, stream | `[TelemetrySample, ...]` (one tick) |
+| `anomalies` | engine | sink → `anomalies`, stream | `{ raised: [Anomaly], cleared: [id] }` |
+| `rca.hypotheses` | engine | sink → `events`, stream | `[RCAHypothesis, ...]` |
+| `actions` | engine | sink → `events`, stream | `{ kind, payload }` |
+| `incidents` | engine | sink → `incidents` (upsert), stream | `{ incident, healer_status, actions }` |
+
+Detection, RCA and healing run inside the engine (the healer's digital twin needs the live network state), so the per-stage topics originally planned (`telemetry.features`, `actions.proposed/applied`, `audit`) are not separate streams.
 
 ## Messages
 
