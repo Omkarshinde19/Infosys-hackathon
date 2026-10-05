@@ -18,7 +18,7 @@ from services.detector.detector import Detector
 from services.healer.healer import Healer
 from services.healer.incidents import IncidentTracker
 from services.llm.reports import entity_namer, incident_facts, make_client, write_report
-from services.ml import forecast, gnn
+from services.ml import forecast, gnn, lstm_ae
 from services.netsim.engine import TICK_S, Network
 from services.rca.engine import RCAEngine
 
@@ -28,7 +28,7 @@ def new_network() -> Network:
 
 
 net = new_network()
-detector = Detector(forecaster=forecast.load())
+detector = Detector(forecaster=forecast.load(), autoencoder=lstm_ae.load())
 rca = RCAEngine(gnn=gnn.load())
 healer = Healer()
 incidents = IncidentTracker()
