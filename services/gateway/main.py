@@ -66,7 +66,7 @@ incidents = IncidentTracker()
 ledger = Ledger()
 last_samples: list = []  # latest tick, for fixes approved between ticks
 llm = make_client()
-docs = DocIndex(llm)
+docs = DocIndex(llm.cloud if llm else None)  # offline: keyword search
 reports: dict[str, dict] = {}  # incident id -> generated report
 clients: set[WebSocket] = set()
 obs.WS_CLIENTS.labels("engine").set_function(lambda: len(clients))
@@ -456,7 +456,12 @@ def settings() -> dict:
         "autonomy": get_autonomy(),
         "policy": healer.policy.source,
         "users": [{"username": u, "role": d["role"]} for u, d in auth.USERS.items()],
-        "llm": {"model": MODEL, "configured": llm is not None, "embeddings": EMBED_MODEL},
+        "llm": {
+            "model": MODEL,
+            "configured": llm is not None,
+            "embeddings": EMBED_MODEL,
+            "providers": [{"model": m, "label": a} for _, m, a in (llm.providers if llm else [])],
+        },
         "detector": {
             "warmup_s": detector.warmup_ticks * TICK_S,
             "z_threshold": Z_THRESHOLD,
