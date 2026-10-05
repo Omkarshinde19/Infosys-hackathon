@@ -151,3 +151,10 @@ LLM settings come from `.env`: `INFERENCE_CLOUD_API_KEY`, `INFERENCE_CLOUD_ENDPO
 | `POST /route {flow, path}` | reroutes one flow (cookie-tagged rules, ~0.15 s) |
 | `POST /fault {type, target, severity, ramp_s}` | link down / gray loss (netem) / congestion (bandwidth cut) / flapping / node overload (extra port delay; CPU modelled) / misconfig (drop rule) |
 | `POST /clear_faults`, `POST /rollback_config {flow}` | undo |
+
+## Evaluation and self-observability (Phase 13)
+
+- `GET /evaluation` returns `docs/evaluation.json` from `make eval`: `{ meta, summary: { policies, by_fault }, runs }` (404 before the first run). Policies: `no_heal`, `reactive`, `twin`, `predictive_twin`.
+- `GET /metrics` (engine, stream) and `:9464/metrics` (sink): Prometheus metrics, names in `services/observability.py`.
+- Traces: OTLP to `OTEL_EXPORTER_OTLP_ENDPOINT` when set (`./netheal obs`); service names `netheal-engine`, `netheal-stream`, `netheal-sink`. The trace context travels in Kafka message headers.
+
