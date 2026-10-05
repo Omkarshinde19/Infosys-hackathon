@@ -43,6 +43,23 @@
         "5001"
       ],
       "port": 5001
+    },
+    {
+      "name": "frontend-dev-3005",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "GATEWAY_URL=http://localhost:8001",
+        "NEXT_PUBLIC_GATEWAY_WS=ws://localhost:8002/ws/live",
+        "npm",
+        "--prefix",
+        "frontend",
+        "run",
+        "dev",
+        "--",
+        "-p",
+        "3005"
+      ],
+      "port": 3005
     }
   ]
 }
