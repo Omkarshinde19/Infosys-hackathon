@@ -112,3 +112,17 @@ def test_forecaster_raises_no_false_warnings_in_five_healthy_minutes():
     for _ in range(int(300 / TICK_S)):
         raised, _ = det.update(net.step())
         assert raised == []
+
+
+def test_lstm_autoencoder_joins_alerts_as_a_temporal_opinion():
+    from services.ml.lstm_ae import SEQ, load
+
+    autoencoder = load()
+    assert autoencoder is not None, "train it with: python -m ml.train_lstm_ae"
+    net, det = Network(seed=3), Detector(autoencoder=autoencoder)
+    for _ in range(WARMUP_TICKS + SEQ):  # warm-up, then 10 s of healthy history
+        det.update(net.step())
+    net.inject_fault("gray_failure", "dist3-lab_cs", severity=0.5)
+    for _ in range(6):
+        det.update(net.step())
+    assert det.active["dist3-lab_cs"].detectors == ["zscore", "iforest", "lstm_ae"]

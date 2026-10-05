@@ -12,6 +12,8 @@
    path re-learn their baseline for RELEARN_TICKS instead of raising false alerts.
 6. Optional forecaster (services/ml/forecast.py): flags flows predicted to breach their
    SLA within 5 s ("forecast" warnings), upgraded to a real alert once they do degrade.
+7. Optional LSTM autoencoder (services/ml/lstm_ae.py): a temporal third opinion, added to
+   an alert's detectors when the last 10 s also look unusual as a sequence.
 """
 
 from collections import defaultdict, deque
@@ -38,9 +40,10 @@ FLOORS = {"latency_ms": 0.2, "loss_pct": 0.5, "util": 0.03, "cpu": 0.03}
 
 
 class Detector:
-    def __init__(self, warmup_ticks: int = WARMUP_TICKS, forecaster=None):
+    def __init__(self, warmup_ticks: int = WARMUP_TICKS, forecaster=None, autoencoder=None):
         self.warmup_ticks = warmup_ticks
         self.forecaster = forecaster
+        self.autoencoder = autoencoder
         self.ticks_seen = 0
         self.types: dict[str, str] = {}
         self.warmup: dict[str, list[list[float]]] = defaultdict(list)
@@ -162,6 +165,8 @@ class Detector:
                 continue
             x = np.array([getattr(s, m) for m in METRICS[s.entity_type]], dtype=float)
             z = (x - self.median[s.entity_id]) / self.scale[s.entity_id]
+            if self.autoencoder is not None:
+                self.autoencoder.observe(s.entity_id, z)
             if z.max() > Z_THRESHOLD:
                 to_vote[s.entity_type].append((s, z))
 
@@ -179,4 +184,8 @@ class Detector:
                     detectors=["zscore", "iforest"],
                     severity="critical" if z[i] > 3 * Z_THRESHOLD else "warning",
                 )  # fmt: skip
+        if self.autoencoder is not None:
+            voted = [e for e, a in out.items() if a.detectors == ["zscore", "iforest"]]
+            for e in self.autoencoder.unusual(voted):
+                out[e].detectors.append("lstm_ae")
         return out
