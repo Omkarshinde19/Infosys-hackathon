@@ -314,8 +314,8 @@ def markdown(results: dict) -> str:
         "agent's mitigations are closer calls: some pass the twin but fail the 3 s check on the "
         "network and are rolled back, ending no worse than without the agent.",
         "- A mitigation of a *gradually worsening* overload can pass its check and break later. "
-        "NetHeal does not re-plan after a verified fix yet, which is why `rl` heals more "
-        "faults than it keeps recovered.",
+        "NetHeal notices (3 s of broken traffic), plans once more and hands it to a human when "
+        "there is no better fix. That is why `rl` heals more faults than it keeps recovered.",
         "- The forecaster's value is earlier detection of gradual faults. Diagnosing earlier "
         "occasionally names the wrong cause first; it is corrected before anything is applied.",
         "",

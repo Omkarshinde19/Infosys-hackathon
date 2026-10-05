@@ -230,7 +230,7 @@ export default function EvaluationPage() {
           <li>Reactive rules can recover a few more faults: they ignore the blast-radius guardrail (at most 5 flows moved automatically), for example moving every flow off a flapping internet uplink at once. NetHeal hands those to a human on purpose.</li>
           <li>An overloaded access switch has no detour (the traffic starts there), so the rules escalate it. The RL agent sometimes mitigates it instead, moving the switch&apos;s flows onto less-loaded paths further up.</li>
           <li>Without the RL agent no fix is rolled back: in the simulator every detour around the fault works. The agent&apos;s mitigations are closer calls; some pass the twin but fail the 3 s check and are rolled back, ending no worse than without it.</li>
-          <li>A mitigation of a gradually worsening overload can pass its check and break later. NetHeal does not re-plan after a verified fix yet, which is why the RL policy heals more faults than it keeps recovered.</li>
+          <li>A mitigation of a gradually worsening overload can pass its check and break later. NetHeal notices, plans once more and hands it to a human when there is no better fix, which is why the RL policy heals more faults than it keeps recovered.</li>
           <li>Prediction detects gradual faults earlier; diagnosing that early occasionally names the wrong cause first, which is corrected before anything is applied.</li>
         </ul>
         <p className="mt-3 text-xs text-fg-muted">
