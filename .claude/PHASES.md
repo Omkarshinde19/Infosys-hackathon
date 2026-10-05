@@ -20,7 +20,7 @@ Status: ⬜ not started · 🟨 in progress · ✅ done
 | 11 | Remaining pages (Chaos Lab, What-If, Copilot + RAG, Insights, Settings) | ✅ |
 | 12 | Emulated network (Mininet + OVS, OpenFlow 1.3 via ovs-ofctl) | ✅ |
 | 13 | Evaluation harness + observability + CI/e2e | ✅ |
-| 14 | Stretch (RL agent, Neo4j, 3D view, Helm, Ollama) | ⬜ |
+| 14 | Stretch (RL agent, Neo4j, 3D view, Helm, Ollama) | ✅ (RL agent + Ollama; 3D view from Phase 3; Neo4j and Helm skipped by choice) |
 | 15 | Demo hardening | ⬜ |
 
 ---
@@ -97,6 +97,7 @@ Status: ⬜ not started · 🟨 in progress · ✅ done
 
 ## Phase 14: Stretch
 - RL routing agent (Stable-Baselines3), Neo4j topology/causal graph, 3D campus view, k3d + Helm, Ollama offline LLM
+- Scope chosen by Omkar (msg 21): RL routing agent + Ollama offline LLM (qwen2.5:7b). The 3D campus view already exists (Phase 3). Neo4j and k3d + Helm were not built.
 
 ## Phase 15: Demo hardening
 - Seeded demo scenarios, `make reset`, offline test (no internet), backup video, rehearsal of the 5-min script
