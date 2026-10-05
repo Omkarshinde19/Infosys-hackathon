@@ -19,7 +19,7 @@ Status: ⬜ not started · 🟨 in progress · ✅ done
 | 10 | Safety + control (OPA, autonomy levels, approvals, auth, audit ledger) | ✅ |
 | 11 | Remaining pages (Chaos Lab, What-If, Copilot + RAG, Insights, Settings) | ✅ |
 | 12 | Emulated network (Mininet + OVS, OpenFlow 1.3 via ovs-ofctl) | ✅ |
-| 13 | Evaluation harness + observability + CI/e2e | ⬜ |
+| 13 | Evaluation harness + observability + CI/e2e | ✅ |
 | 14 | Stretch (RL agent, Neo4j, 3D view, Helm, Ollama) | ⬜ |
 | 15 | Demo hardening | ⬜ |
 
