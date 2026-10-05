@@ -149,7 +149,7 @@ def start_traffic() -> None:
         with lock:
             host[f["src"]].cmd(
                 f"iperf3 -c {host[f['dst']].IP()} -p {p} -u -b {rate} -t 0 -l 1200 "
-                "> /dev/null 2>&1 &"
+                "--pacing-timer 100 > /dev/null 2>&1 &"
             )
 
 
