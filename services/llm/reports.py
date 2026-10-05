@@ -16,6 +16,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 
+import httpx
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
 
@@ -83,7 +84,8 @@ def make_client() -> Failover | None:
     providers = []
     key, endpoint = os.getenv("INFERENCE_CLOUD_API_KEY"), os.getenv("INFERENCE_CLOUD_ENDPOINT")
     if key and endpoint:  # fail fast when the venue Wi-Fi drops: the local model takes over
-        cloud = AsyncOpenAI(api_key=key, base_url=endpoint, timeout=20, max_retries=1)
+        timeout = httpx.Timeout(20.0, connect=3.0)  # Wi-Fi without internet hangs on connect
+        cloud = AsyncOpenAI(api_key=key, base_url=endpoint, timeout=timeout, max_retries=1)
         providers.append((cloud, MODEL, CLOUD))
     if url := os.getenv("OLLAMA_URL"):  # e.g. http://localhost:11434/v1 (./netheal ollama)
         providers.append((AsyncOpenAI(api_key="ollama", base_url=url), LOCAL_MODEL, LOCAL))
