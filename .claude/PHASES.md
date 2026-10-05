@@ -18,7 +18,7 @@ Status: ⬜ not started · 🟨 in progress · ✅ done
 | 9 | Advanced ML (LSTM-AE, forecaster, datagen, GNN RCA, SHAP, MLflow) | ✅ |
 | 10 | Safety + control (OPA, autonomy levels, approvals, auth, audit ledger) | ✅ |
 | 11 | Remaining pages (Chaos Lab, What-If, Copilot + RAG, Insights, Settings) | ✅ |
-| 12 | Emulated network (Mininet + OVS + os-ken) | ⬜ |
+| 12 | Emulated network (Mininet + OVS, OpenFlow 1.3 via ovs-ofctl) | ✅ |
 | 13 | Evaluation harness + observability + CI/e2e | ⬜ |
 | 14 | Stretch (RL agent, Neo4j, 3D view, Helm, Ollama) | ⬜ |
 | 15 | Demo hardening | ⬜ |
@@ -85,7 +85,8 @@ Status: ⬜ not started · 🟨 in progress · ✅ done
 - **Done when:** every page in `docs/PRODUCT_OVERVIEW.md` exists and works against live data, and the Copilot answers cite evidence IDs.
 
 ## Phase 12: Emulated network
-- Mininet + Open vSwitch + os-ken controller in a Linux VM/container; tc netem faults; iperf/ping telemetry; reroute via flow rules
+- Mininet + Open vSwitch in a privileged container; tc netem faults; iperf/ping telemetry; reroute via flow rules
+- Decided in build: no os-ken controller. The engine already computes paths, so the agent writes OpenFlow 1.3 rules straight to each switch with `ovs-ofctl` (cookie per flow, batched).
 - Backend toggle in the UI
 - **Done when:** the Phase 6 e2e scenario passes on the emulated backend.
 
