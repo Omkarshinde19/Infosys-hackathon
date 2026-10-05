@@ -28,6 +28,21 @@
         "dev"
       ],
       "port": 3000
+    },
+    {
+      "name": "mlflow",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "MLFLOW_DISABLE_AGENT_HINT=1",
+        "PYTHONPATH=.venv/lib/python3.13/site-packages",
+        "python3",
+        "-m",
+        "mlflow",
+        "ui",
+        "--port",
+        "5001"
+      ],
+      "port": 5001
     }
   ]
 }
