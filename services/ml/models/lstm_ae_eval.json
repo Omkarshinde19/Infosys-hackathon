@@ -1,0 +1,7 @@
+{
+  "threshold": 0.0069702016189694405,
+  "healthy_false_positive_rate": 0.0,
+  "fault_detection_rate": 1.0,
+  "healthy_error_median": 7.023519719950855e-05,
+  "fault_error_median": 0.8839794397354126
+}
