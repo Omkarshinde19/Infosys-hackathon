@@ -77,6 +77,9 @@ export function Diagnosis() {
             <p className="text-sm font-medium">How sure each method is</p>
             <Bar label="Fault signature (telemetry pattern)" value={top.method_scores.signature ?? 0} />
             <Bar label="Flow voting (007): affected flows crossing it" value={top.method_scores.voting ?? 0} />
+            {top.method_scores.gnn !== undefined && (
+              <Bar label="Graph neural network (trained on 3,000 simulated faults)" value={top.method_scores.gnn} />
+            )}
           </div>
         </div>
       </div>
