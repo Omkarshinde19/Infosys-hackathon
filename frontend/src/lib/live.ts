@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { create } from "zustand";
+import { authHeader, useAuth } from "./auth";
 
 // Mirrors contracts/models.py (TelemetrySample) and the gateway's /topology response.
 export type Sample = {
@@ -53,6 +54,7 @@ export type ActionCandidate = {
   params: { avoid?: string[]; routes?: Record<string, string[]>; flow?: string };
   twin_prediction: { latency_ms: number; loss_pct: number; max_util: number } | null;
   opa_decision: "allow" | "deny" | null;
+  policy_reasons: string[];
   risk_score: number;
 };
 export type ActionResult = {
@@ -66,6 +68,8 @@ export type ActionEvent =
   | { kind: "proposed"; payload: ActionCandidate[] }
   | { kind: "applied"; payload: ActionCandidate }
   | { kind: "result"; payload: ActionResult }
+  | { kind: "recommended" | "awaiting_approval"; payload: ActionCandidate }
+  | { kind: "approved" | "rejected"; payload: string }
   | { kind: "no_action" | "escalated"; payload: string };
 export type Incident = {
   id: string;
@@ -75,7 +79,12 @@ export type Incident = {
   mttr_s: number | null;
   timeline: { ts: string; stage: string; ref_id: string | null }[];
 };
-export type IncidentState = { incident: Incident | null; healer_status: string; actions: ActionEvent[] };
+export type IncidentState = {
+  incident: Incident | null;
+  healer_status: string;
+  awaiting: ActionCandidate | null;
+  actions: ActionEvent[];
+};
 
 export type AlertEvent = { time: string; kind: "raised" | "cleared"; entity: string; anomaly?: Anomaly };
 
@@ -105,7 +114,7 @@ export const useLive = create<LiveState>((set) => ({
   alertLog: [],
   detector: { ready: false, progress: 0 },
   diagnosis: [],
-  incident: { incident: null, healer_status: "idle", actions: [] },
+  incident: { incident: null, healer_status: "idle", awaiting: null, actions: [] },
   loadTopology: async () => set({ topology: await (await fetch("/api/topology")).json() }),
   loadAnomalies: async () => {
     const body = await (await fetch("/api/anomalies")).json();
@@ -180,12 +189,13 @@ export function useLiveConnection() {
   }, []);
 }
 
-export async function postJSON(path: string, body?: unknown) {
+export async function postJSON(path: string, body?: unknown, method = "POST") {
   const res = await fetch(`/api${path}`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
+    method,
+    headers: { "content-type": "application/json", ...authHeader() },
     body: JSON.stringify(body ?? {}),
   });
+  if (res.status === 401) useAuth.getState().logout(); // expired or missing session
   if (!res.ok) throw new Error((await res.json()).detail ?? res.statusText);
   return res.json();
 }
