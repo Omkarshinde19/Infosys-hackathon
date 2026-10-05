@@ -49,7 +49,10 @@ class Healer:
         self.awaiting: ActionCandidate | None = None  # waiting for a human (levels 2-3)
         self.awaiting_affected: list[str] = []
         self.applied_at: list = []  # sim timestamps of applied actions (rate limit)
-        self.handled: set[str] = set()  # incident ids already acted on
+        # A diagnosis is planned for once. An incident whose fix was applied or handed to a
+        # human is never re-planned, but after an escalation a *corrected* diagnosis can be.
+        self.tried: set[tuple[str, str, str]] = set()  # (incident, cause, target)
+        self.acted: set[str] = set()  # incident ids
         self.pending: list[ActionCandidate] = []
         self.current: dict | None = None  # the action being verified
         self.status = "idle"
@@ -70,10 +73,14 @@ class Healer:
             self.awaiting, self.status = None, "idle"
 
         top = hypotheses[0] if hypotheses else None
-        if not top or top.incident_id in self.handled or top.confidence < MIN_CONFIDENCE:
+        if not top or top.confidence < MIN_CONFIDENCE or top.incident_id in self.acted:
             return []
-        self.handled.add(top.incident_id)
+        key = (top.incident_id, top.cause, top.target)
+        if key in self.tried:
+            return []
+        self.tried.add(key)
         if self.level == 0:
+            self.acted.add(top.incident_id)
             self.status = "alert_only"
             return [("no_action", "Comfort level 0 (alert only): no fix was planned.")]
 
@@ -91,6 +98,7 @@ class Healer:
             return [("proposed", candidates), ("escalated", reason)]
         best = self.pending[0]
         if self.level == 1:
+            self.acted.add(top.incident_id)  # a human decides from here
             self.status = "recommended"
             return [("proposed", candidates), ("recommended", best)]
         small = (
@@ -98,6 +106,7 @@ class Healer:
             and best.risk_score <= SMALL_FIX_RISK
         )
         if self.level == 2 or (self.level == 3 and not small):
+            self.acted.add(top.incident_id)
             self.awaiting, self.awaiting_affected = best, affected
             self.status = "awaiting_approval"
             return [("proposed", candidates), ("awaiting_approval", best)]
@@ -210,6 +219,7 @@ class Healer:
     def apply(self, c: ActionCandidate, latest, net: Network, affected: list[str]) -> list[Event]:
         """Apply one action now and start verifying it."""
         self.applied_at.append(net.now)
+        self.acted.add(c.incident_id)
         self.current = {
             "candidate": c,
             "affected": affected,
