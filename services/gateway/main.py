@@ -1,13 +1,19 @@
-"""API gateway: runs the detect -> diagnose -> decide -> heal loop and streams it over WebSocket."""
+"""NetHeal engine: runs the detect -> diagnose -> decide -> heal loop.
+
+Serves the REST control API and its own WebSocket, and, when KAFKA_BOOTSTRAP is set,
+publishes every event to Redpanda for the sink (TimescaleDB) and stream services.
+"""
 
 import asyncio
 from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime
 
+from aiokafka import AIOKafkaProducer
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
 from contracts.models import Envelope
+from services import bus
 from services.detector.detector import Detector
 from services.healer.healer import Healer
 from services.healer.incidents import IncidentTracker
@@ -28,10 +34,13 @@ incidents = IncidentTracker()
 llm = make_client()
 reports: dict[str, dict] = {}  # incident id -> generated report
 clients: set[WebSocket] = set()
+producer: AIOKafkaProducer | None = None
 
 
 async def broadcast(envelope: Envelope) -> None:
     message = envelope.model_dump_json()
+    if producer:
+        await producer.send(bus.TOPICS[envelope.type], message.encode())
     for ws in list(clients):
         try:
             await ws.send_text(message)
@@ -77,11 +86,17 @@ def incident_state() -> dict:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    global producer
+    if bus.BOOTSTRAP:
+        producer = AIOKafkaProducer(bootstrap_servers=bus.BOOTSTRAP, linger_ms=20)
+        await producer.start()
     task = asyncio.create_task(tick_loop())
     yield
     task.cancel()
     with suppress(asyncio.CancelledError):
         await task
+    if producer:
+        await producer.stop()
 
 
 app = FastAPI(title="NetHeal Gateway", lifespan=lifespan)
