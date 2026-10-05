@@ -72,3 +72,43 @@ def test_no_alerts_during_warmup():
     net.inject_fault("link_down", "dist1-library")
     for _ in range(WARMUP_TICKS - 1):
         assert det.update(net.step()) == ([], [])
+
+
+def trained_with_forecaster():
+    from services.ml.forecast import load
+
+    forecaster = load()
+    assert forecaster is not None, "train it with: python -m ml.train_forecast"
+    net, det = Network(seed=3), Detector(forecaster=forecaster)
+    for _ in range(WARMUP_TICKS):
+        det.update(net.step())
+    return net, det
+
+
+def test_forecaster_warns_before_the_sla_breach_on_a_gradual_fault():
+    from services.ml.forecast import breached
+
+    net, det = trained_with_forecaster()
+    baseline = det.median["library-internet"][0]
+    net.inject_fault("gray_failure", "dist1-library", severity=0.6, ramp_s=20)
+    warned_at = breached_at = None
+    for tick in range(60):
+        samples = net.step()
+        raised, _ = det.update(samples)
+        flow = next(s for s in samples if s.entity_id == "library-internet")
+        warning = [
+            a for a in raised if a.entity_id == "library-internet" and a.detectors == ["forecast"]
+        ]
+        if warning and warned_at is None:
+            warned_at = tick
+        if breached_at is None and breached(flow.latency_ms, flow.loss_pct, baseline):
+            breached_at = tick
+    assert warned_at is not None and breached_at is not None
+    assert warned_at < breached_at  # the early warning came first
+
+
+def test_forecaster_raises_no_false_warnings_in_five_healthy_minutes():
+    net, det = trained_with_forecaster()
+    for _ in range(int(300 / TICK_S)):
+        raised, _ = det.update(net.step())
+        assert raised == []
