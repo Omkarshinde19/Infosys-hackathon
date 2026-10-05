@@ -9,6 +9,10 @@ COPY contracts contracts
 COPY services services
 COPY topology topology
 COPY policies policies
+# Documentation the Ask NetHeal assistant can search (RAG).
+COPY README.md ./
+COPY docs docs
+COPY theory theory
 # Hashed accounts only: config/DEMO_ACCOUNTS.md (readable passwords) stays out of the image.
 COPY config/users.yaml config/users.yaml
 # CPU-only PyTorch first, so the GNN/LSTM models don't pull in GPU libraries.
