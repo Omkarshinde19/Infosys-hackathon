@@ -13,6 +13,9 @@ dependencies = [
     "scikit-learn>=1.9",
     "openai>=2.0",
     "python-dotenv>=1.0",
+    "aiokafka>=0.14",
+    "asyncpg>=0.31",
+    "redis>=8.1",
 ]
 
 [project.optional-dependencies]
@@ -22,6 +25,7 @@ dev = ["pytest>=9.1", "httpx2>=2.13", "ruff>=0.16"]
 packages = [
     "contracts", "services", "services.netsim", "services.gateway", "services.detector", "services.rca",
     "services.healer", "services.llm",
+    "services.sink", "services.stream",
 ]
 
 [tool.ruff]
