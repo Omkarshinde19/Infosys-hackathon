@@ -7,7 +7,9 @@ healthy control, and the same scenario is replayed under each policy:
   no_heal          detect and diagnose only: what happens without automatic healing
   reactive         rules-only diagnosis; apply the first detour, no twin test, no guardrails
   twin             rules + GNN diagnosis; twin-tested candidates behind the OPA guardrails
-  predictive_twin  twin + the forecaster and LSTM autoencoder (the live configuration)
+  predictive_twin  twin + the forecaster and LSTM autoencoder
+  rl               predictive_twin + the RL routing agent's proposal as one more twin-tested
+                   candidate (the live configuration)
 
 Run: make eval  (writes docs/evaluation.json and docs/EVALUATION.md)
 """
@@ -25,12 +27,12 @@ from contracts.models import TwinPrediction
 from ml.datagen import FAULT_TO_CAUSE, random_fault, voting_only
 from services.detector.detector import WARMUP_TICKS, Detector
 from services.healer.healer import Healer
-from services.ml import forecast, gnn, lstm_ae
+from services.ml import forecast, gnn, lstm_ae, rl
 from services.ml.forecast import breached
 from services.netsim.engine import TICK_S, Network
 from services.rca.engine import RCAEngine
 
-POLICIES = ("no_heal", "reactive", "twin", "predictive_twin")
+POLICIES = ("no_heal", "reactive", "twin", "predictive_twin", "rl")
 BASE_SEEDS = (505, 606, 707, 808)  # training uses 101-404
 FIRST_SEED = 1_000_000  # training uses scenario seeds 0..N
 RUN_TICKS = 120  # 60 s after the fault (gradual faults ramp for up to 30 s)
@@ -67,11 +69,15 @@ def base(seed: int, predictive: bool):
 def run(seed: int, policy: str) -> dict:
     """Replay one scenario under one policy."""
     net, det = (copy.deepcopy(x) for x in base(BASE_SEEDS[seed % len(BASE_SEEDS)],
-                                               policy == "predictive_twin"))  # fmt: skip
+                                               policy in ("predictive_twin", "rl")))  # fmt: skip
     net.rng = np.random.default_rng(seed)
     fault = random_fault(np.random.default_rng(seed), net)
     rca = RCAEngine(gnn=None if policy == "reactive" else gnn.load())
-    healer = ReactiveHealer() if policy == "reactive" else Healer()
+    healer = (
+        ReactiveHealer()
+        if policy == "reactive"
+        else Healer(rl=rl.load() if policy == "rl" else None)
+    )
     healer.level = 0 if policy == "no_heal" else 4
     baseline = {f: float(det.median[f][0]) for f in net.flows}
     if fault:
@@ -248,7 +254,9 @@ def markdown(results: dict) -> str:
         "Policies: `no_heal` detects and diagnoses only. `reactive` diagnoses with rules and "
         "applies the first detour, with no twin test and no guardrails. `twin` is NetHeal: "
         "rules + GNN diagnosis, twin-tested candidates behind the OPA guardrails. "
-        "`predictive_twin` adds the forecaster and LSTM autoencoder (the live configuration).",
+        "`predictive_twin` adds the forecaster and LSTM autoencoder. `rl` also adds the RL "
+        "routing agent's proposal as one more candidate, tested like the rest (the live "
+        "configuration).",
         "",
         "## Headline",
         "",
