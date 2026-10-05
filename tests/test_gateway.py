@@ -267,3 +267,26 @@ def test_whatif_insights_settings_and_offline_copilot(monkeypatch):
         assert client.post("/copilot", json={"question": "status?"}).status_code == 401
         answer = client.post("/copilot", headers=bearer("viewer"), json={"question": "status?"})
         assert answer.json()["source"] == "template"
+
+
+def test_switching_to_the_emulated_backend(monkeypatch):
+    from services.gateway import main
+    from services.netsim.emu import EmuNetwork
+    from tests.test_emu import FakeAgent
+
+    admin = bearer("admin")
+    with TestClient(app) as client:
+        monkeypatch.setattr(main, "emulab_ready", lambda: False)
+        assert client.post("/backend", headers=admin, json={"kind": "emu"}).status_code == 409
+        assert client.post("/backend", headers=OP, json={"kind": "emu"}).status_code == 403
+
+        monkeypatch.setattr(main, "emulab_ready", lambda: True)
+        monkeypatch.setattr(main, "EmuNetwork", lambda url, t0: EmuNetwork(url, t0, FakeAgent()))
+        state = client.post("/backend", headers=admin, json={"kind": "emu"}).json()
+        assert state["kind"] == "emu" and type(main.net).__name__ == "EmuNetwork"
+        assert not main.detector.ready  # learns the emulator's normal from scratch
+        assert client.get("/topology").json()["nodes"]
+        assert "backend.switched" in [e["event_type"] for e in client.get("/audit").json()]
+
+        assert client.post("/backend", headers=admin, json={"kind": "sim"}).json()["kind"] == "sim"
+        assert type(main.net).__name__ == "Network"
