@@ -1,6 +1,6 @@
 PY := .venv/bin/python
 
-.PHONY: install test lint dev demo down logs e2e train mlflow eval
+.PHONY: install test lint dev demo down logs e2e train train-rl mlflow eval
 
 install:
 	python3 -m venv .venv
@@ -36,6 +36,12 @@ train:
 	$(PY) -m ml.train_gnn
 	$(PY) -m ml.train_forecast
 	$(PY) -m ml.train_lstm_ae
+	$(PY) -m ml.train_rl
+
+# Only the RL routing agent (PPO in the twin, ~10 min on 8 cores)
+train-rl:
+	$(PY) -m pip install -q -e ".[train]"
+	$(PY) -m ml.train_rl
 
 # Browse training runs at http://localhost:5001
 mlflow:
