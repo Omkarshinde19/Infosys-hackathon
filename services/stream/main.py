@@ -14,17 +14,21 @@ from contextlib import asynccontextmanager, suppress
 import redis.asyncio as redis
 from aiokafka import AIOKafkaConsumer
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from prometheus_client import make_asgi_app
 
 from services import bus
+from services import observability as obs
 
 STATE_TYPES = ("telemetry", "rca", "incident")  # anomaly/action events are deltas: not replayed
 STATE_TOPICS = {bus.TOPICS[t]: t for t in STATE_TYPES}
 
 clients: set[WebSocket] = set()
+obs.WS_CLIENTS.labels("stream").set_function(lambda: len(clients))
 cache: redis.Redis | None = None
 
 
 async def on_message(topic: str, message: str) -> None:
+    obs.MESSAGES.labels("stream", topic).inc()
     if topic in STATE_TOPICS:
         await cache.set(f"last:{STATE_TOPICS[topic]}", message)
     for ws in list(clients):
@@ -59,6 +63,8 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="NetHeal Stream", lifespan=lifespan)
+app.mount("/metrics", make_asgi_app())
+obs.setup_tracing("stream", app)
 
 
 @app.get("/health")

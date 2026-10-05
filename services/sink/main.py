@@ -11,8 +11,10 @@ from datetime import datetime
 
 import asyncpg
 from aiokafka import AIOKafkaConsumer
+from prometheus_client import start_http_server
 
 from services import bus
+from services import observability as obs
 
 TELEMETRY_COLUMNS = (
     "ts", "entity_type", "entity_id", "latency_ms", "loss_pct",
@@ -72,6 +74,8 @@ async def write(conn: asyncpg.Connection, rows: dict[str, list[tuple]]) -> None:
 
 
 async def main() -> None:
+    start_http_server(9464)  # Prometheus metrics
+    obs.setup_tracing("sink")
     conn = await asyncpg.connect(os.environ["DATABASE_URL"])
     consumer = AIOKafkaConsumer(
         *bus.TOPICS.values(),
@@ -83,6 +87,7 @@ async def main() -> None:
     print("sink: consuming", list(bus.TOPICS.values()), flush=True)
     try:
         async for msg in consumer:
+            obs.MESSAGES.labels("sink", msg.topic).inc()
             await write(conn, to_rows(json.loads(msg.value)))
     finally:
         await consumer.stop()
