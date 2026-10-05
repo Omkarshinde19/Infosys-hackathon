@@ -14,13 +14,16 @@ from typing import Annotated
 
 import jwt
 import yaml
+from dotenv import load_dotenv
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-USERS_PATH = Path(__file__).resolve().parents[1] / "config" / "users.yaml"
+ROOT = Path(__file__).resolve().parents[1]
+USERS_PATH = ROOT / "config" / "users.yaml"
+load_dotenv(ROOT / ".env")  # JWT_SECRET (made by ./netheal start) survives restarts
 ROLES = ["viewer", "operator", "admin"]
 TOKEN_HOURS = 12
-# Without JWT_SECRET a random one is used: tokens then just expire when the engine restarts.
+# Without JWT_SECRET a random one is used: every engine restart would sign everyone out.
 SECRET = os.getenv("JWT_SECRET") or secrets.token_hex(32)
 
 USERS = yaml.safe_load(USERS_PATH.read_text())["users"]
