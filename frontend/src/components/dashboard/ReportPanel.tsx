@@ -72,7 +72,7 @@ export function ReportPanel({ incidentId, initial }: { incidentId: string; initi
             className="mt-5 flex items-center gap-2 rounded-full bg-fg px-5 py-2.5 font-medium text-bg hover:opacity-90 disabled:opacity-60"
           >
             <Sparkles className={`size-4 ${busy ? "animate-pulse" : ""}`} />
-            {busy ? "Llama-3.3-70B is writing the report… (~15 s)" : "Generate report"}
+            {busy ? "The AI is writing the report… (~15 s)" : "Generate report"}
           </button>
         </div>
       )}
