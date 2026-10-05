@@ -33,3 +33,6 @@ data/
 .DS_Store
 .idea/
 .vscode/
+
+# Trained models shipped with the app (small; regenerate with `make train`)
+!services/ml/models/*.pt

@@ -16,16 +16,19 @@ dependencies = [
     "aiokafka>=0.14",
     "asyncpg>=0.31",
     "redis>=8.1",
+    "torch>=2.14",
+    "torch-geometric>=2.8",
 ]
 
 [project.optional-dependencies]
 dev = ["pytest>=9.1", "httpx2>=2.13", "ruff>=0.16"]
+train = ["mlflow>=3.16", "shap>=0.52", "matplotlib>=3.10"]
 
 [tool.setuptools]
 packages = [
     "contracts", "services", "services.netsim", "services.gateway", "services.detector", "services.rca",
     "services.healer", "services.llm",
-    "services.sink", "services.stream",
+    "services.sink", "services.stream", "services.ml",
 ]
 
 [tool.ruff]
