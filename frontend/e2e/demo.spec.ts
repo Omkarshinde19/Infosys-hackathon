@@ -15,13 +15,14 @@ test("demo: sign in, cut a fibre, watch NetHeal heal it, open the incident", asy
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
 
-  // The detector learns the healthy baseline for 30 s after the engine starts.
+  // Start from a healthy network (after a cold start the detector learns for 30 s first).
+  await page.getByRole("button", { name: "Reset network" }).click();
   await expect(page.getByText("All clear")).toBeVisible({ timeout: 90_000 });
 
   await page.getByRole("button", { name: "Hostel fibre cut" }).click();
   await expect(page.getByText(/^Healed: traffic is back to normal/)).toBeVisible({ timeout: 60_000 });
 
-  await page.getByRole("link", { name: /report/ }).click();
+  await page.getByRole("link", { name: /^Incident .* report$/ }).click();
   await expect(page).toHaveURL(/\/dashboard\/incidents\/.+/);
   await expect(page.getByText(/link down|link failure/i).first()).toBeVisible();
 });
