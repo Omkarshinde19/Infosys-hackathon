@@ -17,7 +17,7 @@ Status: ⬜ not started · 🟨 in progress · ✅ done
 | 8 | Data platform (Redpanda, TimescaleDB, Redis, Docker Compose) | ✅ |
 | 9 | Advanced ML (LSTM-AE, forecaster, datagen, GNN RCA, SHAP, MLflow) | ✅ |
 | 10 | Safety + control (OPA, autonomy levels, approvals, auth, audit ledger) | ✅ |
-| 11 | Remaining pages (Chaos Lab, What-If, Copilot + RAG, Insights, Settings) | ⬜ |
+| 11 | Remaining pages (Chaos Lab, What-If, Copilot + RAG, Insights, Settings) | ✅ |
 | 12 | Emulated network (Mininet + OVS + os-ken) | ⬜ |
 | 13 | Evaluation harness + observability + CI/e2e | ⬜ |
 | 14 | Stretch (RL agent, Neo4j, 3D view, Helm, Ollama) | ⬜ |
