@@ -52,12 +52,12 @@ function Chart({ option, className = "h-80" }: { option: echarts.EChartsOption; 
     const axis = { axisLabel: { color: muted }, axisLine: { lineStyle: { color: muted } }, splitLine: { lineStyle: { color: css("--glass-border") } } };
     chart.setOption({
       textStyle: { color: css("--fg") },
-      legend: { textStyle: { color: muted }, top: 0 },
-      grid: { left: 56, right: 16, top: 48, bottom: 40 },
+      legend: { type: "scroll", textStyle: { color: muted }, top: 0, left: 0, right: 36 },
+      grid: { left: 56, right: 16, top: 56, bottom: 40 },
       tooltip: { trigger: "axis" },
       toolbox: { right: 0, top: 0, feature: { saveAsImage: { title: "Save PNG", backgroundColor: css("--bg") || "#021024" } } },
       ...option,
-      xAxis: { ...axis, ...(option.xAxis as object) },
+      xAxis: { ...axis, ...(option.xAxis as object), axisLabel: { color: muted, interval: 0, width: 72, overflow: "break" } },
       yAxis: { ...axis, ...(option.yAxis as object) },
     });
     const observer = new ResizeObserver(() => chart.resize());
