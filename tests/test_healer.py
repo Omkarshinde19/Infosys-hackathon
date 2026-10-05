@@ -187,3 +187,63 @@ def test_policy_blocks_draining_a_core_router_and_escalates():
     assert all(c.opa_decision == "deny" for c in proposed)
     assert all(any("core router" in r for r in c.policy_reasons) for c in proposed)
     assert all(kind != "applied" for kind, _ in p.events)
+
+
+def kinds(p):
+    return [kind for kind, _ in p.events]
+
+
+def test_level_0_only_alerts():
+    p = Pipeline()
+    p.healer.level = 0
+    p.inject("link_down", "dist1-library")
+    p.run_until("alert_only", max_ticks=10)
+    assert "proposed" not in kinds(p) and "applied" not in kinds(p)
+
+
+def test_level_1_recommends_but_never_applies():
+    p = Pipeline()
+    p.healer.level = 1
+    p.inject("link_down", "dist1-library")
+    p.run_until("recommended", max_ticks=10)
+    for _ in range(10):
+        p.tick()
+    assert "recommended" in kinds(p) and "applied" not in kinds(p)
+
+
+def test_level_2_waits_for_approval_then_heals():
+    p = Pipeline()
+    p.healer.level = 2
+    p.inject("link_down", "dist1-library")
+    p.run_until("awaiting_approval", max_ticks=10)
+    for _ in range(6):  # nothing happens while it waits
+        p.tick()
+    assert "applied" not in kinds(p)
+    pending = p.healer.awaiting
+    p.events += p.healer.approve(pending.id, p.latest, p.net)
+    p.run_until("healed", max_ticks=10)
+    assert "applied" in kinds(p)
+
+
+def test_level_2_rejection_applies_nothing():
+    p = Pipeline()
+    p.healer.level = 2
+    p.inject("link_down", "dist1-library")
+    p.run_until("awaiting_approval", max_ticks=10)
+    p.events += p.healer.reject(p.healer.awaiting.id)
+    assert p.healer.status == "rejected" and p.healer.awaiting is None
+    for _ in range(6):
+        p.tick()
+    assert "applied" not in kinds(p)
+
+
+@pytest.mark.parametrize(
+    ("fault", "target", "status"),
+    [("link_down", "dist1-library", "healed"),  # moves 1 flow: small, automatic
+     ("node_overload", "dist1", "awaiting_approval")],  # moves several flows: ask first
+)  # fmt: skip
+def test_level_3_automates_only_small_fixes(fault, target, status):
+    p = Pipeline()
+    p.healer.level = 3
+    p.inject(fault, target, severity=0.6)
+    p.run_until(status, max_ticks=20)
