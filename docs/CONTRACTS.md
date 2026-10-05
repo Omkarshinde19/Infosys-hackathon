@@ -15,6 +15,7 @@ Implemented (Phase 8). Every message value is the full WebSocket envelope JSON `
 | `rca.hypotheses` | engine | sink → `events`, stream | `[RCAHypothesis, ...]` |
 | `actions` | engine | sink → `events`, stream | `{ kind, payload }` |
 | `incidents` | engine | sink → `incidents` (upsert), stream | `{ incident, healer_status, actions }` |
+| `audit` | engine | sink → `events`, stream | `LedgerEntry` (hash-chained) |
 
 Detection, RCA and healing run inside the engine (the healer's digital twin needs the live network state), so the per-stage topics originally planned (`telemetry.features`, `actions.proposed/applied`, `audit`) are not separate streams.
 
@@ -126,3 +127,11 @@ Healing events (one per step) and the incident state after every change:
     "generated_at": "2026-10-07T10:43:12+00:00" }
   ```
 LLM settings come from `.env`: `INFERENCE_CLOUD_API_KEY`, `INFERENCE_CLOUD_ENDPOINT` (Cirrascale AI Suite, OpenAI-compatible), and optional `LLM_MODEL` (default `Llama-3.3-70B`).
+
+## Safety and control (Phase 10)
+
+- **Auth:** `POST /auth/login {username, password}` returns `{ token, username, role }` (JWT, 12 h). Send `Authorization: Bearer <token>`. Roles: `viewer` < `operator` < `admin`. Reads and the WebSocket are open; `POST /fault`, `POST /reset`, `POST /incidents/{id}/report` and `POST /approvals/{id}/approve|reject` need operator; `PUT /autonomy` needs admin. Demo accounts: `config/DEMO_ACCOUNTS.md`.
+- **Comfort level:** `GET /autonomy` returns `{ level, levels }`; `PUT /autonomy {level: 0-4}`.
+- **Approvals:** `GET /approvals` returns `{ awaiting: ActionCandidate | null, incident_id }`. New healing event kinds: `recommended`, `awaiting_approval`, `approved`, `rejected`. The incident state gains `awaiting`.
+- **Policy:** `ActionCandidate.policy_reasons` lists why `policies/healing.rego` denied a fix.
+- **Audit:** `GET /audit?limit=200` returns the newest `LedgerEntry` first (with `payload`); `GET /audit/verify` returns `{ valid, broken_at, entries }`.
