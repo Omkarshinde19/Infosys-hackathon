@@ -229,6 +229,7 @@ What it learned (checked episode by episode):
 - On link faults the obvious detour is already the best move, so the agent matches the rules.
 - All of its wins (21 of the 600) are **overloaded access switches**. The rules have no candidate there: the traffic starts at that switch, so it can't be drained. The agent instead moves one flow onto a less-loaded distribution/core path; the lower queueing elsewhere brings the flow's latency back within 10% of normal while the switch itself is still overloaded. That is load-aware traffic engineering: a **mitigation**, not a repair. The switch stays flagged for a human.
 - It is worse than the rules on 3 overloaded distribution switches, and it moves a few more flows than needed on average. That is why it only proposes: the twin picks whichever candidate is predicted to be better.
+- In 33 of 600 decisions it also moves a flow that doesn't cross the fault. Sometimes that makes room on a shared link; restricting it to the affected flows would cost 4 of its 480 fixes, so it is kept, and every move is still judged by the twin and the guardrails. Live, this shows up as an odd-looking proposal (e.g. moving Hostel B traffic for an ECE Lab overload) that fails the 3 s check and is rolled back.
 
 ---
 
