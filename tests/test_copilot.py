@@ -115,3 +115,20 @@ def test_offline_the_local_model_answers():
     result = run(ask("Why was the Library slow?", [], context(), llm))
     assert result["source"] == "llm:qwen2.5:7b" and result["provider"] == LOCAL
     assert "E1" in result["evidence"]
+
+
+def test_a_slow_model_falls_back_within_the_overall_time_budget(monkeypatch):
+    from services.copilot import agent
+
+    class Slow:
+        def __init__(self):
+            self.chat = SimpleNamespace(completions=SimpleNamespace(create=self.create))
+
+        async def create(self, **kwargs):  # each call is under the per-call timeout...
+            await asyncio.sleep(0.3)
+            return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(
+                content=None, tool_calls=[tool_call("get_active_alerts")]))])  # fmt: skip
+
+    monkeypatch.setattr(agent, "TOTAL_S", 0.5)  # ...but together they'd take 4 x 0.3 s
+    result = run(ask("What's wrong?", [], context(), Slow()))
+    assert result["source"] == "template" and "too long" in result["fallback_reason"]
