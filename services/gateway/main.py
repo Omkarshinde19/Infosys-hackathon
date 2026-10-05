@@ -457,6 +457,9 @@ async def set_backend(req: BackendRequest, user: Admin) -> dict:
     if req.kind == "emu" and not emulab_ready():
         raise HTTPException(409, "The emulated network isn't running (start it with ./netheal emu)")
     cleared = list(detector.active)
+    if backend == "emu":  # leave the emulator clean (faults off)
+        with suppress(OSError):
+            net.clear_faults()
     backend = req.kind
     net, detector = new_network(), new_detector()
     rca.clear()
