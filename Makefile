@@ -1,6 +1,6 @@
 PY := .venv/bin/python
 
-.PHONY: install test lint dev demo down logs e2e train train-rl mlflow eval
+.PHONY: install test lint dev demo down logs e2e train train-rl mlflow eval reset
 
 install:
 	python3 -m venv .venv
@@ -22,6 +22,10 @@ demo:
 
 down:
 	docker compose down
+
+# Fresh demo state: restart the engine (clears incidents; 30 s re-learn)
+reset:
+	./netheal reset
 
 logs:
 	docker compose logs --follow --tail=50

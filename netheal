@@ -92,6 +92,34 @@ cmd_ollama() {
   ok "Offline AI ready: Ask NetHeal and reports switch to it when the cloud model is unreachable"
 }
 
+cmd_reset() {
+  bold "Fresh demo: restarting the engine (clears incidents; the detector re-learns for 30 s)…"
+  docker compose restart engine >/dev/null
+  wait_ready
+}
+
+cmd_rehearse() {
+  bold "Pre-flight: everything the demo needs must already be on this laptop"
+  for img in $(docker compose config --images 2>/dev/null); do
+    docker image inspect "$img" >/dev/null 2>&1 && ok "Image $img" || bad "Image $img missing: run ./netheal start while online"
+  done
+  curl -sf localhost:11434/api/tags | grep -q "$OLLAMA_MODEL" && ok "Offline AI model $OLLAMA_MODEL" \
+    || bad "Offline AI model missing: ./netheal ollama (Ask NetHeal falls back to templates)"
+  [[ -f docs/evaluation.json ]] && ok "Evaluation results" || bad "No evaluation results: ./netheal eval"
+  curl -s "$ENGINE/anomalies" | grep -q '"ready":true' && ok "Engine up, detector ready" || { bad "Engine not ready: ./netheal start"; exit 1; }
+  bold "Running the demo 5 times in a row with the internet blocked, then every page…"
+  (cd frontend && npx playwright test --repeat-each=5 e2e/demo.spec.ts && npx playwright test e2e/offline.spec.ts) \
+    && ok "Rehearsal passed" || { bad "Rehearsal failed: see frontend/playwright-report"; exit 1; }
+}
+
+cmd_record() {
+  bold "Recording the backup demo video (≈2.5 min, 1280x720)…"
+  (cd frontend && RECORD=1 npx playwright test e2e/record.spec.ts) || { bad "Recording failed"; exit 1; }
+  mkdir -p demo
+  cp "$(ls -t frontend/test-results/*/video.webm | head -1)" demo/netheal-demo.webm
+  ok "Backup video: demo/netheal-demo.webm"
+}
+
 cmd_status() {
   bold "Containers"
   docker compose ps --format '  {{.Service}}\t{{.Status}}' 2>/dev/null || bad "Docker isn't running"
@@ -153,6 +181,9 @@ NetHeal launcher
   ./netheal status         Containers, health checks, detector readiness
   ./netheal logs [service] Follow logs (engine, stream, sink, frontend, redpanda, timescaledb, redis)
   ./netheal open           Open the dashboard in your browser
+  ./netheal reset          Fresh demo state (restarts the engine, 30 s re-learn)
+  ./netheal rehearse       Pre-flight checks + the demo 5x in a row with the internet blocked
+  ./netheal record         Record a backup video of the demo to demo/netheal-demo.webm
   ./netheal emu            Also start the emulated network (Mininet + Open vSwitch, real packets)
   ./netheal ollama         Install and start the offline AI model (Ollama + qwen2.5:7b), used when offline
   ./netheal obs            Also start Grafana, Prometheus and Jaeger (NetHeal's own metrics + traces)
@@ -176,6 +207,9 @@ case "${1:-help}" in
   status)   cmd_status ;;
   logs)     docker compose logs --follow --tail=100 ${2:-} ;;
   open)     open "$FRONTEND" ;;
+  reset)    cmd_reset ;;
+  rehearse) cmd_rehearse ;;
+  record)   cmd_record ;;
   emu)      cmd_emu ;;
   obs)      cmd_obs ;;
   ollama)   cmd_ollama ;;

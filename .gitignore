@@ -40,3 +40,6 @@ data/
 
 # ./netheal dev (pids + logs)
 .netheal/
+
+# Backup demo video (./netheal record)
+demo/
