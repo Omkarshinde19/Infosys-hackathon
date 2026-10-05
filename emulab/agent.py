@@ -31,6 +31,7 @@ from pydantic import BaseModel
 SCALE = 0.01
 PINGS, PING_GAP_S, PING_WAIT_S = 10, 0.01, 0.3
 FLAP_PERIOD_S = 2.0
+QUEUE_EWMA = 0.2  # smooths queueing delay: sustained congestion, not momentary bursts
 spec = yaml.safe_load(Path("campus.yaml").read_text())
 lock = threading.RLock()  # Mininet node shells are not thread-safe
 
@@ -42,6 +43,7 @@ flows = {f["id"]: f for f in spec["flows"]}
 routes: dict[str, list[str]] = {}
 faults: dict[str, dict] = {}  # link/node/flow -> active fault
 counters: dict[str, tuple] = {}  # interface -> (time, tx_bytes, tc_sent_pkts, tc_dropped)
+queue_ms: dict[str, float] = {}  # link -> smoothed queueing delay
 stop_bg = threading.Event()
 
 
@@ -87,32 +89,53 @@ def port(a: str, b: str) -> int:
     return sw[a].ports[intf]
 
 
-def ofctl(switch, args: str) -> None:
+COOKIES = {fid: i + 1 for i, fid in enumerate(flows)}  # tags each flow's OpenFlow rules
+BLACKHOLE = 1000  # cookie offset for misconfig drop rules
+
+
+def ofctl(switch, args: str, rules: list[str] | None = None) -> None:
+    """Run ovs-ofctl; with `rules`, pass them as a file so a whole batch is one call."""
     with lock:
+        if rules is not None:
+            path = f"/tmp/rules-{switch.name}"
+            Path(path).write_text("".join(f"{r}\n" for r in rules))
+            args = f"{args} {path}"
         switch.cmd(f"ovs-ofctl -O OpenFlow13 {args}")
 
 
-def install_route(flow_id: str, path: list[str]) -> None:
-    f = flows[flow_id]
+def route_rules(flow_id: str, path: list[str]) -> dict[str, list[str]]:
+    """OpenFlow rules per switch for one flow, both directions."""
+    f, cookie = flows[flow_id], COOKIES[flow_id]
     src, dst = host[f["src"]].IP(), host[f["dst"]].IP()
-    for a, b in ((src, dst), (dst, src)):  # remove both directions first
-        for s in sw.values():
-            ofctl(s, f"del-flows {s.name} 'ip,nw_src={a},nw_dst={b}'")
-    hops = [*path, path[-1]]  # last switch hands the packet to its host
-    for here, nxt in zip(hops, hops[1:], strict=False):
-        ofctl(
-            sw[here],
-            f"add-flow {sw[here].name} 'priority=100,ip,nw_src={src},nw_dst={dst},"
-            f"actions=output:{port(here, nxt)}'",
-        )
-    back = [*path[::-1], path[0]]
-    for here, nxt in zip(back, back[1:], strict=False):
-        ofctl(
-            sw[here],
-            f"add-flow {sw[here].name} 'priority=100,ip,nw_src={dst},nw_dst={src},"
-            f"actions=output:{port(here, nxt)}'",
-        )
+    out: dict[str, list[str]] = {}
+    for hops, a, b in (([*path, path[-1]], src, dst), ([*path[::-1], path[0]], dst, src)):
+        for here, nxt in zip(hops, hops[1:], strict=False):  # last hop hands it to the host
+            out.setdefault(here, []).append(
+                f"cookie={cookie},priority=100,ip,nw_src={a},nw_dst={b},"
+                f"actions=output:{port(here, nxt)}"
+            )
+    return out
+
+
+def install_route(flow_id: str, path: list[str]) -> None:
+    """Reroute one flow: drop its rules on the old path, add them on the new one."""
+    for n in set(routes.get(flow_id, [])):
+        ofctl(sw[n], f"del-flows {sw[n].name} cookie={COOKIES[flow_id]}/-1")
+    for n, rules in route_rules(flow_id, path).items():
+        ofctl(sw[n], f"add-flows {sw[n].name}", rules)
     routes[flow_id] = path
+
+
+def install_all(new_routes: dict[str, list[str]]) -> None:
+    """Replace every switch's whole table at once (fast reset)."""
+    tables: dict[str, list[str]] = {n: [] for n in sw}
+    for fid, path in new_routes.items():
+        for n, rules in route_rules(fid, path).items():
+            tables[n] += rules
+    for n, rules in tables.items():
+        ofctl(sw[n], f"replace-flows {sw[n].name}", rules)
+    routes.clear()
+    routes.update(new_routes)
 
 
 def start_traffic() -> None:
@@ -179,7 +202,8 @@ def inject(kind: str, target: str, severity: float, ramp_s: float) -> None:
     elif kind == "misconfig":
         f = flows[target]
         src, dst = host[f["src"]].IP(), host[f["dst"]].IP()
-        rule = f"priority=200,ip,nw_src={src},nw_dst={dst},actions=drop"
+        cookie = BLACKHOLE + COOKIES[target]
+        rule = f"cookie={cookie},priority=200,ip,nw_src={src},nw_dst={dst},actions=drop"
         ofctl(sw[f["src"]], f"add-flow {sw[f['src']].name} '{rule}'")
     elif not ramp_s:
         apply(target, faults[target], severity)
@@ -190,10 +214,8 @@ def clear(target: str) -> None:
     if f["type"] in ("link_down", "flapping"):
         set_link(target, True)
     elif f["type"] == "misconfig":
-        fl = flows[target]
-        ofctl(sw[fl["src"]], f"del-flows {sw[fl['src']].name} 'ip,nw_src={host[fl['src']].IP()},"
-                             f"nw_dst={host[fl['dst']].IP()}'")  # fmt: skip
-        install_route(target, routes[target])  # put the normal rules back
+        src = flows[target]["src"]
+        ofctl(sw[src], f"del-flows {sw[src].name} cookie={BLACKHOLE + COOKIES[target]}/-1")
     elif f["type"] == "node_overload":
         for lid, lk in links.items():
             if target in (lk["a"], lk["b"]):
@@ -241,10 +263,11 @@ def link_sample(link_id: str, lk: dict) -> dict:
         rate = max(rate, (b - b0) * 8 / dt / 1e6)  # busier direction, Mbit/s (scaled)
         sent, dropped, backlog = sent + (s - s0), dropped + (d - d0), max(backlog, q)
     util = rate / lk["bw"]
-    queue_ms = backlog * 8 / (lk["bw"] * 1e6) * 1000
-    return {**base, "latency_ms": float(lk["delay"][:-2]) + queue_ms + _extra_delay(link_id),
-            "loss_pct": 100 * dropped / max(sent + dropped, 1), "throughput_mbps": rate / SCALE,
-            "util": util, "queue_len": backlog / 1500}  # fmt: skip
+    sample_ms = backlog * 8 / (lk["bw"] * 1e6) * 1000  # one instant: very bursty
+    queue_ms[link_id] = queue_ms.get(link_id, sample_ms) * (1 - QUEUE_EWMA) + sample_ms * QUEUE_EWMA
+    latency = float(lk["delay"][:-2]) + queue_ms[link_id] + _extra_delay(link_id)
+    return {**base, "latency_ms": latency, "loss_pct": 100 * dropped / max(sent + dropped, 1),
+            "throughput_mbps": rate / SCALE, "util": util, "queue_len": backlog / 1500}  # fmt: skip
 
 
 def _extra_delay(link_id: str) -> float:
@@ -300,8 +323,7 @@ async def lifespan(_: FastAPI):
     global ready
     build()
     g = nx.Graph([(lk["a"], lk["b"]) for lk in links.values()])
-    for fid, f in flows.items():  # until the engine sends its own routes
-        install_route(fid, nx.shortest_path(g, f["src"], f["dst"]))
+    install_all({fid: nx.shortest_path(g, f["src"], f["dst"]) for fid, f in flows.items()})
     start_traffic()
     threading.Thread(target=fault_loop, daemon=True).start()
     ready = True
@@ -342,8 +364,7 @@ def health() -> dict:
 def reset(req: Reset) -> dict:
     for target in list(faults):
         clear(target)
-    for fid, path in req.routes.items():
-        install_route(fid, path)
+    install_all(req.routes)
     return {"ok": True}
 
 
