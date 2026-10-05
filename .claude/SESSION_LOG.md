@@ -8,7 +8,7 @@
 
 ## Index
 
-### Session 1: 2026-10-02 → 2026-10-05 · messages used: 20 / 25
+### Session 1: 2026-10-02 → 2026-10-05 · messages used: 21 / 25
 
 | Msg | Date | Request | Files touched | Commit(s) |
 |---|---|---|---|---|
@@ -32,6 +32,7 @@
 | 18 | 10-06 | Build Phase 11 (remaining pages + Ask NetHeal) + `./netheal` launcher; README commands | see entry 18 | `9d7a32b`…`5d6fc47` |
 | 19 | 10-06 | Session log entry for msg 18, then Phase 12 (emulated network) | see entry 19 | `c3e2b36`…`a282402` + log commit |
 | 20 | 10-05 | Phase 13: evaluation harness, observability, CI + Playwright | see entry 20 | `5aeba41`…(log commit) |
+| 21 | 10-06 | Phase 14 (stretch): RL routing agent + Ollama offline LLM | see entry 21 | `f8eaed7`…(log commit) |
 
 ---
 
@@ -443,4 +444,44 @@
   5. Rates are stored with 4 decimals so the report and the page round the same way (90/104 was stored as 0.865).
   6. Metrics showed the live loop at ≈1.84 ticks/s (it sleeps 0.5 s after each ~40–85 ms tick). Pre-existing, so flagged as a separate task instead of changed here.
   7. No mypy or Vitest in CI (plan listed them): the code has no type-check baseline and the frontend has no unit tests; adding them would be new scope.
+
+### Msg 21 · Phase 14: RL routing agent + offline LLM ✅
+- Request: "go ahead with phase 14". Asked for scope (AskUserQuestion): Omkar chose the **RL routing agent** and **Ollama offline LLM** with **qwen2.5:7b**; Neo4j and k3d + Helm not built; the 3D campus view already existed (Phase 3).
+- Research (Rule 3):
+  - RL for routing: Valadarsky et al., "Learning to Route" (HotNets 2017); DRL-TE and ENERO (deep-RL traffic engineering); safe RL by *shielding* (block unsafe actions at run time). NetHeal's twin + OPA act as the shield, so the agent only proposes.
+  - PyPI: stable-baselines3 2.9.0 (no longer needs pandas/matplotlib), gymnasium 1.4.0.
+  - Ollama (Homebrew 0.34.4, server 0.35.1) serves an OpenAI-compatible `/v1` API with tool calling for qwen2.5. Verified: qwen2.5:7b called `get_diagnosis` correctly through our client.
+  - openai 3.24 uses `httpx2`, not `httpx` (found when the engine image crashed; see bugs).
+- **Created:**
+  - `services/ml/rl.py` (RoutingSpace: 237-number observation, 8 candidate paths per flow; RLPlanner; `load()`)
+  - `ml/train_rl.py` (Gymnasium env: one healing decision per episode, reward = twin dry run + OPA verdict; PPO 300k steps, 8 workers; comparison with the rule planner on 600 held-out decisions; MLflow `netheal-rl-router`)
+  - `services/ml/models/rl_router.zip` (1.3 MB), `services/ml/models/rl_eval.json`
+- **Modified:**
+  - `services/healer/healer.py` (`Healer(rl=…)`: the agent's proposal joins the candidates with `params.planner = "rl"`, twin-tested and OPA-checked like the rest; `plan(h, net, latest)`)
+  - `services/llm/reports.py` (`Failover` client: cloud first, then `OLLAMA_URL`/`OLLAMA_MODEL`; responses stamped with model + provider; 3 s connect timeout via httpx2; reports carry `provider`)
+  - `services/copilot/agent.py` (answers carry the serving model and `provider`)
+  - `services/gateway/main.py` (loads the RL planner; `/settings` lists providers and `rl_router`; RAG embeddings use the cloud client only)
+  - `services/evaluator/harness.py` (5th policy `rl` = live configuration; notes on mitigations, rollbacks, missing re-plan)
+  - `docs/EVALUATION.md`, `docs/evaluation.json` (5 policies)
+  - `frontend/src/app/dashboard/{evaluation,settings,copilot}/page.tsx`, `frontend/src/components/dashboard/{SelfHealing,ReportPanel}.tsx`, `frontend/src/lib/live.ts` (RL badge, provider labels, 5th policy)
+  - `docker-compose.yml` (engine `OLLAMA_URL` → host, `extra_hosts` for Linux), `.env.example`, `netheal` (`ollama` command, status line, `dev` uses local Ollama)
+  - `pyproject.toml` (+stable-baselines3, gymnasium), `Makefile` (`train-rl`, in `train`)
+  - `tests/{test_healer,test_evaluator,test_reports,test_copilot}.py`
+  - `theory/ML.md` (§6 RL agent; offline LLM; MLflow and files tables), `README.md`, `docs/CONTRACTS.md`, `.claude/PHASES.md`
+- **Results:**
+  - RL vs rule planner, 600 held-out decisions: fixed 80.0% vs 77.3%; twin picks the better of both 80.5%. All 21 wins are overloaded access switches, where the rules have no candidate: the agent mitigates by moving traffic onto less-loaded paths. It is worse on 3 distribution switches.
+  - Evaluation, `rl` vs `predictive_twin`: recovered 85% vs 84%; escalated 12% vs 16%; SLA violation 864 s vs 918 s; node overload recovered 19% vs 12%. Rollbacks 6% (vs 0%), all ending no worse than without the agent.
+  - Offline: with the cloud endpoint unroutable, Ask NetHeal answered in 26 s from qwen2.5:7b inside Docker (tools used, evidence cited, labelled "Ollama on this laptop").
+- **Verified:**
+  - 153 unit tests, ruff
+  - `test_stack` e2e and the Playwright demo test on the rebuilt stack
+  - Settings shows both models and "rl router: loaded"
+  - live access-switch overload: RL proposal applied, failed the 3 s check, rolled back, escalated (shield working)
+- Bugs and findings:
+  1. **The emulator container was still running from Phase 12** and used about 10 cores. It slowed RL training (25 min instead of about 10) and the Phase 13 eval (17 min; 6 min without it). Stopped with `docker compose --profile emu stop emulab`.
+  2. **The engine image crashed on `import httpx`**: openai 3 uses `httpx2`. Plain `httpx` only existed locally via another package, so local tests passed. Fixed by using httpx2.
+  3. A first smoke test of the "local only" path still went to Cirrascale, because `load_dotenv` re-read `.env`. The cloud variables are now set to empty strings for such checks. Values were never printed.
+  4. My first explanation of the RL wins was wrong ("rules move too many flows"). An episode-by-episode check showed the wins are access-switch mitigations, and the doc was corrected.
+  5. The agent moves an unaffected flow in 33 of 600 decisions. Restricting it would cost 4 of its 480 fixes, so it is kept and documented.
+  6. Gradually worsening overloads: a mitigation can pass verification and break later, and the healer never re-plans after a verified fix. Flagged as a separate task (needs a test plus an eval rerun).
 
