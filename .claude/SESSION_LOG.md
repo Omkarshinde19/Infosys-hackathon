@@ -28,7 +28,7 @@
 | 14 | 10-05 | Build Phase 7 (incidents + AI reports) | see entry 14 | `ceacd8f`…`ead2396` |
 | 15 | 10-05 | Build Phase 8 (data platform, Docker) | see entry 15 | `ca94b46`…`dcc4180` |
 | 16 | 10-05 | Build Phase 9 (advanced ML) + theory/ML.md | see entry 16 | `dd76719`…`b86c5a3` |
-| 17 | 10-05 | Build Phase 10 (safety + control) | see entry 17 | `d5aa1a9`…(this commit) |
+| 17 | 10-05 | Build Phase 10 (safety + control) | see entry 17 | `d5aa1a9`…`5e04f23` |
 
 ---
 
