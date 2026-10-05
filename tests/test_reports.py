@@ -3,7 +3,16 @@ from types import SimpleNamespace
 
 import pytest
 
-from services.llm.reports import entity_namer, incident_facts, template_report, write_report
+from services.llm.reports import (
+    CLOUD,
+    LOCAL,
+    Failover,
+    entity_namer,
+    incident_facts,
+    make_client,
+    template_report,
+    write_report,
+)
 from tests.test_healer import Pipeline
 
 
@@ -95,3 +104,30 @@ def test_grounding_accepts_paraphrased_names_but_needs_cause_and_mttr(facts):
     assert run(write_report(facts, FakeLLM(wrong_cause)))["source"] == "template"
     wrong_time = "Link failure between Distribution North A and Library, healed in 9 seconds."
     assert run(write_report(facts, FakeLLM(wrong_time)))["source"] == "template"
+
+
+GOOD = "## Summary\nLink failure at Distribution North A ↔ Library, healed in 4.5 s."
+
+
+def test_cloud_writes_the_report_when_online(facts):
+    llm = Failover([(FakeLLM(GOOD), "Llama-3.3-70B", CLOUD), (FakeLLM(GOOD), "qwen2.5:7b", LOCAL)])
+    report = run(write_report(facts, llm))
+    assert report["source"] == "llm:Llama-3.3-70B" and report["provider"] == CLOUD
+
+
+def test_offline_the_local_model_writes_the_report(facts):
+    cloud = FakeLLM(error=ConnectionError("venue wifi down"))
+    llm = Failover([(cloud, "Llama-3.3-70B", CLOUD), (FakeLLM(GOOD), "qwen2.5:7b", LOCAL)])
+    report = run(write_report(facts, llm))
+    assert report["source"] == "llm:qwen2.5:7b" and report["provider"] == LOCAL
+
+
+def test_providers_come_from_the_environment(monkeypatch):
+    for var in ("INFERENCE_CLOUD_API_KEY", "INFERENCE_CLOUD_ENDPOINT", "OLLAMA_URL"):
+        monkeypatch.delenv(var, raising=False)
+    assert make_client() is None
+    monkeypatch.setenv("OLLAMA_URL", "http://localhost:11434/v1")
+    assert [label for *_, label in make_client().providers] == [LOCAL]
+    monkeypatch.setenv("INFERENCE_CLOUD_API_KEY", "k")
+    monkeypatch.setenv("INFERENCE_CLOUD_ENDPOINT", "https://example.invalid/v1")
+    assert [label for *_, label in make_client().providers] == [CLOUD, LOCAL]

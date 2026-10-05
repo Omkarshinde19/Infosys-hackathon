@@ -96,3 +96,22 @@ def test_docs_search_finds_how_detection_works():
 def test_no_tool_can_change_the_network():
     names = {t["function"]["name"] for t in TOOLS}
     assert names.isdisjoint({"inject_fault", "reset", "approve", "set_autonomy", "set_route"})
+
+
+def test_offline_the_local_model_answers():
+    from services.llm.reports import CLOUD, LOCAL, Failover
+
+    class Offline:
+        def __init__(self):
+            self.chat = SimpleNamespace(completions=SimpleNamespace(create=self.create))
+
+        async def create(self, **kwargs):
+            raise ConnectionError("venue wifi down")
+
+    local = ScriptedLLM(
+        (None, [tool_call("get_diagnosis")]), ("The Library link failed [E1].", None)
+    )
+    llm = Failover([(Offline(), "Llama-3.3-70B", CLOUD), (local, "qwen2.5:7b", LOCAL)])
+    result = run(ask("Why was the Library slow?", [], context(), llm))
+    assert result["source"] == "llm:qwen2.5:7b" and result["provider"] == LOCAL
+    assert "E1" in result["evidence"]
