@@ -9,6 +9,7 @@ import { postJSON } from "@/lib/live";
 export type Report = {
   markdown: string;
   source: string;
+  provider?: string | null;
   fallback_reason: string | null;
   generated_at: string;
 };
@@ -80,7 +81,7 @@ export function ReportPanel({ incidentId, initial }: { incidentId: string; initi
         <>
           <p className="mt-3 text-xs text-fg-muted print:hidden">
             {ai
-              ? `Written by ${report.source.slice(4)} on Qualcomm Cloud AI (Cirrascale), grounded in the incident facts`
+              ? `Written by ${report.source.slice(4)} on ${report.provider ?? "Qualcomm Cloud AI (Cirrascale)"}, grounded in the incident facts`
               : `Written from the built-in template: ${report.fallback_reason}`}{" "}
             · {new Date(report.generated_at).toLocaleString()}
           </p>

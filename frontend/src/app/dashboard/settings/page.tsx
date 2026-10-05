@@ -66,7 +66,7 @@ type Settings = {
   autonomy: { level: number; levels: Record<string, string> };
   policy: string;
   users: { username: string; role: string }[];
-  llm: { model: string; configured: boolean; embeddings: string };
+  llm: { model: string; configured: boolean; embeddings: string; providers: { model: string; label: string }[] };
   detector: Record<string, string | number>;
   models_loaded: Record<string, boolean>;
 };
@@ -130,10 +130,14 @@ export default function SettingsPage() {
         </Card>
 
         <Card icon={Bot} title="AI assistant & reports">
-          <p className="text-sm">Language model: <b>{s.llm.model}</b> on Qualcomm Cloud AI (Cirrascale)</p>
+          <ol className="space-y-1 text-sm">
+            {s.llm.providers.map((p, i) => (
+              <li key={p.label}>{i === 0 ? "Language model" : "If that is unreachable"}: <b>{p.model}</b> on {p.label}</li>
+            ))}
+          </ol>
           <p className="text-sm">Document search: <b>{s.llm.embeddings}</b></p>
           <p className={`mt-2 text-sm ${s.llm.configured ? "text-healthy" : "text-warning"}`}>
-            {s.llm.configured ? "Connected" : "No API key: using offline templates"}
+            {s.llm.configured ? "Built-in templates take over if every model is unreachable" : "No AI model set up: using offline templates"}
           </p>
         </Card>
 
