@@ -14,7 +14,7 @@ Status: ⬜ not started · 🟨 in progress · ✅ done
 | 5 | Root cause analysis (voting + rules) | ✅ |
 | 6 | Healing (reroute, twin dry-run, verify, rollback) → **core demo loop** | ✅ |
 | 7 | Incidents + LLM reports | ✅ |
-| 8 | Data platform (Redpanda, TimescaleDB, Redis, Docker Compose) | ⬜ |
+| 8 | Data platform (Redpanda, TimescaleDB, Redis, Docker Compose) | ✅ |
 | 9 | Advanced ML (LSTM-AE, forecaster, datagen, GNN RCA, SHAP, MLflow) | ⬜ |
 | 10 | Safety + control (OPA, autonomy levels, approvals, auth, audit ledger) | ⬜ |
 | 11 | Remaining pages (Chaos Lab, What-If, Copilot + RAG, Insights, Settings) | ⬜ |
@@ -67,8 +67,8 @@ Status: ⬜ not started · 🟨 in progress · ✅ done
 - **Done when:** after a healed fault, "Generate report" returns a report citing real numbers, and it still works with the API key removed (fallback).
 
 ## Phase 8: Data platform
-- Docker Compose (`demo` / `full` profiles): Redpanda, TimescaleDB (+pgvector), Redis
-- Split the pipeline stages into services talking over topics per `docs/CONTRACTS.md`
+- Docker Compose (single stack; profiles deferred): Redpanda v26.2.3, TimescaleDB pg17, Redis 8 (pgvector deferred to Phase 11)
+- Event backbone (Omkar's choice): the closed loop stays in the `engine` (the twin needs live state); every event goes to Redpanda; `sink` → TimescaleDB, `stream` → WebSocket + Redis catch-up; everything (incl. frontend) in Docker
 - **Done when:** `make demo` brings everything up from cold, the Phase 6 e2e test passes against the compose stack, and metrics persist in Timescale.
 
 ## Phase 9: Advanced ML
