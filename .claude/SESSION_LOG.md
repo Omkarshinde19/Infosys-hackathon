@@ -8,7 +8,7 @@
 
 ## Index
 
-### Session 1: 2026-10-02 → 2026-10-05 · messages used: 17 / 25
+### Session 1: 2026-10-02 → 2026-10-05 · messages used: 19 / 25
 
 | Msg | Date | Request | Files touched | Commit(s) |
 |---|---|---|---|---|
@@ -29,6 +29,8 @@
 | 15 | 10-05 | Build Phase 8 (data platform, Docker) | see entry 15 | `ca94b46`…`dcc4180` |
 | 16 | 10-05 | Build Phase 9 (advanced ML) + theory/ML.md | see entry 16 | `dd76719`…`b86c5a3` |
 | 17 | 10-05 | Build Phase 10 (safety + control) | see entry 17 | `d5aa1a9`…`5e04f23` |
+| 18 | 10-06 | Build Phase 11 (remaining pages + Ask NetHeal) + `./netheal` launcher; README commands | see entry 18 | `9d7a32b`…`5d6fc47` |
+| 19 | 10-06 | Session log entry for msg 18, then Phase 12 (emulated network) | see entry 19 | (this commit) |
 
 ---
 
@@ -324,3 +326,42 @@
   2. The image lacked `policies/`, `config/users.yaml` and `libatomic` (regopy), so the engine was unhealthy.
   3. The audit order put `incident.opened` after that tick's healing step. Now causal order (test first).
   4. The e2e test was flaky right after an engine restart (connection refused). It now waits for the engine.
+
+### Msg 18 · Phase 11: remaining pages, Ask NetHeal, `./netheal` launcher ✅
+- Requests:
+  - Phase 11
+  - a terminal start/stop program
+  - the Ask NetHeal design based on Behance "AI Assistant SaaS" in our palette
+  - (interrupted, then) "continue!" plus launcher docs in the README
+- Research (Rule 3):
+  - Behance viewed in the browser: dark starfield, a light beam onto a glowing logo, "How can I help you today?", a glass input with a mode chip, suggestion chips
+  - Cirrascale probes: embeddings (`BAAI/bge-base-en-v1.5`, 768-d, 1.2 s) and Llama-3.3-70B tool calling (3.1 s) both work, so a real tool-using agent was built
+- **Created:**
+  - `services/healer/whatif.py` (`what_if()` on a twin snapshot)
+  - `services/copilot/{__init__,rag,agent}.py` (doc RAG with keyword fallback; read-only tools; evidence IDs E1…; citation check → one rewrite → fallback)
+  - `tests/{test_whatif,test_copilot}.py`
+  - `frontend/src/app/dashboard/{copilot,whatif,insights,settings}/page.tsx`
+  - `netheal` (bash launcher)
+- **Modified:**
+  - `services/gateway/main.py` (`POST /whatif`, `POST /copilot` (viewer+, audited), `GET /insights`, `GET /insights/shap.png`, `GET /settings`)
+  - `services/auth.py` (load `.env` for a stable `JWT_SECRET`)
+  - `tests/test_gateway.py`
+  - `frontend/src/components/dashboard/{FaultLab,Sidebar}.tsx` (7 fire drills, auto-heal toggle L4↔L0, new nav)
+  - `frontend/src/app/dashboard/layout.tsx`
+  - `docker/python.Dockerfile` (+README/docs/theory for RAG)
+  - `pyproject.toml`, `.gitignore` (`.netheal/`), `.env.example` (`JWT_SECRET`), `README.md` (launcher table), `.claude/PHASES.md` (Phase 11 ✅)
+- **Verified:**
+  - 126 tests pass
+  - `./netheal restart` → `status` all green → `e2e` passes
+  - browser (Docker):
+    - Insights, What-If ("No safe automatic fix: NetHeal would escalate to a human" for core1) and Settings (3 models loaded, AI connected) work
+    - Ask NetHeal answered "What if Core Router 1 got overloaded?" via the `what_if` tool, with hoverable evidence chips, "Llama-3.3-70B on Qualcomm Cloud AI · 3 evidence cited"
+    - sessions survive an engine restart (HTTP 200)
+- Bugs found and fixed:
+  1. The copilot page crashed after an answer: Chrome's `scrollIntoView()` now returns a Promise, and a one-line `useEffect` returned it as "cleanup". All effects now use block bodies.
+  2. The random JWT secret per engine start signed everyone out on any restart. Now there's a stable `JWT_SECRET` in `.env`.
+  3. **The launcher corrupted Omkar's `.env`**: `echo >>` glued `JWT_SECRET=` onto `INFERENCE_CLOUD_ENDPOINT` (no trailing newline). Repaired (endpoint verified to end with `/apis/v2`, no values printed); `ensure_secret` now adds a newline first (tested on a scratch file).
+- Notes:
+  - Ask NetHeal answers take ~15–30 s (multi-round tool calls), so the UI shows rotating "thinking" text.
+  - The copilot stage stays dark in light theme, matching the reference.
+  - The turn ended at the usage limit; this entry was written in msg 19.
