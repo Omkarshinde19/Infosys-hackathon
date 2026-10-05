@@ -3,13 +3,17 @@
 import {
   Activity,
   BellRing,
+  ClipboardCheck,
   FileText,
   FlaskConical,
   Gauge,
   HeartPulse,
   Home,
   LineChart,
+  LogIn,
+  LogOut,
   Network,
+  ScrollText,
   Stethoscope,
 } from "lucide-react";
 import Link from "next/link";
@@ -17,6 +21,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { useAuth } from "@/lib/auth";
 import { useLive } from "@/lib/live";
 
 export const SECTIONS = [
@@ -50,8 +55,15 @@ export function Sidebar() {
   const active = useActiveSection();
   const connected = useLive((s) => s.connected);
   const alertCount = useLive((s) => Object.keys(s.anomalies).length);
-  const onControlRoom = usePathname() === "/dashboard";
-  const onIncidents = usePathname().startsWith("/dashboard/incidents");
+  const pathname = usePathname();
+  const waiting = useLive((s) => s.incident.awaiting !== null);
+  const session = useAuth((s) => s.session);
+  const logout = useAuth((s) => s.logout);
+  const pages = [
+    { href: "/dashboard/incidents", label: "Incidents & reports", icon: FileText, badge: false },
+    { href: "/dashboard/approvals", label: "Approvals", icon: ClipboardCheck, badge: waiting },
+    { href: "/dashboard/audit", label: "Audit log", icon: ScrollText, badge: false },
+  ];
 
   return (
     <aside className="glass fixed inset-y-4 left-4 z-20 flex w-60 flex-col rounded-2xl! p-4 print:hidden">
@@ -69,7 +81,7 @@ export function Sidebar() {
             key={s.id}
             href={`/dashboard#${s.id}`}
             className={`flex items-center gap-3 rounded-xl px-3 py-2 transition-colors ${
-              onControlRoom && active === s.id ? "bg-[var(--glass-hover)] text-fg" : "text-fg-muted hover:text-fg"
+              pathname === "/dashboard" && active === s.id ? "bg-[var(--glass-hover)] text-fg" : "text-fg-muted hover:text-fg"
             }`}
           >
             <s.icon className="size-4" /> {s.label}
@@ -78,17 +90,39 @@ export function Sidebar() {
             )}
           </a>
         ))}
-        <Link
-          href="/dashboard/incidents"
-          className={`mt-4 flex items-center gap-3 rounded-xl px-3 py-2 transition-colors ${
-            onIncidents ? "bg-[var(--glass-hover)] text-fg" : "text-fg-muted hover:text-fg"
-          }`}
-        >
-          <FileText className="size-4" /> Incidents &amp; reports
-        </Link>
+        <div className="mt-4" />
+        {pages.map((p) => (
+          <Link
+            key={p.href}
+            href={p.href}
+            className={`flex items-center gap-3 rounded-xl px-3 py-2 transition-colors ${
+              pathname.startsWith(p.href) ? "bg-[var(--glass-hover)] text-fg" : "text-fg-muted hover:text-fg"
+            }`}
+          >
+            <p.icon className="size-4" /> {p.label}
+            {p.badge && <span className="ml-auto size-2 animate-pulse rounded-full bg-warning" />}
+          </Link>
+        ))}
       </nav>
 
-      <div className="mt-auto flex items-center justify-between px-2">
+      <div className="mt-auto mb-3 border-t border-[var(--glass-border)] px-2 pt-3 text-xs">
+        {session ? (
+          <div className="flex items-center justify-between">
+            <span>
+              <span className="font-medium text-fg">{session.username}</span>
+              <span className="text-fg-muted"> · {session.role}</span>
+            </span>
+            <button onClick={logout} aria-label="Sign out" className="text-fg-muted hover:text-fg">
+              <LogOut className="size-4" />
+            </button>
+          </div>
+        ) : (
+          <Link href="/login" className="flex items-center gap-2 text-fg-muted hover:text-fg">
+            <LogIn className="size-4" /> Sign in to take actions
+          </Link>
+        )}
+      </div>
+      <div className="flex items-center justify-between px-2">
         <span className="flex items-center gap-2 text-xs text-fg-muted">
           <span className={`size-2 rounded-full ${connected ? "bg-healthy animate-pulse" : "bg-critical"}`} />
           {connected ? "Live" : "Offline"}
