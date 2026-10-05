@@ -2,6 +2,7 @@
 
 import { Cable, Cpu, RotateCcw, Shuffle, TrafficCone, Unplug, Zap, ZapOff } from "lucide-react";
 import { useState } from "react";
+import { useCan } from "@/lib/auth";
 import { postJSON, useLive } from "@/lib/live";
 
 const FAULTS = [
@@ -17,6 +18,7 @@ type Event = { time: string; text: string; ok: boolean };
 
 export function FaultLab() {
   const topology = useLive((s) => s.topology);
+  const isOperator = useCan("operator");
   const [type, setType] = useState<(typeof FAULTS)[number]["type"]>("link_down");
   const [target, setTarget] = useState("");
   const [severity, setSeverity] = useState(1);
@@ -95,13 +97,18 @@ export function FaultLab() {
         </div>
 
         <div className="mt-6 flex gap-3">
-          <button onClick={inject} className="flex items-center gap-2 rounded-full bg-fg px-5 py-2.5 font-medium text-bg hover:opacity-90">
+          <button onClick={inject} disabled={!isOperator} className="flex items-center gap-2 rounded-full bg-fg px-5 py-2.5 font-medium text-bg hover:opacity-90 disabled:opacity-40">
             <Zap className="size-4" /> Inject fault
           </button>
-          <button onClick={reset} className="glass flex items-center gap-2 rounded-full! px-5 py-2.5 font-medium hover:bg-[var(--glass-hover)]">
+          <button onClick={reset} disabled={!isOperator} className="glass flex items-center gap-2 rounded-full! px-5 py-2.5 font-medium enabled:hover:bg-[var(--glass-hover)] disabled:opacity-40">
             <RotateCcw className="size-4" /> Reset network
           </button>
         </div>
+        {!isOperator && (
+          <p className="mt-3 text-sm text-fg-muted">
+            <a href="/login" className="underline">Sign in as an operator</a> to break the network.
+          </p>
+        )}
       </div>
 
       <div className="glass p-6">
