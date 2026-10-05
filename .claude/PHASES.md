@@ -15,7 +15,7 @@ Status: ⬜ not started · 🟨 in progress · ✅ done
 | 6 | Healing (reroute, twin dry-run, verify, rollback) → **core demo loop** | ✅ |
 | 7 | Incidents + LLM reports | ✅ |
 | 8 | Data platform (Redpanda, TimescaleDB, Redis, Docker Compose) | ✅ |
-| 9 | Advanced ML (LSTM-AE, forecaster, datagen, GNN RCA, SHAP, MLflow) | ⬜ |
+| 9 | Advanced ML (LSTM-AE, forecaster, datagen, GNN RCA, SHAP, MLflow) | ✅ |
 | 10 | Safety + control (OPA, autonomy levels, approvals, auth, audit ledger) | ⬜ |
 | 11 | Remaining pages (Chaos Lab, What-If, Copilot + RAG, Insights, Settings) | ⬜ |
 | 12 | Emulated network (Mininet + OVS + os-ken) | ⬜ |
