@@ -4,15 +4,16 @@ import * as echarts from "echarts";
 import { FlaskConical, HeartPulse, Search, ShieldCheck } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-const POLICIES = ["no_heal", "reactive", "twin", "predictive_twin"] as const;
+const POLICIES = ["no_heal", "reactive", "twin", "predictive_twin", "rl"] as const;
 type Policy = (typeof POLICIES)[number];
 const LABEL: Record<Policy, string> = {
   no_heal: "No healing",
   reactive: "Reactive rules",
   twin: "NetHeal (twin)",
   predictive_twin: "NetHeal + prediction",
+  rl: "NetHeal + RL (live)",
 };
-const COLOR: Record<Policy, string> = { no_heal: "#f2919f", reactive: "#f2c77b", twin: "#7da0ca", predictive_twin: "#6fd6c4" };
+const COLOR: Record<Policy, string> = { no_heal: "#f2919f", reactive: "#f2c77b", twin: "#7da0ca", predictive_twin: "#6fd6c4", rl: "#b8a1e3" };
 const FAULT_LABEL: Record<string, string> = {
   link_down: "Link down", gray_failure: "Gray failure", congestion: "Congestion",
   flapping: "Flapping link", node_overload: "Overloaded device", misconfig: "Misconfiguration",
@@ -158,7 +159,7 @@ export default function EvaluationPage() {
   if (error) return <p className="mx-auto max-w-6xl pt-10 text-fg-muted">{error}</p>;
   if (!data || !charts) return null;
   const s = data.summary.policies;
-  const ours = s.predictive_twin;
+  const ours = s.rl;
   const none = s.no_heal;
   const saved = none.sla.violation_s_total ? 1 - ours.sla.violation_s_total / none.sla.violation_s_total : null;
 
@@ -168,7 +169,7 @@ export default function EvaluationPage() {
         <p className="text-sm text-fg-muted">Control Room</p>
         <h1 className="text-4xl font-semibold tracking-tight">Evaluation</h1>
         <p className="mt-1 max-w-3xl text-sm text-fg-muted">
-          {data.meta.scenarios} faults NetHeal never trained on (and healthy controls), each replayed under four policies for {data.meta.run_s} s.
+          {data.meta.scenarios} faults NetHeal never trained on (and healthy controls), each replayed under five policies for {data.meta.run_s} s.
           Same network, same fault, same random seed: the only difference is how the network responds.
         </p>
       </header>
@@ -227,8 +228,9 @@ export default function EvaluationPage() {
         ]} />
         <ul className="glass mt-4 list-disc space-y-2 p-6 pl-10 text-sm text-fg-muted">
           <li>Reactive rules can recover a few more faults: they ignore the blast-radius guardrail (at most 5 flows moved automatically), for example moving every flow off a flapping internet uplink at once. NetHeal hands those to a human on purpose.</li>
-          <li>An overloaded access switch has no detour (the traffic starts there), so every policy escalates it.</li>
-          <li>No fix is rolled back: in the simulator every detour around the fault works. Testing on the twin pays off in safety (the guardrails see predicted load), and on real packets reality can differ.</li>
+          <li>An overloaded access switch has no detour (the traffic starts there), so the rules escalate it. The RL agent sometimes mitigates it instead, moving the switch&apos;s flows onto less-loaded paths further up.</li>
+          <li>Without the RL agent no fix is rolled back: in the simulator every detour around the fault works. The agent&apos;s mitigations are closer calls; some pass the twin but fail the 3 s check and are rolled back, ending no worse than without it.</li>
+          <li>A mitigation of a gradually worsening overload can pass its check and break later. NetHeal does not re-plan after a verified fix yet, which is why the RL policy heals more faults than it keeps recovered.</li>
           <li>Prediction detects gradual faults earlier; diagnosing that early occasionally names the wrong cause first, which is corrected before anything is applied.</li>
         </ul>
         <p className="mt-3 text-xs text-fg-muted">
