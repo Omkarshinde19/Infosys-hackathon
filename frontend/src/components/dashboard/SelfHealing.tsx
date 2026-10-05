@@ -19,6 +19,7 @@ const STATUS: Record<string, string> = {
   verifying: "Fix applied, verifying that traffic recovers…",
   healed: "Healed: traffic is back to normal. The faulty part stays flagged until it is repaired",
   rolled_back: "Fix didn't help and was rolled back; trying the next one",
+  relapsed: "The fix stopped holding: traffic broke again, planning a new fix",
   no_action_needed: "No user traffic affected; flagged for maintenance",
   escalated: "Escalated: no safe automatic fix, a human needs to step in",
   alert_only: "Comfort level 0: alerting only, no fix was planned",
