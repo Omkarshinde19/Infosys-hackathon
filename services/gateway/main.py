@@ -17,10 +17,12 @@ from typing import Annotated
 from aiokafka import AIOKafkaProducer
 from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
+from prometheus_client import make_asgi_app
 from pydantic import BaseModel
 
 from contracts.models import Envelope
 from services import auth, bus
+from services import observability as obs
 from services.copilot.agent import Context, ask
 from services.copilot.rag import EMBED_MODEL, DocIndex
 from services.detector.detector import Z_THRESHOLD, Detector
@@ -67,6 +69,7 @@ llm = make_client()
 docs = DocIndex(llm)
 reports: dict[str, dict] = {}  # incident id -> generated report
 clients: set[WebSocket] = set()
+obs.WS_CLIENTS.labels("engine").set_function(lambda: len(clients))
 producer: AIOKafkaProducer | None = None
 
 
@@ -112,14 +115,23 @@ async def tick_loop() -> None:
 
 async def tick() -> None:
     global last_samples
-    samples = last_samples = await asyncio.to_thread(net.step)  # emulator pings take ~0.2 s
-    raised, cleared = detector.update(samples)
-    await broadcast(Envelope(type="telemetry", data=samples))
-    if raised or cleared:
-        await broadcast(Envelope(type="anomaly", data={"raised": raised, "cleared": cleared}))
-    if rca.update(samples, detector.active, net, detector=detector):
-        await broadcast(Envelope(type="rca", data=rca.hypotheses))
-    await heal(samples)
+    with obs.stage("tick"):
+        with obs.stage("simulate"):
+            samples = last_samples = await asyncio.to_thread(net.step)  # emulator: ~0.2 s
+        with obs.stage("detect"):
+            raised, cleared = detector.update(samples)
+        for a in raised:
+            obs.ANOMALIES_RAISED.labels(a.severity).inc()
+        obs.ACTIVE_ANOMALIES.set(len(detector.active))
+        await broadcast(Envelope(type="telemetry", data=samples))
+        if raised or cleared:
+            await broadcast(Envelope(type="anomaly", data={"raised": raised, "cleared": cleared}))
+        with obs.stage("diagnose"):
+            diagnosed = rca.update(samples, detector.active, net, detector=detector)
+        if diagnosed:
+            await broadcast(Envelope(type="rca", data=rca.hypotheses))
+        with obs.stage("heal"):
+            await heal(samples)
 
 
 async def heal(samples) -> None:
@@ -138,11 +150,17 @@ async def handle(events: list) -> None:
     if switched and incidents.current:  # audit in causal order: opened, healing steps, closed
         await audit("system", "incident.opened", {"incident": incidents.current.id})
     for kind, payload in events:
+        obs.HEALING_EVENTS.labels(kind).inc()
         if kind == "rebaseline":  # traffic moved on purpose: new normal for the new path
             detector.relearn(payload)
         await audit("system", f"healing.{kind}", summary(payload))
     if switched and before:
         await audit("system", "incident.closed", {"incident": before.id, "status": before.status})
+        obs.INCIDENTS.labels(before.status).inc()
+        if before.mttd_s is not None:
+            obs.MTTD.observe(before.mttd_s)
+        if before.mttr_s is not None:
+            obs.MTTR.observe(before.mttr_s)
     if changed:
         for kind, payload in events:
             await broadcast(Envelope(type="action", data={"kind": kind, "payload": payload}))
@@ -175,6 +193,8 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="NetHeal Gateway", lifespan=lifespan)
+app.mount("/metrics", make_asgi_app())
+obs.setup_tracing("engine", app)
 
 
 class LoginRequest(BaseModel):
@@ -382,7 +402,8 @@ async def copilot(req: CopilotRequest, user: Viewer) -> dict:
     latest = {s.entity_id: s for s in last_samples}
     ctx = Context(net=net, latest=latest, detector=detector, rca=rca, incidents=incidents,
                   ledger=ledger, healer=healer, docs=docs)  # fmt: skip
-    return await ask(req.question, req.history, ctx, llm)
+    with obs.COPILOT_SECONDS.time():
+        return await ask(req.question, req.history, ctx, llm)
 
 
 MODELS_DIR = Path(__file__).resolve().parents[1] / "ml" / "models"
