@@ -1,7 +1,7 @@
 "use client";
 
-import { Cable, Cpu, RotateCcw, Shuffle, TrafficCone, Unplug, Zap, ZapOff } from "lucide-react";
-import { useState } from "react";
+import { Cable, Cpu, Play, RotateCcw, Shuffle, TrafficCone, Unplug, Zap, ZapOff } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useCan } from "@/lib/auth";
 import { postJSON, useLive } from "@/lib/live";
 
@@ -15,6 +15,17 @@ const FAULTS = [
 ] as const;
 
 type Event = { time: string; text: string; ok: boolean };
+
+// Realistic one-click drills. The last one shows the safety policy blocking a risky fix.
+const SCENARIOS = [
+  { title: "Exam-day surge at the Library", type: "congestion", target: "dist1-library", severity: 0.9, ramp_s: 10 },
+  { title: "Hostel fibre cut", type: "link_down", target: "dist1-hostel_a", severity: 1, ramp_s: 0 },
+  { title: "Silent packet loss at the CS Lab", type: "gray_failure", target: "dist3-lab_cs", severity: 0.5, ramp_s: 15 },
+  { title: "Flaky cable to the Auditorium", type: "flapping", target: "dist3-auditorium", severity: 1, ramp_s: 0 },
+  { title: "Overloaded distribution switch", type: "node_overload", target: "dist1", severity: 0.7, ramp_s: 5 },
+  { title: "Bad firewall rule for Admin", type: "misconfig", target: "admin-internet", severity: 1, ramp_s: 0 },
+  { title: "Core router meltdown (policy blocks the fix)", type: "node_overload", target: "core1", severity: 0.8, ramp_s: 0 },
+];
 
 export function FaultLab() {
   const topology = useLive((s) => s.topology);
@@ -38,10 +49,26 @@ export function FaultLab() {
     setEvents((e) => [{ time: new Date().toLocaleTimeString(), text, ok }, ...e].slice(0, 8));
   }
 
-  async function inject() {
+  async function inject(body: { type: string; target: string; severity: number; ramp_s: number } = { type, target: chosen, severity, ramp_s: ramp }, label = `${fault.label.toLowerCase()} on ${chosen}`) {
     try {
-      await postJSON("/fault", { type, target: chosen, severity, ramp_s: ramp });
-      log(`Injected ${fault.label.toLowerCase()} on ${chosen}`, true);
+      await postJSON("/fault", body);
+      log(`Injected ${label}`, true);
+    } catch (e) {
+      log(`Failed: ${(e as Error).message}`, false);
+    }
+  }
+
+  const isAdmin = useCan("admin");
+  const [autoHeal, setAutoHeal] = useState<boolean | null>(null);
+  useEffect(() => {
+    fetch("/api/autonomy").then((r) => r.json()).then((a) => setAutoHeal(a.level > 0));
+  }, []);
+
+  async function toggleAutoHeal() {
+    try {
+      const a = await postJSON("/autonomy", { level: autoHeal ? 0 : 4 }, "PUT");
+      setAutoHeal(a.level > 0);
+      log(`Auto-heal turned ${a.level > 0 ? "on (level 4)" : "off (level 0: alert only)"}`, true);
     } catch (e) {
       log(`Failed: ${(e as Error).message}`, false);
     }
@@ -54,6 +81,35 @@ export function FaultLab() {
 
   return (
     <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
+      <div className="glass p-6 xl:col-span-2">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h3 className="font-semibold">Fire drills</h3>
+          <button
+            onClick={toggleAutoHeal}
+            disabled={!isAdmin || autoHeal === null}
+            title={isAdmin ? "" : "Only an admin can switch auto-heal"}
+            className="flex items-center gap-2 text-sm disabled:opacity-50"
+          >
+            <span className="text-fg-muted">Auto-heal</span>
+            <span className={`relative h-6 w-11 rounded-full transition-colors ${autoHeal ? "bg-healthy" : "bg-[var(--glass-border)]"}`}>
+              <span className={`absolute top-0.5 size-5 rounded-full bg-white transition-all ${autoHeal ? "left-5.5" : "left-0.5"}`} />
+            </span>
+          </button>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          {SCENARIOS.map((sc) => (
+            <button
+              key={sc.title}
+              disabled={!isOperator}
+              onClick={() => inject({ type: sc.type, target: sc.target, severity: sc.severity, ramp_s: sc.ramp_s }, `"${sc.title}"`)}
+              className="flex items-start gap-2 rounded-xl border border-[var(--glass-border)] p-3 text-left text-sm enabled:hover:bg-[var(--glass-hover)] disabled:opacity-40"
+            >
+              <Play className="mt-0.5 size-3.5 shrink-0" /> {sc.title}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="glass p-6">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {FAULTS.map((f) => (
@@ -97,7 +153,7 @@ export function FaultLab() {
         </div>
 
         <div className="mt-6 flex gap-3">
-          <button onClick={inject} disabled={!isOperator} className="flex items-center gap-2 rounded-full bg-fg px-5 py-2.5 font-medium text-bg hover:opacity-90 disabled:opacity-40">
+          <button onClick={() => inject()} disabled={!isOperator} className="flex items-center gap-2 rounded-full bg-fg px-5 py-2.5 font-medium text-bg hover:opacity-90 disabled:opacity-40">
             <Zap className="size-4" /> Inject fault
           </button>
           <button onClick={reset} disabled={!isOperator} className="glass flex items-center gap-2 rounded-full! px-5 py-2.5 font-medium enabled:hover:bg-[var(--glass-hover)] disabled:opacity-40">
