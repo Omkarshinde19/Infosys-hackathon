@@ -126,3 +126,21 @@ def test_lstm_autoencoder_joins_alerts_as_a_temporal_opinion():
     for _ in range(6):
         det.update(net.step())
     assert det.active["dist3-lab_cs"].detectors == ["zscore", "iforest", "lstm_ae"]
+
+
+def test_clear_restores_warmup_baselines_and_forgets_ml_history():
+    from services.ml.forecast import load
+
+    net, det = Network(seed=3), Detector(forecaster=load())
+    for _ in range(WARMUP_TICKS):
+        det.update(net.step())
+    original = det.median["dist2-library"].copy()
+    det.relearn(["dist2-library"])
+    net.set_route("library-internet", ["library", "dist2", "core1", "internet"])
+    for _ in range(25):  # long enough to re-learn a busy baseline
+        det.update(net.step())
+    assert det.median["dist2-library"][0] > original[0]
+
+    det.clear()  # e.g. the network was reset
+    assert (det.median["dist2-library"] == original).all()
+    assert det.relearning == {} and len(det.forecaster.history) == 0
