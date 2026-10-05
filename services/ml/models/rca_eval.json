@@ -1,41 +1,47 @@
 {
   "all_snapshots": {
-    "rules": 0.9411396368190357,
-    "gnn": 0.9411396368190357,
-    "ensemble": 0.9411396368190357,
-    "voting_007_target": 0.053224796493425174
+    "rules": 0.9034250421111735,
+    "gnn": 0.9500280741156654,
+    "ensemble": 0.9472206625491297,
+    "voting_007_target": 0.015160022459292532
   },
   "first_diagnosis": {
     "rules": 0.8239700374531835,
-    "gnn": 0.8239700374531835,
+    "gnn": 0.8333333333333334,
     "ensemble": 0.8239700374531835,
     "voting_007_target": 0.05056179775280899
   },
-  "test_snapshots": 1597,
+  "post_heal": {
+    "rules": 1.0,
+    "gnn": 1.0,
+    "ensemble": 1.0,
+    "voting_007_target": 0.0
+  },
+  "test_snapshots": 1781,
   "per_cause": {
     "link_failure": {
-      "rules": 1.0,
-      "gnn": 1.0,
+      "rules": 0.9008264462809917,
+      "gnn": 0.9201101928374655,
       "ensemble": 1.0,
-      "voting_007_target": 0.07216494845360824
+      "voting_007_target": 0.01928374655647383
     },
     "gray_failure": {
       "rules": 1.0,
       "gnn": 1.0,
       "ensemble": 1.0,
-      "voting_007_target": 0.12162162162162163
+      "voting_007_target": 0.03103448275862069
     },
     "congestion": {
       "rules": 1.0,
       "gnn": 1.0,
       "ensemble": 1.0,
-      "voting_007_target": 0.04924242424242424
+      "voting_007_target": 0.010344827586206896
     },
     "flapping": {
-      "rules": 0.6666666666666666,
-      "gnn": 0.6666666666666666,
-      "ensemble": 0.6666666666666666,
-      "voting_007_target": 0.0851063829787234
+      "rules": 0.6284153005464481,
+      "gnn": 0.8360655737704918,
+      "ensemble": 0.7431693989071039,
+      "voting_007_target": 0.02185792349726776
     },
     "node_overload": {
       "rules": 1.0,
