@@ -86,8 +86,8 @@ Snapshots are taken **after diagnosis but before healing** within each tick, the
 
   | | Value |
   |---|---|
-  | Median error, healthy | 0.00007 |
-  | Median error, faulty | 0.88 |
+  | Median error, healthy | 0.00003 |
+  | Median error, faulty | 0.92 |
   | Faults detected | **100%** |
   | False positives on healthy data | **0%** |
 
@@ -96,6 +96,8 @@ Snapshots are taken **after diagnosis but before healing** within each tick, the
 ### 3.4 Debounce and change-awareness
 - An alert is raised after **3 bad readings out of 4** and cleared after **6 good ones in a row**, so it doesn't flicker.
 - **Change-aware:** when the healer *deliberately* moves traffic onto a backup path, the links and devices on that path **re-learn their baseline** for 10 s instead of raising false alerts. A reset restores the original baselines.
+- **Persistence for latency-only anomalies:** if latency rises while the same link's load and loss stay normal, the alert must hold for **6 of the last 8 readings (~3–4 s)**, like a Prometheus `for:` clause. Anything involving loss, load or reachability keeps the fast 3-of-4 path. The noise floor for latency is **0.5 ms**, so latency must rise at least ~3 ms to count.
+- **Why:** on the emulated network (Phase 12) with real packets, CPU scheduling inside the laptop's Docker VM causes brief queue bursts (a few ms) on lightly loaded links. With the old 0.2 ms floor and no persistence rule these produced about one false alert per minute; with both, **zero in 4 minutes**, while real congestion (+10 to +200 ms with high load) is still caught in ≤ 3 s.
 
 ---
 
@@ -150,7 +152,7 @@ In plain words: **rising packet loss is the earliest sign of trouble**. The mode
 - **007 voting** (Arzani et al., NSDI '18): what share of the struggling flows pass through each suspect.
 
 ### 5.2 Why 007 alone fails on a campus (a real finding)
-007 was built for **data centres**, where many flows cross every link. In our campus, each building has essentially **one** flow to the internet, so every link on that path gets an equal vote and 007 can't pick between them. On our test set, **007 alone finds the right link only 1.5% of the time**. That's why NetHeal combines voting with each link's own telemetry (signatures).
+007 was built for **data centres**, where many flows cross every link. In our campus, each building has essentially **one** flow to the internet, so every link on that path gets an equal vote and 007 can't pick between them. On our test set, **007 alone finds the right link only 2.2% of the time**. That's why NetHeal combines voting with each link's own telemetry (signatures).
 
 ### 5.3 The graph neural network
 **Code:** [`services/ml/graph.py`](../services/ml/graph.py), [`services/ml/gnn.py`](../services/ml/gnn.py) · **Training:** [`ml/train_gnn.py`](../ml/train_gnn.py)
@@ -176,18 +178,18 @@ In plain words: **rising packet loss is the earliest sign of trouble**. The mode
 
 | Method | All snapshots | First moment of diagnosis | After healing |
 |---|---|---|---|
-| 007 voting alone (location only) | 1.5% | 5.1% | 0% |
-| Expert rules | 90.3% | 82.4% | 100% |
+| 007 voting alone (location only) | 2.2% | 4.7% | 0% |
+| Expert rules | 90.5% | 82.4% | 100% |
 | **Graph neural network** | **95.0%** | **83.3%** | 100% |
 | **Ensemble** (rules + GNN) | **94.7%** | 82.4% | 100% |
 
 Per fault type (rules / GNN / ensemble):
-- **Flapping link: 62.8% / 83.6% / 74.3%.** The GNN is much better on the hardest type.
-- **Link failure: 90.1% / 92.0% / 100%.** Only the ensemble is perfect.
+- **Flapping link: 63.0% / 83.4% / 74.0%.** The GNN is much better on the hardest type.
+- **Link failure: 90.5% / 91.9% / 100%.** Only the ensemble is perfect.
 - **Gray failure, congestion, device overload, misconfiguration:** 100% for all three.
 
 **What this means:**
-- The GNN **learned the expert rules from simulated data alone**, and then **beat them** (95.0% vs 90.3%), mostly when traffic has just been moved and voting gets confused.
+- The GNN **learned the expert rules from simulated data alone**, and then **beat them** (95.0% vs 90.5%), mostly when traffic has just been moved and voting gets confused.
 - **The remaining errors are unavoidable:** at the first instant, a flapping link in its "down" phase is *physically identical* to a dead link. The GNN reflects this honestly by splitting its belief between the two (about 50/50) until it sees what the link does next.
 
 ### 5.4 The ensemble used live
@@ -234,6 +236,8 @@ make train    # regenerate the scenarios and retrain all three models (~3 min)
 5. **Calibrated doubt is a feature.** When two causes look physically identical, a good model should say 50/50, not fake certainty.
 
 ---
+
+**Retraining note (Phase 12):** the GNN and LSTM autoencoder were retrained after the detector's latency noise floor changed (0.2 → 0.5 ms), because both take z-scores as input; their results above are from that retrain. The forecaster's inputs don't depend on the floor, so it was kept: a retrain on a fresh random scenario set came out worse (85.9% warned early, 3 false warnings) and was discarded.
 
 ## 9. Files
 
