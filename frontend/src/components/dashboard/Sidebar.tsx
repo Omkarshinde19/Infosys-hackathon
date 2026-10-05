@@ -2,8 +2,12 @@
 
 import {
   Activity,
+  BarChart3,
   BellRing,
   ClipboardCheck,
+  FlaskRound,
+  MessageSquareText,
+  Settings,
   FileText,
   FlaskConical,
   Gauge,
@@ -60,9 +64,13 @@ export function Sidebar() {
   const session = useAuth((s) => s.session);
   const logout = useAuth((s) => s.logout);
   const pages = [
+    { href: "/dashboard/copilot", label: "Ask NetHeal", icon: MessageSquareText, badge: false },
+    { href: "/dashboard/whatif", label: "What-If planner", icon: FlaskRound, badge: false },
     { href: "/dashboard/incidents", label: "Incidents & reports", icon: FileText, badge: false },
     { href: "/dashboard/approvals", label: "Approvals", icon: ClipboardCheck, badge: waiting },
+    { href: "/dashboard/insights", label: "Insights", icon: BarChart3, badge: false },
     { href: "/dashboard/audit", label: "Audit log", icon: ScrollText, badge: false },
+    { href: "/dashboard/settings", label: "Settings", icon: Settings, badge: false },
   ];
 
   return (
