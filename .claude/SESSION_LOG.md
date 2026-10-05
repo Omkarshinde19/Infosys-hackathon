@@ -8,7 +8,7 @@
 
 ## Index
 
-### Session 1: 2026-10-02 → 2026-10-05 · messages used: 15 / 25
+### Session 1: 2026-10-02 → 2026-10-05 · messages used: 16 / 25
 
 | Msg | Date | Request | Files touched | Commit(s) |
 |---|---|---|---|---|
@@ -27,6 +27,7 @@
 | 13 | 10-05 | Build Phase 6 (self-healing, core demo loop) | see entry 13 | `3ddb98c`…`4baa3f4` |
 | 14 | 10-05 | Build Phase 7 (incidents + AI reports) | see entry 14 | `ceacd8f`…`ead2396` |
 | 15 | 10-05 | Build Phase 8 (data platform, Docker) | see entry 15 | `ca94b46`…`dcc4180` |
+| 16 | 10-05 | Build Phase 9 (advanced ML) + theory/ML.md | see entry 16 | `dd76719`…(this commit) |
 
 ---
 
@@ -252,3 +253,35 @@
   - Docker Desktop wasn't running; Claude started it with `open -a Docker`.
   - The local dev path (`make dev` / `.claude/launch.json` on 8001) still works without Kafka.
   - Before the venue, run `make demo` once while online so the images are cached.
+
+### Msg 16 · Phase 9: advanced ML + `theory/ML.md` ✅
+- Request: Phase 9, plus a doc in a new folder explaining the ML. "thoery" was read as a typo for **`theory/`**; Omkar was told.
+- Libraries: torch 2.14.1 (CPU-only in Docker), torch-geometric 2.8.0, mlflow 3.16.1, shap 0.52.0 (optional extra `train`), matplotlib.
+- **Created:**
+  - `ml/{__init__,datagen,train_gnn,train_forecast,train_lstm_ae}.py`
+  - `services/ml/{__init__,graph,gnn,forecast,lstm_ae}.py`
+  - `services/ml/models/{rca_gnn.pt, rca_eval.json, forecaster.joblib, forecast_eval.json, forecast_shap.png, lstm_ae.pt, lstm_ae_eval.json}`
+  - `theory/ML.md`
+- **Modified:**
+  - `services/rca/engine.py` (`RCAEngine(gnn=...)`, `update(..., detector=)`, `_with_gnn` ensemble 0.45/0.25/0.30)
+  - `services/detector/detector.py` (`forecaster=`, `autoencoder=`, forecast warnings + upgrade, LSTM-AE third opinion; `clear()` restores warm-up baselines and clears ML history)
+  - `services/gateway/main.py` (loads all 3 models)
+  - `frontend/src/components/dashboard/{Alerts,Diagnosis}.tsx` (forecast text, LSTM chip, GNN bar)
+  - `tests/{test_rca,test_detector,test_healer}.py`
+  - `pyproject.toml`, `.gitignore` (ship `services/ml/models/*.pt`), `docker/python.Dockerfile` (CPU torch), `Makefile` (`train`, `mlflow`), `.claude/launch.json` (mlflow on 5001), `README.md`, `.claude/PHASES.md`
+- **Results** (held-out, all in `theory/ML.md`):
+  - GNN 95.0% vs rules 90.3% vs 007-alone 1.5%; ensemble 94.7%. Flapping: GNN 83.6% vs rules 62.8%. Link failure: ensemble 100%.
+  - Forecaster warns before the SLA breach on 95.9% of gradual faults (median 2.5 s), with 0 false warnings on 28,620 healthy moments. Top SHAP signal: loss change over 5 s (42%).
+  - LSTM-AE: 100% fault detection, 0% false positives.
+  - MLflow: 3 experiments with params, metrics and artifacts, verified in the UI at :5001.
+- **Verified:** 91 tests pass; Docker image 374 MB (CPU torch); `make demo` + `make e2e` pass; live after-heal diagnosis 87% with GNN 100% (was 44% / 0%).
+- Bugs found and fixed:
+  1. A `multiprocessing` spawn hang on macOS when running from stdin; training now runs as modules (`python -m ml.…`).
+  2. The unfair 007 baseline (voting on devices always blamed the internet gateway) was replaced with the faithful link-only 1/path-length vote.
+  3. The forecaster had no history after warm-up, so its first prediction came after the breach. History is now kept from tick 1.
+  4. Reset kept stale re-learned baselines and the forecaster's memory, which caused a false forecast warning. Fixed, test first.
+  5. **GNN out-of-distribution after healing** ("GNN agrees: 0%"). The healer was added to the datagen.
+  6. **Datagen snapshotted after healing** within the tick, unlike the live engine, so the GNN never saw "broken + unhealed". Snapshots are now taken before healing.
+- Honest findings:
+  - At the first instant a flapping link is physically identical to a dead link; the GNN keeps a calibrated ~50/50 belief.
+  - 007 alone fails on a campus (about one flow per building).
