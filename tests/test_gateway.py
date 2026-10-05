@@ -1,3 +1,5 @@
+import asyncio
+import contextlib
 import json
 import time
 
@@ -301,3 +303,21 @@ def test_evaluation_results_are_served(monkeypatch, tmp_path):
         assert client.get("/evaluation").status_code == 404  # make eval not run yet
         results.write_text(json.dumps({"meta": {"scenarios": 1}, "summary": {}, "runs": []}))
         assert client.get("/evaluation").json()["meta"] == {"scenarios": 1}
+
+
+def test_loop_keeps_two_ticks_per_second_when_a_tick_takes_time(monkeypatch):
+    from services.gateway import main
+
+    starts = []
+
+    async def slow_tick():
+        starts.append(time.monotonic())
+        await asyncio.sleep(0.1)  # detection + ML take ~40-85 ms live
+
+    async def run():
+        with contextlib.suppress(TimeoutError):
+            await asyncio.wait_for(main.tick_loop(), timeout=2.05)
+
+    monkeypatch.setattr(main, "tick", slow_tick)
+    asyncio.run(run())
+    assert len(starts) == 5  # at 0, 0.5, 1.0, 1.5 and 2.0 s: work time is not added to the gap
