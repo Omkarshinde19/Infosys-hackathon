@@ -98,6 +98,26 @@ docs/           research, contracts, runbooks (RAG corpus)
 
 ## Running it
 
+**Everything in Docker (recommended for the demo):**
+
+```bash
+make demo      # builds and starts the full stack, waits until healthy
+make e2e       # end-to-end check: fault -> healed via Redpanda -> stored in TimescaleDB
+make down      # stop it
+```
+
+| Service | What | URL |
+|---|---|---|
+| frontend | Dashboard | http://localhost:3000 |
+| engine | Sim → detect → diagnose → heal + REST API | http://localhost:8001/docs |
+| stream | Redpanda → WebSocket fan-out (Redis catch-up) | ws://localhost:8002/ws/live |
+| sink | Redpanda → TimescaleDB | `psql postgresql://netheal:netheal@localhost:5433/netheal` |
+| redpanda / timescaledb / redis | Event bus / history / live-state cache | localhost:19092 / 5433 / internal |
+
+Before the venue (offline), run `make demo` once so all images are built and pulled.
+
+**Local development (no Docker):**
+
 ```bash
 make install   # create .venv and install backend deps
 make test      # run all tests
