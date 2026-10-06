@@ -15,9 +15,15 @@ ok()   { printf "  \033[32m✔\033[0m %s\n" "$*"; }
 bad()  { printf "  \033[31m✘\033[0m %s\n" "$*"; }
 
 ensure_secret() {
-  # A stable session secret, so restarting the engine doesn't sign everyone out.
+  # A stable, private session secret, so restarting the engine doesn't sign everyone out.
+  # A missing, short or placeholder value (change-me) is replaced: a known secret would
+  # let anyone forge an admin session.
   touch .env
-  grep -q '^JWT_SECRET' .env && return
+  local current
+  current=$(grep -E '^JWT_SECRET *=' .env | tail -1 | cut -d= -f2- | tr -d ' "')
+  [[ ${#current} -ge 32 && $current != change-me ]] && return
+  grep -vE '^JWT_SECRET *=' .env > .env.tmp || true
+  mv .env.tmp .env
   [[ -s .env && $(tail -c1 .env) != "" ]] && echo >> .env  # never glue onto the last line
   echo "JWT_SECRET=$(openssl rand -hex 32)" >> .env
   ok "Created a session secret in .env"
