@@ -38,6 +38,12 @@
 | 24 | 10-06 | WhatsApp message for Abeer and Parth: setting the project up from GitHub | none (message text only) | none |
 | 25 | 10-06 | "Where do I decide?" on an idle-uplink incident; fix it; how to switch to the emulated network | see entry 25 | `ecf6bb2`…(log commit) |
 
+### Session 2: 2026-10-06 → · messages used: 1 / 25
+
+| Msg | Date | Request | Files touched | Commit(s) |
+|---|---|---|---|---|
+| 1 | 10-06 | Session start: read the rules, project, hackathon and team | `.claude/SESSION_LOG.md` (this row) | log commit |
+
 ---
 
 ## Entries
