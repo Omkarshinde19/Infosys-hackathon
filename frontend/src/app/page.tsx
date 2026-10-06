@@ -73,9 +73,6 @@ export default function Home() {
 
         <div className="pointer-events-none relative z-10 mx-auto flex h-full max-w-3xl flex-col items-center justify-center px-6 pb-40 text-center">
           <Reveal>
-            <p className="glass mx-auto mb-6 w-fit rounded-full! px-4 py-1.5 text-xs tracking-wide text-fg-muted">
-              Tested on a digital twin · Explainable
-            </p>
             <h1 className="text-5xl font-semibold tracking-tight md:text-7xl">
               Networks that
               <br />
