@@ -87,6 +87,58 @@ body {
     color 400ms;
 }
 
+/* Ask NetHeal background: navy starfield (dark) or pale sky with blue dots (light). Two
+   layers of dots drift at different speeds, so the field seems to move in depth. */
+.sky {
+  --sky: linear-gradient(to bottom, #eaf4ff, #c1e8ff);
+  --star: rgba(5, 38, 89, 0.45);
+  --star-2: rgba(84, 131, 179, 0.5);
+  --beam: rgba(84, 131, 179, 0.35);
+  --horizon: rgba(125, 160, 202, 0.5);
+  background: var(--sky);
+}
+[data-theme="dark"] .sky {
+  --sky: #021024;
+  --star: rgba(193, 232, 255, 0.75);
+  --star-2: rgba(125, 160, 202, 0.6);
+  --beam: rgba(193, 232, 255, 0.4);
+  --horizon: rgba(5, 38, 89, 0.9);
+}
+.sky-stars,
+.sky-stars-far {
+  position: absolute;
+  inset: 0;
+  animation: sky-drift 140s linear infinite;
+}
+.sky-stars {
+  background-image:
+    radial-gradient(1.5px 1.5px at 20% 30%, var(--star), transparent),
+    radial-gradient(1px 1px at 70% 60%, var(--star), transparent),
+    radial-gradient(1.5px 1.5px at 40% 85%, var(--star-2), transparent),
+    radial-gradient(1px 1px at 88% 15%, var(--star), transparent);
+  background-size: 260px 260px;
+}
+.sky-stars-far {
+  background-image:
+    radial-gradient(1px 1px at 10% 70%, var(--star-2), transparent),
+    radial-gradient(1px 1px at 55% 20%, var(--star-2), transparent),
+    radial-gradient(1px 1px at 80% 80%, var(--star), transparent);
+  background-size: 130px 130px; /* divides the drift distance, so the loop is seamless */
+  opacity: 0.7;
+  animation-duration: 260s;
+}
+@keyframes sky-drift {
+  to {
+    background-position: 520px -260px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sky-stars,
+  .sky-stars-far {
+    animation: none;
+  }
+}
+
 /* AI incident report (rendered Markdown). */
 .report h2 {
   margin: 1.4em 0 0.4em;
