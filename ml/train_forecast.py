@@ -83,7 +83,7 @@ def main() -> None:
     data = load_scenarios()
     parts = {k: [d for d in data if split(d["seed"]) == k] for k in ("train", "val", "test")}
     x_train, y_train, _ = dataset(parts["train"])
-    x_val, y_val, healthy_val = dataset(parts["val"])
+    x_val, _, healthy_val = dataset(parts["val"])
 
     tracking.experiment("netheal-forecaster")
     with mlflow.start_run(run_name="hgb-sla-breach-5s"):
