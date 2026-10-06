@@ -1,6 +1,6 @@
 # Demo playbook
 
-Everything needed to run the 5-minute NetHeal demo, with or without venue internet. The script follows PLAN.md §9, updated to what is actually built.
+Everything needed to run the 5-minute NetHeal demo, with or without venue internet. The script follows [PLAN.md](PLAN.md) §9, updated to what is actually built.
 
 ## The day before (online)
 

@@ -4,7 +4,7 @@ These rules apply to every session in this repo. They are set by Omkar and are n
 
 ## Context
 - Project: NetHeal, a self-healing network simulator (Infosys Hack-AI-Thon NC-04, Pune, 7 Oct 2026).
-- Plan: `PLAN.md` · Phases: `.claude/PHASES.md` · Session log: `.claude/SESSION_LOG.md`
+- Plan: `docs/PLAN.md` · Phases: `.claude/PHASES.md` · Session log: `.claude/SESSION_LOG.md`
 - **All code (structure, backend, frontend) is written by Omkar + Claude.** Teammates are not writing code for now, so don't wait on them or hand work off to them.
 - The team wants **many small commits** (Conventional Commits, one logical change each). See `CONTRIBUTING.md`.
 
