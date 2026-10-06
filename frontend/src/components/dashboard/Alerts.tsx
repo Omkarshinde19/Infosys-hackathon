@@ -91,7 +91,7 @@ export function Alerts() {
           <BellRing className="size-4" /> Alert timeline
         </h3>
         <ul className="mt-4 max-h-72 space-y-3 overflow-y-auto text-sm">
-          {log.length === 0 && <li className="text-fg-muted">Nothing yet.</li>}
+          {log.length === 0 && <li className="text-fg-muted">No alerts raised or cleared since you opened this page.</li>}
           {log.map((e, i) => (
             <li key={i} className="flex gap-3">
               <span className={`mt-1.5 size-2 shrink-0 rounded-full ${e.kind === "raised" ? "bg-critical" : "bg-healthy"}`} />
