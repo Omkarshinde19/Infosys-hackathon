@@ -148,6 +148,7 @@ export default function CopilotPage() {
       className="glass w-full max-w-2xl rounded-[28px]! p-2 pl-5 shadow-[var(--window-shadow)]"
     >
       <textarea
+        maxLength={2000}
         value={input}
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={(e) => {
