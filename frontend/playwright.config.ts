@@ -4,6 +4,7 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: "e2e",
   timeout: 180_000,
+  workers: 1, // every test drives the same live network: never run two at once
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
   use: {
     baseURL: process.env.BASE_URL ?? "http://localhost:3000",
