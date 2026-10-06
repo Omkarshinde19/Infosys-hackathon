@@ -43,8 +43,9 @@ function seconds(from: string, to: string) {
 export function Stepper({ incident }: { incident: Incident }) {
   const done = new Map(incident.timeline.map((e) => [e.stage, e.ts]));
   const current = STAGES.find((s) => !done.has(s.id))?.id;
-  // Resolved without a fix (nothing to fix) or handed to a human: the rest won't happen.
-  const skipped = !done.has("heal") && (incident.status === "resolved" || incident.status === "failed");
+  // Resolved without a fix (nothing to fix) or left to a human: the rest won't happen.
+  const toHuman = incident.status === "failed" || incident.status === "alerted";
+  const skipped = !done.has("heal") && (incident.status === "resolved" || toHuman);
   return (
     <ol className="grid grid-cols-5 gap-2">
       {STAGES.map((s, i) => {
@@ -69,7 +70,7 @@ export function Stepper({ incident }: { incident: Incident }) {
             </span>
             <span className="mt-2 text-sm font-medium">{s.label}</span>
             <span className="text-xs text-fg-muted tabular-nums">
-              {ts ? `+${seconds(incident.opened_at, ts)}s` : !skipped ? "…" : incident.status === "failed" ? "to a human" : "not needed"}
+              {ts ? `+${seconds(incident.opened_at, ts)}s` : !skipped ? "…" : toHuman ? "to a human" : "not needed"}
             </span>
           </li>
         );
@@ -106,7 +107,7 @@ export function SelfHealing() {
     );
   }
 
-  const message = actions.find((a) => a.kind === "escalated" || a.kind === "no_action")?.payload as string | undefined;
+  const message = actions.find((a) => a.kind === "escalated" || a.kind === "no_action" || a.kind === "alert_only")?.payload as string | undefined;
 
   return (
     <div className="space-y-4">

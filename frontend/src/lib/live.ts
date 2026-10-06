@@ -70,7 +70,7 @@ export type ActionEvent =
   | { kind: "result"; payload: ActionResult }
   | { kind: "recommended" | "awaiting_approval"; payload: ActionCandidate }
   | { kind: "approved" | "rejected"; payload: string }
-  | { kind: "no_action" | "escalated"; payload: string };
+  | { kind: "no_action" | "alert_only" | "escalated"; payload: string };
 export type Incident = {
   id: string;
   status: string;

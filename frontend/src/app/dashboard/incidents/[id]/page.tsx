@@ -33,7 +33,7 @@ export default function IncidentPage() {
 
   const { incident, diagnosis, anomalies, actions } = detail;
   // Why no fix was applied (nothing to fix, or no safe fix), in NetHeal's own words.
-  const decision = actions.findLast((a) => a.kind === "no_action" || a.kind === "escalated")?.payload as string | undefined;
+  const decision = actions.findLast((a) => a.kind === "no_action" || a.kind === "alert_only" || a.kind === "escalated")?.payload as string | undefined;
   const top = diagnosis[0];
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6 pb-24">
