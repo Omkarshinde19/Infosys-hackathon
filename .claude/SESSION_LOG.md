@@ -38,7 +38,7 @@
 | 24 | 10-06 | WhatsApp message for Abeer and Parth: setting the project up from GitHub | none (message text only) | none |
 | 25 | 10-06 | "Where do I decide?" on an idle-uplink incident; fix it; how to switch to the emulated network | see entry 25 | `ecf6bb2`…(log commit) |
 
-### Session 2: 2026-10-06 → 2026-10-07 · messages used: 4 / 25
+### Session 2: 2026-10-06 → 2026-10-07 · messages used: 5 / 25
 
 | Msg | Date | Request | Files touched | Commit(s) |
 |---|---|---|---|---|
@@ -46,6 +46,7 @@
 | 2 | 10-06 | Landing windows, Ask NetHeal redesign + round button, no "AI-native"/hyphens, 3D map default, cursor-shy blob | see entry S2·2 | `7563ed0`…(log commit) |
 | 3 | 10-06 | Push; lighter blob in light mode; remove the tagline pill; blob bursts after 2 s on it and merges back; push after verifying from now on | see entry S2·3 | `b31ad98`…(log commit) |
 | 4 | 10-07 | Prep for the judges: pitch + demo script (2.5 + 2.5 min), tech-stack Q&A, build process, Qualcomm usage | local `omkar-understanding/` only (not in git) | log commit |
+| 5 | 10-07 | Presentation slides from the Infosys template; found and fixed Ask NetHeal falling back from Qualcomm | `services/copilot/agent.py`, `tests/test_copilot.py`; deck in `documents/` (not in git) | `c5a0043`, `02e7494`, log commit |
 
 ---
 
@@ -693,4 +694,27 @@
   - the old "30–60 min" claim has no source and is replaced by New Relic's 51 min
   - Q43 (learning from new faults) states that this is roadmap, not built
 - Open: confirm with the Pune coordinator whether pre-built code is allowed (`docs/PLAN.md` noted this), and answer Q10 honestly either way.
+
+### S2 · Msg 5 · Presentation deck + Qualcomm tool-call fix ✅
+- Request: build the presentation slides from the Infosys template. No rules: creative, bold, professional, with the team name and every detail.
+- **Deck** (12 slides, 16:9, built with pptxgenjs in the scratchpad):
+  - `documents/NetHeal_Syntax_Cartel_Presentation.pptx` + `.pdf` (gitignored, like the template)
+  - order follows the template: title · team · problem · solution · live proof · results · architecture · AI · comparison · future/scale/security · demo question · thank you
+  - dark NetHeal palette; the template's ENG NEXT 2026 banner and Infosys logo; real dashboard screenshots in Mac-style windows (the landing page's motif); a native chart; a comparison table
+  - speaker notes from the pitch script; alt text on every image (pptxgenjs otherwise writes the local file path into `descr`)
+  - team details from the college's registration email: Syntax Cartel, lead Omkar Jitendra Shinde, Dr. D. Y. Patil Institute of Technology, Pimpri, Pune, lane Networks & Connectivity
+  - QA: `validate.py` passed; every slide rendered and checked; fixed title alignment, slide 5/7/8/10/11 overflow and overlap, and a path leak in alt text
+- **Bug found while taking screenshots:** Ask NetHeal answered from qwen2.5:7b (offline), not Qualcomm.
+  - The key and endpoint were fine: `GET /models` returned 200 and a plain chat returned 200 in 1.5 s.
+  - Reproduced the agent's rounds: the Cirrascale endpoint returns **HTTP 500 "Model Config not found, please contact admin"** when one assistant turn carries 2+ tool calls (3 of 3 failed; single calls 3 of 3 OK; split into single-call turns, 3 of 3 OK). The failover hid it by falling back per call.
+  - **Fixed:** `services/copilot/agent.py` sends each tool call and its result as its own turn. Test first: `tests/test_copilot.py::test_parallel_tool_calls_go_back_one_per_turn`.
+  - **Verified:**
+    - 160 pytest tests, ruff
+    - engine container rebuilt
+    - 3 API questions, two of them multi-tool, answered by Llama-3.3-70B · Qualcomm Cloud AI (Cirrascale) in 10–18 s
+    - Playwright user flows (3/3)
+- Not done / notes:
+  - one question ("Is the network healthy right now, and are there any alerts?") was answered with no tool call and no citations, because the citation check only runs when tools returned evidence. Pre-existing; candidate follow-up.
+  - Abeer's and Parth's surnames are not in the deck (not in any document); add them in PowerPoint.
+- Local prep folder updated: the slide map in `01-pitch-and-demo-script.md`; the bug story in `06` and `07`.
 
