@@ -8,7 +8,7 @@
 
 ## Index
 
-### Session 1: 2026-10-02 → 2026-10-05 · messages used: 22 / 25
+### Session 1: 2026-10-02 → 2026-10-05 · messages used: 23 / 25
 
 | Msg | Date | Request | Files touched | Commit(s) |
 |---|---|---|---|---|
@@ -34,6 +34,7 @@
 | 20 | 10-05 | Phase 13: evaluation harness, observability, CI + Playwright | see entry 20 | `5aeba41`…(log commit) |
 | 21 | 10-06 | Phase 14 (stretch): RL routing agent + Ollama offline LLM | see entry 21 | `f8eaed7`…(log commit) |
 | 22 | 10-06 | Finish the two follow-ups (tick cadence, re-plan after a fix), Phase 15 demo hardening; what's left? | see entry 22 | `6b1c9e7`…(log commit) |
+| 23 | 10-06 | Clean up the file structure, find all UI errors (browser + CLI), update docs for handover | see entry 23 | `a34ff78`…(log commit) |
 
 ---
 
@@ -535,4 +536,53 @@
   - Assistant times are in UTC, not IST.
   - Range citations like "[E5-E11]" aren't turned into chips.
   - A real Wi-Fi-off rehearsal on the demo laptop is still to do (`docs/DEMO.md`).
+
+### Msg 23 · Repo cleanup, UI error sweep, handover docs ✅
+- Request: "clean up the file structure… keep it compact and clean… find all the UI errors possible through the browser and through the CLI… keep the md files up to date (ML etc.) — I'll hand over the project"
+- **File structure** (root: 29 → 20 visible entries):
+  - `topology/campus.yaml`, `policies/healing.rego` → `config/`
+  - `docker/python.Dockerfile` → `infra/`
+  - `PLAN.md` → `docs/PLAN.md` (`.claude/CLAUDE.md` path updated)
+  - `mlruns/` + `mlflow.db` → `data/mlflow/`: 15 absolute paths rewritten in the SQLite store; old runs and artifacts verified readable. New helper `ml/tracking.py` is used by all 4 training scripts.
+  - `demo/` → `data/demo/`; pytest and ruff caches → `.cache/`; `./netheal dev` logs → `.cache/dev`
+  - Makefile removed: `./netheal` is the single entry point (new: `lint`, `train [rl]`; `test`, `e2e`, `eval` and `mlflow` inlined)
+  - setuptools → hatchling (no `netheal.egg-info`; the package list is just `contracts`, `services`)
+  - The pptx template and colour palette moved into `documents/` (gitignored, nothing deleted)
+- **UI errors, CLI:**
+  - New `frontend/e2e/audit.spec.ts`: 12 pages × 3 sizes × 2 themes × 2 roles. Collects console errors and warnings, exceptions, HTTP ≥ 400, failed requests, broken links, overflow, and axe serious/critical violations.
+  - New `frontend/e2e/interactions.spec.ts`: one flow per role.
+  - Shared ignore list in `helpers.ts` (headless GPU, Next CSS preload, `THREE.Clock` inside R3F 9.8).
+  - New command `./netheal ui-check`; `@axe-core/playwright` 4.13 added.
+  - Run against both the production build and the dev server.
+- **UI errors, browser:** full-page screenshots of every page in light and dark at 1280 px, reviewed visually.
+- **Found and fixed:**
+  1. **3D → 2D switch threw** `removeChild … not a child of this node` every time (drei `<Html>` on unmount). The 3D view now stays mounted and paused (`frameloop="never"`) once opened.
+  2. **Playwright repeats ran in parallel** against the one live network, so a core-router drill landed mid fibre-cut test. Now `workers: 1`.
+  3. React Flow attribution was hidden (pro-only option, dev warning). It is now shown, styled via `--xy-attribution-background-color`.
+  4. The dev-only WebSocket "closed before established" warning (StrictMode double mount). Fixed in `live.ts`.
+  5. Candidate table row numbers had no column spacing.
+  6. Alert timeline said "Nothing yet." next to an active alert.
+  7. The audit log rendered 200 rows; it now shows 50 at a time, newest first.
+  8. The Insights page lacked the RL agent: `/insights` now serves `rl_eval.json` (test first) and a card was added.
+  9. The report rounded 864.5 half-even to 864 while the page showed 865. Both now round half up (865 s, 5,625 s); `docs/DEMO.md` numbers updated.
+- **Not fixed (known):** the landing page in the production build occasionally (≈1 in 12 headless loads) throws React #418. Not reproducible on the dev server (0 of 16) or under 6× CPU throttling. It is recoverable and there is no state to lose on the landing page; the dashboard pages showed none.
+- **Docs for handover:**
+  - `README.md` rewritten: real stack, measured results, layout, commands, ports, a working API example (verified)
+  - `CONTRIBUTING.md`: real tooling and scopes, pre-push checks
+  - `docs/PLAN.md`: marked as the original plan
+  - `theory/ML.md`: MLflow location, link to the end-to-end evaluation
+  - `docs/PRODUCT_OVERVIEW.md`: pages and demo list match the build; planned items marked
+  - `docs/CONTRACTS.md`: every endpoint with its role (generated from the app's routes), all healing event kinds and statuses
+- **Verified:**
+  - `./netheal lint`; 158 unit tests; `next build`; `./netheal e2e`
+  - `./netheal rehearse`: 10 of 10 + page tour
+  - `./netheal ui-check`: 0 findings, all flows pass (also rerun on the final build)
+- **Handoff:**
+  - The coding phases are complete (0–15).
+  - Open items:
+    - the presentation (template in `documents/`)
+    - a real Wi-Fi-off rehearsal on the demo laptop
+    - CI to re-run once GitHub Actions recovers from its outage
+    - small polish: assistant times in UTC; range citations like "[E5-E11]" not turned into chips
+  - Start the next session from `.claude/CLAUDE.md` + this log.
 
