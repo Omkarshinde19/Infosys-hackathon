@@ -164,7 +164,7 @@ export function HealingResults({ incident, actions }: { incident: Incident; acti
           <table className="mt-4 w-full text-sm">
             <thead className="text-left text-xs text-fg-muted">
               <tr>
-                <th className="pb-2 font-normal">#</th>
+                <th className="w-8 pb-2 font-normal">#</th>
                 <th className="pb-2 font-normal">Action</th>
                 <th className="pb-2 text-right font-normal">Twin: latency</th>
                 <th className="pb-2 text-right font-normal">Twin: loss</th>
@@ -178,7 +178,7 @@ export function HealingResults({ incident, actions }: { incident: Incident; acti
                 const r = results.get(c.id);
                 return (
                   <tr key={c.id} className="border-t border-[var(--glass-border)]">
-                    <td className="py-2.5 text-fg-muted">{i + 1}</td>
+                    <td className="py-2.5 pr-3 align-top text-fg-muted">{i + 1}</td>
                     <td className="py-2.5">
                       {describeAction(c, name)}
                       {c.params.planner === "rl" && (
