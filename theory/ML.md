@@ -19,6 +19,8 @@ NetHeal combines **classic statistics, machine learning and a language model**. 
 | Heal | **PPO reinforcement-learning agent** (Stable-Baselines3) | Reinforcement learning | 300,000 healing decisions tried in the digital twin | Proposes which flows to move where; tested on the twin like every other fix |
 | Explain | **Llama-3.3-70B** (Qualcomm Cloud AI), **qwen2.5:7b** (Ollama) offline | Large language models | Pre-trained (not trained by us) | Plain-English incident reports and Ask NetHeal, grounded in facts |
 
+> **End to end:** how well these models work *together* (detected, diagnosed, healed, on 300 faults never seen in training) is in [docs/EVALUATION.md](../docs/EVALUATION.md); this page measures each model on its own.
+
 > **Golden rule:** no ML model and no LLM can change the network on its own. Models raise alerts and give opinions. Fixes are chosen by the healer, tested on the digital twin and checked against safety rules first.
 
 ```mermaid
@@ -246,7 +248,7 @@ What it learned (checked episode by episode):
 
 ## 8. MLflow: tracking every training run
 
-Each training script logs its **parameters, per-epoch metrics, final evaluation and model files** to MLflow (`./mlruns`):
+Each training script logs its **parameters, per-epoch metrics, final evaluation and model files** to MLflow in `data/mlflow` (SQLite + artifacts, set up by [`ml/tracking.py`](../ml/tracking.py)):
 
 | Experiment | Run | Key metrics |
 |---|---|---|
@@ -288,4 +290,5 @@ Each training script logs its **parameters, per-epoch metrics, final evaluation 
 | [`services/ml/lstm_ae.py`](../services/ml/lstm_ae.py) | Autoencoder model and live scorer |
 | [`ml/train_rl.py`](../ml/train_rl.py) | RL environment (one healing decision per episode), PPO training, comparison with the rules |
 | [`services/ml/rl.py`](../services/ml/rl.py) | RL observation, candidate paths and live planner |
+| [`ml/tracking.py`](../ml/tracking.py) | Where MLflow runs are stored (`data/mlflow`) |
 | [`services/ml/models/`](../services/ml/models/) | Trained models + evaluation JSONs + SHAP plot |
