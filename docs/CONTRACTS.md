@@ -76,7 +76,7 @@ Detection, RCA and healing run inside the engine (the healer's digital twin need
 
 ### Incident
 ```json
-{ "id": "uuid", "status": "resolved",   // open | diagnosing | healing | resolved | failed
+{ "id": "uuid", "status": "resolved",   // open | diagnosing | healing | resolved | alerted (level 0: a human was told, nothing fixed) | failed
   "opened_at": "...", "detected_at": "...", "diagnosed_at": "...", "healed_at": "...", "closed_at": "...",
   "mttd_s": 2.5, "mttr_s": 9.4, "timeline": [ { "ts": "...", "stage": "detect", "ref_id": "uuid" } ] }
 ```
@@ -108,11 +108,13 @@ RCA events carry the full ranked diagnosis whenever it changes (an empty list me
 
 Healing events (one per step) and the incident state after every change:
 ```json
-{ "type": "action", "data": { "kind": "proposed" | "applied" | "rebaseline" | "result" | "no_action" | "escalated"
-                                   | "recommended" | "awaiting_approval" | "approved" | "rejected" | "relapsed",
+{ "type": "action", "data": { "kind": "proposed" | "applied" | "rebaseline" | "result" | "no_action" | "alert_only" | "escalated"
+                                   | "recommended" | "awaiting_approval" | "approved" | "rejected" | "relapsed"
+                                   | "replanning",   // an approved fix failed its re-check: planning again
                               "payload": [ActionCandidate, ...] | ActionCandidate | ActionResult | "reason" } }
 { "type": "incident", "data": { "incident": Incident | null, "healer_status": "idle" | "verifying" | "healed" | "rolled_back" | "no_action_needed" | "escalated"
-                                | "alert_only" | "recommended" | "awaiting_approval" | "rejected" | "relapsed",
+                                | "alert_only" | "recommended" | "awaiting_approval" | "rejected" | "relapsed"
+                                | "replanning",
                                 "actions": [ <action event data>, ... ] } }
 ```
 `GET /incident` returns the same incident state. In `ActionResult.before`/`after`, `latency_ms` is averaged over the affected flows (an unreachable flow counts as 1000 ms), and `after.baseline_latency_ms` is their healthy latency.
@@ -164,7 +166,7 @@ LLM settings come from `.env`: `INFERENCE_CLOUD_API_KEY`, `INFERENCE_CLOUD_ENDPO
 
 ## All REST endpoints (engine, http://localhost:8001)
 
-Roles: `-` anyone, `viewer`/`operator`/`admin` need a token from `POST /auth/login` (`Authorization: Bearer …`); higher roles include lower ones. Interactive docs: `/docs`.
+Roles: `-` anyone, `viewer`/`operator`/`admin` need a token from `POST /auth/login` (`Authorization: Bearer …`); higher roles include lower ones. Tokens must carry `sub`, `role` and `exp`, signed with `JWT_SECRET` (the engine never signs with a missing, placeholder or short secret). Approving a fix re-tests it on the twin and the safety rules first. All ports listen on 127.0.0.1 only. Interactive docs: `/docs`.
 
 | Method and path | Role | What |
 |---|---|---|
@@ -178,7 +180,7 @@ Roles: `-` anyone, `viewer`/`operator`/`admin` need a token from `POST /auth/log
 | `GET /approvals`, `POST /approvals/{action_id}/{approve\|reject}` | -, operator | The fix waiting for a human |
 | `GET /audit`, `GET /audit/verify` | - | Latest 200 ledger entries (newest first); hash-chain check |
 | `POST /whatif` | - | Simulate a fault on a twin copy: impact + the plan NetHeal would follow |
-| `POST /copilot` | viewer | Ask NetHeal (read-only tools, cited evidence, 75 s budget) |
+| `POST /copilot` | viewer | Ask NetHeal (read-only tools, cited evidence, 75 s budget). Body: `question` (1–2000 chars), `history` of `{role: "user" \| "assistant", content}` (other roles are rejected) |
 | `GET /insights`, `GET /insights/shap.png` | - | Model evaluation results (RCA, forecaster, autoencoder, RL) + session stats; SHAP plot |
 | `GET /evaluation` | - | `docs/evaluation.json` |
 | `GET /settings` | - | Detector settings, models loaded, LLM providers, safety policy, users |
