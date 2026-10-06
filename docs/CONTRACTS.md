@@ -108,9 +108,11 @@ RCA events carry the full ranked diagnosis whenever it changes (an empty list me
 
 Healing events (one per step) and the incident state after every change:
 ```json
-{ "type": "action", "data": { "kind": "proposed" | "applied" | "rebaseline" | "result" | "no_action" | "escalated",
+{ "type": "action", "data": { "kind": "proposed" | "applied" | "rebaseline" | "result" | "no_action" | "escalated"
+                                   | "recommended" | "awaiting_approval" | "approved" | "rejected" | "relapsed",
                               "payload": [ActionCandidate, ...] | ActionCandidate | ActionResult | "reason" } }
-{ "type": "incident", "data": { "incident": Incident | null, "healer_status": "idle" | "verifying" | "healed" | "rolled_back" | "no_action_needed" | "escalated",
+{ "type": "incident", "data": { "incident": Incident | null, "healer_status": "idle" | "verifying" | "healed" | "rolled_back" | "no_action_needed" | "escalated"
+                                | "alert_only" | "recommended" | "awaiting_approval" | "rejected" | "relapsed",
                                 "actions": [ <action event data>, ... ] } }
 ```
 `GET /incident` returns the same incident state. In `ActionResult.before`/`after`, `latency_ms` is averaged over the affected flows (an unreachable flow counts as 1000 ms), and `after.baseline_latency_ms` is their healthy latency.
@@ -160,3 +162,26 @@ LLM settings come from `.env`: `INFERENCE_CLOUD_API_KEY`, `INFERENCE_CLOUD_ENDPO
 - `GET /metrics` (engine, stream) and `:9464/metrics` (sink): Prometheus metrics, names in `services/observability.py`.
 - Traces: OTLP to `OTEL_EXPORTER_OTLP_ENDPOINT` when set (`./netheal obs`); service names `netheal-engine`, `netheal-stream`, `netheal-sink`. The trace context travels in Kafka message headers.
 
+## All REST endpoints (engine, http://localhost:8001)
+
+Roles: `-` anyone, `viewer`/`operator`/`admin` need a token from `POST /auth/login` (`Authorization: Bearer …`); higher roles include lower ones. Interactive docs: `/docs`.
+
+| Method and path | Role | What |
+|---|---|---|
+| `POST /auth/login`, `GET /auth/me` | -, signed in | Sign in (`{token, username, role}`); who am I |
+| `GET /topology` | - | Nodes, links, flows and their current routes |
+| `POST /fault`, `POST /reset` | operator | Inject a fault; back to a healthy network |
+| `GET /anomalies`, `GET /rca`, `GET /incident` | - | Active alerts + detector warm-up, current diagnosis, current incident + healer status |
+| `GET /incidents`, `GET /incidents/{id}` | - | Incident history; one incident's full context |
+| `POST /incidents/{id}/report` | operator | Generate (or return the cached) incident report |
+| `GET /autonomy`, `PUT /autonomy` | -, admin | Comfort level L0–L4 |
+| `GET /approvals`, `POST /approvals/{action_id}/{approve\|reject}` | -, operator | The fix waiting for a human |
+| `GET /audit`, `GET /audit/verify` | - | Latest 200 ledger entries (newest first); hash-chain check |
+| `POST /whatif` | - | Simulate a fault on a twin copy: impact + the plan NetHeal would follow |
+| `POST /copilot` | viewer | Ask NetHeal (read-only tools, cited evidence, 75 s budget) |
+| `GET /insights`, `GET /insights/shap.png` | - | Model evaluation results (RCA, forecaster, autoencoder, RL) + session stats; SHAP plot |
+| `GET /evaluation` | - | `docs/evaluation.json` |
+| `GET /settings` | - | Detector settings, models loaded, LLM providers, safety policy, users |
+| `GET /backend`, `POST /backend` | -, admin | Simulated or emulated network |
+| `GET /metrics` | - | Prometheus metrics |
+| `WS /ws/live` | - | Live events (the stream service on :8002 serves the same over Redpanda) |
