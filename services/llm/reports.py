@@ -115,7 +115,8 @@ def incident_facts(incident: Incident, ctx: dict, name: Callable[[str], str]) ->
     applied = [p for a in ctx["actions"] if a["kind"] == "applied" for p in [a["payload"]]]
     results = [a["payload"] for a in ctx["actions"] if a["kind"] == "result"]
     verified = next((r for r in results if r.verified), None)
-    notes = [a["payload"] for a in ctx["actions"] if a["kind"] in ("escalated", "no_action")]
+    why_no_fix = ("escalated", "no_action", "alert_only")
+    notes = [a["payload"] for a in ctx["actions"] if a["kind"] in why_no_fix]
     proposed = next((a["payload"] for a in ctx["actions"] if a["kind"] == "proposed"), [])
 
     def describe(c) -> str:

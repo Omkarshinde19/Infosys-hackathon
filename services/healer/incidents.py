@@ -88,8 +88,11 @@ class IncidentTracker:
                 inc.status = "failed"
             elif kind == "relapsed":  # the verified fix stopped holding
                 inc.status = "healing"
-            elif kind == "no_action":  # decided: nothing to fix (idle link, or alert-only level)
+            elif kind == "no_action":  # decided: nothing to fix (no user traffic affected)
                 inc.status = "resolved"
+                self._mark(ts, "decide")
+            elif kind == "alert_only":  # comfort level 0: a human was alerted, nothing fixed
+                inc.status = "alerted"
                 self._mark(ts, "decide")
         if not active:  # after the events, so a fix that ends the incident is recorded
             self.close(ts)

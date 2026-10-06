@@ -92,7 +92,7 @@ class Healer:
         if self.level == 0:
             self.acted.add(top.incident_id)
             self.status = "alert_only"
-            return [("no_action", "Comfort level 0 (alert only): no fix was planned.")]
+            return [("alert_only", "Comfort level 0 (alert only): no fix was planned.")]
 
         candidates, affected = self.plan(top, net, latest)
         if not affected:

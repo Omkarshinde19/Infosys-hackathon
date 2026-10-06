@@ -18,7 +18,7 @@ Cause = Literal[
 ActionType = Literal[
     "reroute", "ecmp_split", "rate_limit", "drain_node", "rollback_config", "quarantine_link"
 ]
-IncidentStatus = Literal["open", "diagnosing", "healing", "resolved", "failed"]
+IncidentStatus = Literal["open", "diagnosing", "healing", "resolved", "alerted", "failed"]
 
 
 class TelemetrySample(BaseModel):
