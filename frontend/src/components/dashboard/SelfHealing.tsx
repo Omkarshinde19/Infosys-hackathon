@@ -108,7 +108,8 @@ export function SelfHealing() {
     );
   }
 
-  const message = actions.find((a) => a.kind === "escalated" || a.kind === "no_action" || a.kind === "alert_only")?.payload as string | undefined;
+  // The latest decision and candidates: after a relapse or re-plan there is more than one.
+  const message = actions.findLast((a) => a.kind === "escalated" || a.kind === "no_action" || a.kind === "alert_only")?.payload as string | undefined;
 
   return (
     <div className="space-y-4">
@@ -139,7 +140,7 @@ export function SelfHealing() {
 /** MTTD/MTTR, before → after, and the twin-ranked candidate fixes of one incident. */
 export function HealingResults({ incident, actions }: { incident: Incident; actions: ActionEvent[] }) {
   const name = useEntityName();
-  const candidates = (actions.find((a) => a.kind === "proposed")?.payload ?? []) as ActionCandidate[];
+  const candidates = (actions.findLast((a) => a.kind === "proposed")?.payload ?? []) as ActionCandidate[];
   const applied = new Set(actions.filter((a) => a.kind === "applied").map((a) => (a.payload as ActionCandidate).id));
   const results = new Map(
     actions.filter((a) => a.kind === "result").map((a) => [(a.payload as ActionResult).action_id, a.payload as ActionResult]),
