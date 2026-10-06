@@ -32,6 +32,8 @@ export default function IncidentPage() {
   if (!detail) return null;
 
   const { incident, diagnosis, anomalies, actions } = detail;
+  // Why no fix was applied (nothing to fix, or no safe fix), in NetHeal's own words.
+  const decision = actions.findLast((a) => a.kind === "no_action" || a.kind === "escalated")?.payload as string | undefined;
   const top = diagnosis[0];
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6 pb-24">
@@ -50,6 +52,7 @@ export default function IncidentPage() {
 
       <div className="glass p-6 print:hidden">
         <Stepper incident={incident} />
+        {decision && <p className="mt-5 text-center text-sm text-fg-muted">NetHeal decided: {decision}</p>}
       </div>
 
       <div className="space-y-4 print:hidden">

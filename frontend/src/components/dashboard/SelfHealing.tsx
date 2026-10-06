@@ -43,11 +43,13 @@ function seconds(from: string, to: string) {
 export function Stepper({ incident }: { incident: Incident }) {
   const done = new Map(incident.timeline.map((e) => [e.stage, e.ts]));
   const current = STAGES.find((s) => !done.has(s.id))?.id;
+  // Resolved without a fix (nothing to fix) or handed to a human: the rest won't happen.
+  const skipped = !done.has("heal") && (incident.status === "resolved" || incident.status === "failed");
   return (
     <ol className="grid grid-cols-5 gap-2">
       {STAGES.map((s, i) => {
         const ts = done.get(s.id);
-        const active = s.id === current && incident.status !== "failed";
+        const active = s.id === current && !skipped;
         return (
           <li key={s.id} className="relative flex flex-col items-center text-center">
             {i > 0 && (
@@ -66,7 +68,9 @@ export function Stepper({ incident }: { incident: Incident }) {
               <s.icon className="size-5" />
             </span>
             <span className="mt-2 text-sm font-medium">{s.label}</span>
-            <span className="text-xs text-fg-muted tabular-nums">{ts ? `+${seconds(incident.opened_at, ts)}s` : "…"}</span>
+            <span className="text-xs text-fg-muted tabular-nums">
+              {ts ? `+${seconds(incident.opened_at, ts)}s` : !skipped ? "…" : incident.status === "failed" ? "to a human" : "not needed"}
+            </span>
           </li>
         );
       })}
