@@ -35,7 +35,7 @@ export const SECTIONS = [
   { id: "overview", label: "Overview", icon: Gauge },
   { id: "alerts", label: "Alerts", icon: BellRing },
   { id: "diagnosis", label: "Diagnosis", icon: Stethoscope },
-  { id: "healing", label: "Self-healing", icon: HeartPulse },
+  { id: "healing", label: "Healing", icon: HeartPulse },
   { id: "network", label: "Network", icon: Network },
   { id: "telemetry", label: "Telemetry", icon: LineChart },
   { id: "faults", label: "Fault Lab", icon: FlaskConical },
@@ -81,7 +81,7 @@ export function Sidebar() {
   const logout = useAuth((s) => s.logout);
   const pages = [
     { href: "/dashboard/copilot", label: "Ask NetHeal", icon: MessageSquareText, badge: false },
-    { href: "/dashboard/whatif", label: "What-If planner", icon: FlaskRound, badge: false },
+    { href: "/dashboard/whatif", label: "What If planner", icon: FlaskRound, badge: false },
     { href: "/dashboard/incidents", label: "Incidents & reports", icon: FileText, badge: false },
     { href: "/dashboard/approvals", label: "Approvals", icon: ClipboardCheck, badge: waiting },
     { href: "/dashboard/insights", label: "Insights", icon: BarChart3, badge: false },

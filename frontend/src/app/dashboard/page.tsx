@@ -27,7 +27,7 @@ export default function ControlRoom() {
         <Diagnosis />
       </Section>
 
-      <Section id="healing" title="Self-healing" subtitle="Decide, heal, verify: every fix is tested on the digital twin before it touches the network.">
+      <Section id="healing" title="Healing" subtitle="Decide, heal, verify: every fix is tested on the digital twin before it touches the network.">
         <SelfHealing />
       </Section>
 

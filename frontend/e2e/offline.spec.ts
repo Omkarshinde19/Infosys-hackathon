@@ -4,7 +4,7 @@ import { blockInternet, signIn } from "./helpers";
 const PAGES = [
   ["/dashboard", "Control Room"],
   ["/dashboard/copilot", "How can I help you today?"],
-  ["/dashboard/whatif", "What-If"],
+  ["/dashboard/whatif", "What If"],
   ["/dashboard/incidents", "Incidents"],
   ["/dashboard/approvals", "Approvals"],
   ["/dashboard/insights", "Performance"],

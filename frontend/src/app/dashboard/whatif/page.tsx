@@ -52,7 +52,7 @@ export default function WhatIfPage() {
     <div className="mx-auto flex max-w-5xl flex-col gap-6 pb-24">
       <header className="pt-2">
         <p className="text-sm text-fg-muted">Control Room</p>
-        <h1 className="text-4xl font-semibold tracking-tight">What-If planner</h1>
+        <h1 className="text-4xl font-semibold tracking-tight">What If planner</h1>
         <p className="mt-1 text-sm text-fg-muted">
           Ask &quot;what happens if X breaks?&quot;. It runs on a digital twin, so the real network is never touched.
         </p>
