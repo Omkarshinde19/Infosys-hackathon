@@ -374,3 +374,18 @@ def test_alert_only_level_does_not_claim_the_incident_is_resolved():
     incident = p.incidents.current
     assert incident.status == "alerted"
     assert [e.stage for e in incident.timeline][:3] == ["detect", "diagnose", "decide"]
+
+
+def test_an_approval_is_rechecked_against_the_network_as_it_is_now():
+    p = Pipeline()
+    p.healer.level = 2
+    p.inject("link_down", "dist1-library")
+    p.run_until("awaiting_approval", max_ticks=10)
+    fix = p.healer.awaiting
+    detour = fix.params["routes"]["library-internet"]
+    p.net.inject_fault("link_down", p.net.path_links(detour)[0])  # the detour breaks too
+    p.tick()
+    events = p.healer.approve(fix.id, p.latest, p.net)
+    assert "applied" not in [k for k, _ in events]  # a stale fix is never applied
+    assert p.net.routes["library-internet"] != detour
+    assert p.healer.status == "replanning"
