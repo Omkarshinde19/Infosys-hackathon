@@ -120,3 +120,11 @@ body {
     background: #fff !important;
   }
 }
+
+/* React Flow's credit link, in our colours (its default is a white box). */
+.react-flow {
+  --xy-attribution-background-color: transparent;
+}
+.react-flow .react-flow__attribution a {
+  color: var(--fg-muted);
+}
