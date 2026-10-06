@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { HeroCanvas } from "@/components/landing/HeroCanvas";
-import { LoopShowcase } from "@/components/landing/Showcase";
+import { ApprovalShowcase, LoopShowcase } from "@/components/landing/Showcase";
 import { Logo } from "@/components/Logo";
 import { Reveal } from "@/components/Reveal";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -146,17 +146,21 @@ export default function Home() {
       </section>
 
       {/* Safety promise */}
-      <section className="mx-auto max-w-4xl px-6 py-20">
+      <section className="mx-auto grid max-w-6xl items-center gap-14 px-6 py-20 lg:grid-cols-2">
         <Reveal>
-          <div className="glass p-10 text-center">
-            <ShieldCheck className="mx-auto mb-4 size-8 text-healthy" />
-            <h2 className="text-2xl font-semibold md:text-3xl">The AI explains. It never acts alone.</h2>
-            <p className="mx-auto mt-4 max-w-2xl text-fg-muted">
-              Detection, diagnosis and healing are done by a tested engine that follows your rules. Every
-              fix is validated on a digital twin, checked against your safety rules, and undone
-              automatically if it doesn&apos;t help. The language model only explains what happened.
-            </p>
-          </div>
+          <ShieldCheck className="mb-4 size-8 text-healthy" />
+          <h2 className="text-3xl font-semibold md:text-4xl">The AI explains. It never acts alone.</h2>
+          <p className="mt-4 max-w-lg text-fg-muted">
+            Detection, diagnosis and healing are done by a tested engine that follows your rules. Every
+            fix is validated on a digital twin, checked against your safety rules, and undone
+            automatically if it doesn&apos;t help. The language model only explains what happened.
+          </p>
+          <Link href="/dashboard/approvals" className="mt-8 inline-flex items-center gap-2 rounded-full bg-fg px-6 py-3 font-medium text-bg hover:opacity-90">
+            See the approvals <ArrowRight className="size-4" />
+          </Link>
+        </Reveal>
+        <Reveal delay={0.1}>
+          <ApprovalShowcase />
         </Reveal>
       </section>
 

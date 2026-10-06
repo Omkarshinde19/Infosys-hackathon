@@ -68,3 +68,51 @@ export function LoopShowcase() {
     </div>
   );
 }
+
+const QUEUE = [
+  { place: "Library", what: "Reroute", status: "Waiting", tone: "text-warning" },
+  { place: "Hostel A", what: "Drain", status: "Healed", tone: "text-healthy" },
+  { place: "Core Router 1", what: "Escalated", status: "Human", tone: "text-critical" },
+];
+
+/** The Approvals page in a window: a tested fix waiting for a human. */
+export function ApprovalShowcase() {
+  return (
+    <div className="relative mx-auto w-full max-w-xl py-10">
+      <Slab className="inset-y-0 right-[2%] w-[70%]" />
+      <Window title="NetHeal · Approvals" className="relative sm:ml-[4%] sm:w-[92%]">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-semibold">Fixes for you to approve</p>
+          <span className="rounded-full border border-[var(--glass-border)] px-2 py-0.5 text-[10px] text-fg-muted">Comfort level 2</span>
+        </div>
+        <div className="mt-3 grid gap-3 sm:grid-cols-[38%_1fr]">
+          <div className="hidden space-y-2 sm:block">
+            {QUEUE.map((q, i) => (
+              <div key={q.place} className={`rounded-lg px-2.5 py-2 ${i === 0 ? "bg-bg-2/70" : "bg-bg-2/30"}`}>
+                <p className="text-xs font-medium">{q.place}</p>
+                <p className="text-[10px] text-fg-muted">
+                  {q.what} · <span className={q.tone}>{q.status}</span>
+                </p>
+              </div>
+            ))}
+          </div>
+          <div className="rounded-lg bg-bg-2/30 p-3">
+            <p className="text-xs font-medium">Reroute around Distribution North A ↔ Library</p>
+            <p className="text-[10px] text-fg-muted">via Distribution North B → Core Router 1</p>
+            <ul className="mt-3 space-y-1.5 text-[11px]">
+              {["Tested on the digital twin first", "Safety rules passed", "Undone automatically if it doesn't help", "Recorded in the audit log"].map((c) => (
+                <li key={c} className="flex items-center gap-1.5">
+                  <Check className="size-3 text-healthy" strokeWidth={3} /> {c}
+                </li>
+              ))}
+            </ul>
+            <div className="mt-4 flex gap-2">
+              <span className="flex-1 rounded-full bg-fg py-1.5 text-center text-[11px] font-medium text-bg">Approve fix</span>
+              <span className="flex-1 rounded-full border border-[var(--glass-border)] py-1.5 text-center text-[11px] text-fg-muted">Reject</span>
+            </div>
+          </div>
+        </div>
+      </Window>
+    </div>
+  );
+}
