@@ -362,3 +362,15 @@ def test_a_clear_new_cause_after_a_relapse_is_fixed_again():
     p.run_until("healed", max_ticks=40)
     assert uplink not in p.net.path_links(p.net.routes["library-internet"])
     assert [k for k, _ in p.events].count("relapsed") == 1
+
+
+def test_alert_only_level_does_not_claim_the_incident_is_resolved():
+    # At comfort level 0 nothing is fixed: the traffic is still broken, so the incident
+    # must say a human was alerted, not that it is resolved.
+    p = Pipeline()
+    p.healer.level = 0
+    p.inject("link_down", "dist1-library")
+    p.run_until("alert_only", max_ticks=10)
+    incident = p.incidents.current
+    assert incident.status == "alerted"
+    assert [e.stage for e in incident.timeline][:3] == ["detect", "diagnose", "decide"]
