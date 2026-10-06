@@ -25,7 +25,7 @@ const steps = [
   { icon: Activity, title: "Notice", text: "Flags trouble early, before users start complaining." },
   { icon: Search, title: "Find the cause", text: "Names what broke and where, with the evidence." },
   { icon: Wrench, title: "Fix safely", text: "Tests the fix on a digital twin, then applies it." },
-  { icon: MessageSquareText, title: "Explain", text: "Writes a plain-English report with before/after proof." },
+  { icon: MessageSquareText, title: "Explain", text: "Writes a report in plain English, with before and after proof." },
 ];
 
 const features = [
@@ -34,12 +34,12 @@ const features = [
   { icon: Search, title: "Root cause with evidence", text: "A confidence score and the exact signals behind it." },
   { icon: FlaskConical, title: "Test before touching", text: "Every fix is tried on a virtual copy of your network first." },
   { icon: SlidersHorizontal, title: "You stay in control", text: "Five comfort levels, from 'just tell me' to fully automatic." },
-  { icon: ShieldCheck, title: "Tamper-proof audit", text: "Every decision and action is recorded and verifiable." },
+  { icon: ShieldCheck, title: "Tamperproof audit", text: "Every decision and action is recorded and verifiable." },
 ];
 
 const audiences = [
   { icon: GraduationCap, title: "Colleges", text: "Exams, labs and hostels stay online." },
-  { icon: Building2, title: "Enterprises", text: "Less downtime, fewer late-night calls." },
+  { icon: Building2, title: "Enterprises", text: "Less downtime, fewer calls late at night." },
   { icon: Hospital, title: "Hospitals", text: "Critical systems caught before they fail." },
   { icon: Network, title: "IT service providers", text: "One platform for every client network." },
 ];
@@ -72,7 +72,7 @@ export default function Home() {
         <div className="pointer-events-none relative z-10 mx-auto flex h-full max-w-3xl flex-col items-center justify-center px-6 pb-40 text-center">
           <Reveal>
             <p className="glass mx-auto mb-6 w-fit rounded-full! px-4 py-1.5 text-xs tracking-wide text-fg-muted">
-              AI-native · Digital-twin validated · Explainable
+              Tested on a digital twin · Explainable
             </p>
             <h1 className="text-5xl font-semibold tracking-tight md:text-7xl">
               Networks that
@@ -98,7 +98,7 @@ export default function Home() {
       {/* How it works */}
       <section id="how" className="mx-auto max-w-6xl scroll-mt-24 px-6 py-28">
         <Reveal>
-          <h2 className="text-center text-3xl font-semibold md:text-4xl">The self-healing loop</h2>
+          <h2 className="text-center text-3xl font-semibold md:text-4xl">The healing loop</h2>
           <p className="mx-auto mt-3 max-w-xl text-center text-fg-muted">
             Five steps, done automatically, usually before anyone notices.
           </p>
@@ -149,7 +149,7 @@ export default function Home() {
             <ShieldCheck className="mx-auto mb-4 size-8 text-healthy" />
             <h2 className="text-2xl font-semibold md:text-3xl">The AI explains. It never acts alone.</h2>
             <p className="mx-auto mt-4 max-w-2xl text-fg-muted">
-              Detection, diagnosis and healing are done by a tested, rule-following engine. Every
+              Detection, diagnosis and healing are done by a tested engine that follows your rules. Every
               fix is validated on a digital twin, checked against your safety rules, and undone
               automatically if it doesn&apos;t help. The language model only explains what happened.
             </p>
