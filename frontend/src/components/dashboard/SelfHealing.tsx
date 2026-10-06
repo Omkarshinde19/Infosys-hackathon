@@ -25,6 +25,7 @@ const STATUS: Record<string, string> = {
   alert_only: "Comfort level 0: alerting only, no fix was planned",
   recommended: "Comfort level 1: a tested fix is recommended, a human applies it",
   awaiting_approval: "Waiting for a human to approve the fix",
+  replanning: "The network changed while the fix waited for approval; planning a new one",
   rejected: "The proposed fix was rejected by a human",
 };
 
