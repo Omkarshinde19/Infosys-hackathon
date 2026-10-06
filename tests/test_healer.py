@@ -117,6 +117,9 @@ def test_fault_on_idle_link_needs_no_action():
     p.inject("gray_failure", "dist4-cafeteria", severity=0.5)
     p.run_until("no_action_needed", max_ticks=10)
     assert all(kind != "applied" for kind, _ in p.events)
+    # Deciding that nothing needs fixing is still a decision: the timeline shows it.
+    incident = p.incidents.current or p.incidents.history[-1]
+    assert [e.stage for e in incident.timeline][:3] == ["detect", "diagnose", "decide"]
 
 
 def test_overloaded_building_switch_cannot_be_drained_so_it_escalates():
