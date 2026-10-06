@@ -2,6 +2,7 @@ import {
   Activity,
   ArrowRight,
   Building2,
+  ChevronDown,
   FlaskConical,
   GraduationCap,
   Hospital,
@@ -16,6 +17,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { HeroCanvas } from "@/components/landing/HeroCanvas";
+import { LoopShowcase } from "@/components/landing/Showcase";
 import { Logo } from "@/components/Logo";
 import { Reveal } from "@/components/Reveal";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -96,28 +98,29 @@ export default function Home() {
       </section>
 
       {/* How it works */}
-      <section id="how" className="mx-auto max-w-6xl scroll-mt-24 px-6 py-28">
+      <section id="how" className="mx-auto grid max-w-6xl scroll-mt-24 items-center gap-14 px-6 py-28 lg:grid-cols-2">
         <Reveal>
-          <h2 className="text-center text-3xl font-semibold md:text-4xl">The healing loop</h2>
-          <p className="mx-auto mt-3 max-w-xl text-center text-fg-muted">
+          <LoopShowcase />
+        </Reveal>
+        <Reveal delay={0.1}>
+          <h2 className="text-3xl font-semibold md:text-4xl">The healing loop</h2>
+          <p className="mt-3 max-w-md text-fg-muted">
             Five steps, done automatically, usually before anyone notices.
           </p>
+          <div className="mt-8 space-y-3">
+            {steps.map((s, i) => (
+              <details key={s.title} name="loop" open={i === 0} className="glass group rounded-2xl! px-5 py-4">
+                <summary className="flex cursor-pointer list-none items-center gap-3 [&::-webkit-details-marker]:hidden">
+                  <s.icon className="size-5 shrink-0" />
+                  <span className="text-lg font-medium">{s.title}</span>
+                  <span className="ml-auto text-xs text-fg-muted">Step {i + 1}</span>
+                  <ChevronDown className="size-4 text-fg-muted transition-transform group-open:rotate-180" />
+                </summary>
+                <p className="mt-2 pl-8 text-sm text-fg-muted">{s.text}</p>
+              </details>
+            ))}
+          </div>
         </Reveal>
-        <div className="relative mt-14 grid gap-4 md:grid-cols-5">
-          <div className="absolute top-12 right-[10%] left-[10%] hidden h-px bg-gradient-to-r from-transparent via-accent-2 to-transparent md:block" />
-          {steps.map((s, i) => (
-            <Reveal key={s.title} delay={i * 0.1}>
-              <div className="glass h-full p-5 text-center">
-                <div className="mx-auto mb-4 grid size-12 place-items-center rounded-full bg-bg-2/60">
-                  <s.icon className="size-5" />
-                </div>
-                <p className="text-xs text-fg-muted">Step {i + 1}</p>
-                <h3 className="mt-1 font-semibold">{s.title}</h3>
-                <p className="mt-2 text-sm text-fg-muted">{s.text}</p>
-              </div>
-            </Reveal>
-          ))}
-        </div>
       </section>
 
       {/* Features */}
