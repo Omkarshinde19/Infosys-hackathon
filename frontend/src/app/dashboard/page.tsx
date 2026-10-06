@@ -31,7 +31,7 @@ export default function ControlRoom() {
         <SelfHealing />
       </Section>
 
-      <Section id="network" title="Network" subtitle="Every device and connection, coloured by health. Switch to 3D to explore the layers.">
+      <Section id="network" title="Network" subtitle="Every device and connection, coloured by health. Drag the 3D view to explore the layers.">
         <NetworkView />
       </Section>
 
