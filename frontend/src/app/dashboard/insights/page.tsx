@@ -59,9 +59,9 @@ export default function InsightsPage() {
       </section>
 
       <section>
-        <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold"><Network className="size-5" /> Root-cause accuracy</h2>
+        <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold"><Network className="size-5" /> Root cause accuracy</h2>
         <div className="glass p-6">
-          <p className="mb-4 text-sm text-fg-muted">Top-1 = cause and location exactly right, on {rca.test_snapshots} held-out snapshots from 3,000 simulated faults.</p>
+          <p className="mb-4 text-sm text-fg-muted">Top-1 = cause and location exactly right, on {rca.test_snapshots} snapshots it never trained on from 3,000 simulated faults.</p>
           <div className="space-y-3">
             {methods.map(([key, label]) => (
               <div key={key}>
@@ -96,7 +96,7 @@ export default function InsightsPage() {
           <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold"><Brain className="size-5" /> LSTM autoencoder</h2>
           <div className="grid gap-4 sm:grid-cols-2">
             <Stat label="Faults detected" value={pct(lstm_ae.fault_detection_rate)} />
-            <Stat label="False positives" value={pct(lstm_ae.healthy_false_positive_rate)} hint="on held-out healthy traffic" />
+            <Stat label="False positives" value={pct(lstm_ae.healthy_false_positive_rate)} hint="on healthy traffic it never saw" />
           </div>
           <div className="glass mt-4 p-6 text-sm text-fg-muted">
             Learned what 10 seconds of normal behaviour looks like for every link, device and flow. Typical reconstruction error:
@@ -108,7 +108,7 @@ export default function InsightsPage() {
       <section>
         <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold"><Route className="size-5" /> RL routing agent</h2>
         <div className="grid gap-4 sm:grid-cols-3">
-          <Stat label="Healing decisions fixed" value={pct(rl.rl.fixed)} hint={`vs ${pct(rl.rules.fixed)} for the rule-based planner, on ${rl.episodes} held-out decisions`} />
+          <Stat label="Healing decisions fixed" value={pct(rl.rl.fixed)} hint={`vs ${pct(rl.rules.fixed)} for the rules planner, on ${rl.episodes} decisions it never trained on`} />
           <Stat label="Twin picks the better of both (live)" value={pct(rl.best_of_both.fixed)} hint="the agent only proposes; the twin and safety rules decide" />
           <Stat label="Flows moved per fix" value={rl.rl.flows_moved.toFixed(2)} hint={`rules: ${rl.rules.flows_moved.toFixed(2)}`} />
         </div>

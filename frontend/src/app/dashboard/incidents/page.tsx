@@ -28,7 +28,7 @@ export default function IncidentsPage() {
       <header className="pt-2">
         <p className="text-sm text-fg-muted">Control Room</p>
         <h1 className="text-4xl font-semibold tracking-tight">Incidents</h1>
-        <p className="mt-1 text-sm text-fg-muted">Every problem NetHeal handled, with its timeline, fix and AI-written report.</p>
+        <p className="mt-1 text-sm text-fg-muted">Every problem NetHeal handled, with its timeline, fix and a report written by AI.</p>
       </header>
 
       {rows?.length === 0 && (

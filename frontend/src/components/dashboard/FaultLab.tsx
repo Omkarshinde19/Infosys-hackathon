@@ -11,14 +11,14 @@ const FAULTS = [
   { type: "congestion", label: "Congestion", icon: TrafficCone, target: "link", text: "A traffic surge overloads a link." },
   { type: "flapping", label: "Flapping link", icon: ZapOff, target: "link", text: "Link keeps going up and down." },
   { type: "node_overload", label: "Node overload", icon: Cpu, target: "node", text: "A switch or router runs out of CPU." },
-  { type: "misconfig", label: "Misconfiguration", icon: Shuffle, target: "flow", text: "A bad rule black-holes one flow." },
+  { type: "misconfig", label: "Misconfiguration", icon: Shuffle, target: "flow", text: "A bad rule silently drops one flow." },
 ] as const;
 
 type Event = { time: string; text: string; ok: boolean };
 
 // Realistic one-click drills. The last one shows the safety policy blocking a risky fix.
 const SCENARIOS = [
-  { title: "Exam-day surge at the Library", type: "congestion", target: "dist1-library", severity: 0.9, ramp_s: 10 },
+  { title: "Exam day surge at the Library", type: "congestion", target: "dist1-library", severity: 0.9, ramp_s: 10 },
   { title: "Hostel fibre cut", type: "link_down", target: "dist1-hostel_a", severity: 1, ramp_s: 0 },
   { title: "Silent packet loss at the CS Lab", type: "gray_failure", target: "dist3-lab_cs", severity: 0.5, ramp_s: 15 },
   { title: "Flaky cable to the Auditorium", type: "flapping", target: "dist3-auditorium", severity: 1, ramp_s: 0 },
@@ -68,7 +68,7 @@ export function FaultLab() {
     try {
       const a = await postJSON("/autonomy", { level: autoHeal ? 0 : 4 }, "PUT");
       setAutoHeal(a.level > 0);
-      log(`Auto-heal turned ${a.level > 0 ? "on (level 4)" : "off (level 0: alert only)"}`, true);
+      log(`Auto heal turned ${a.level > 0 ? "on (level 4)" : "off (level 0: alert only)"}`, true);
     } catch (e) {
       log(`Failed: ${(e as Error).message}`, false);
     }
@@ -88,10 +88,10 @@ export function FaultLab() {
           <button
             onClick={toggleAutoHeal}
             disabled={!isAdmin || autoHeal === null}
-            title={isAdmin ? "" : "Only an admin can switch auto-heal"}
+            title={isAdmin ? "" : "Only an admin can switch auto heal"}
             className="flex items-center gap-2 text-sm disabled:opacity-50"
           >
-            <span className="text-fg-muted">Auto-heal</span>
+            <span className="text-fg-muted">Auto heal</span>
             <span className={`relative h-6 w-11 rounded-full transition-colors ${autoHeal ? "bg-healthy" : "bg-[var(--glass-border)]"}`}>
               <span className={`absolute top-0.5 size-5 rounded-full bg-white transition-all ${autoHeal ? "left-5.5" : "left-0.5"}`} />
             </span>

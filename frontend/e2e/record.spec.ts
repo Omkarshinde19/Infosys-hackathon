@@ -51,7 +51,7 @@ test("backup demo video", async ({ page }) => {
   await pause(page, 2);
   await page.locator("main").getByRole("link", { name: /link failure/i }).first().click();
   await page.getByRole("button", { name: "Generate report" }).click();
-  await expect(page.getByText(/Written by|built-in template/)).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText(/Written by|own template/)).toBeVisible({ timeout: 60_000 });
   await pause(page, 6);
 
   await page.goto("/dashboard/evaluation");

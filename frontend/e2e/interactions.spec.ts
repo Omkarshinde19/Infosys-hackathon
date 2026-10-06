@@ -65,7 +65,7 @@ test("operator: theme, 3D, custom fault, what-if, report, assistant", async ({ p
   await page.goto("/dashboard/incidents");
   await page.locator("main a[href^='/dashboard/incidents/']").first().click();
   await page.getByRole("button", { name: /Generate report|Regenerate/ }).first().click();
-  await expect(page.getByText(/Written by|built-in template/)).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText(/Written by|own template/)).toBeVisible({ timeout: 60_000 });
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: /\.md/ }).click();
   expect((await download).suggestedFilename()).toMatch(/^netheal-incident-.+\.md$/);

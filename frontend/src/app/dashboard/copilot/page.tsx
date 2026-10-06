@@ -116,12 +116,12 @@ export default function CopilotPage() {
           }
         }}
         rows={2}
-        placeholder="Ask about the network, an incident, or a what-if…"
+        placeholder="Ask about the network, an incident, or a what if question…"
         className="w-full resize-none bg-transparent px-2 py-1 outline-none placeholder:text-fg-muted"
       />
       <div className="flex items-center justify-between">
         <span className="flex items-center gap-1.5 rounded-full border border-[var(--glass-border)] px-3 py-1 text-xs text-fg-muted">
-          <ShieldCheck className="size-3.5" /> Grounded · read-only
+          <ShieldCheck className="size-3.5" /> Grounded · Read only
         </span>
         <button
           disabled={busy || !input.trim()}

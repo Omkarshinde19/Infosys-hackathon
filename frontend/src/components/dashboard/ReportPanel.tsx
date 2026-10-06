@@ -64,7 +64,7 @@ export function ReportPanel({ incidentId, initial }: { incidentId: string; initi
         <div className="flex flex-col items-center py-10 text-center">
           <Sparkles className="size-8 text-accent-2" />
           <p className="mt-2 max-w-md text-sm text-fg-muted">
-            The AI writes a plain-English report from this incident&apos;s facts only. It explains; it never takes actions.
+            The AI writes a report in plain English from this incident&apos;s facts only. It explains; it never takes actions.
           </p>
           <button
             onClick={() => generate(false)}
@@ -82,7 +82,7 @@ export function ReportPanel({ incidentId, initial }: { incidentId: string; initi
           <p className="mt-3 text-xs text-fg-muted print:hidden">
             {ai
               ? `Written by ${report.source.slice(4)} (${report.provider ?? "Qualcomm Cloud AI (Cirrascale)"}), grounded in the incident facts`
-              : `Written from the built-in template: ${report.fallback_reason}`}{" "}
+              : `Written from NetHeal's own template: ${report.fallback_reason}`}{" "}
             · {new Date(report.generated_at).toLocaleString()}
           </p>
           <article className="report mt-4 max-w-none text-sm leading-relaxed">

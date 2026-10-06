@@ -54,7 +54,7 @@ function BackendCard() {
       </div>
       <p className="mt-3 text-xs text-fg-muted">
         {b?.emulab_ready ? "Emulated network is running." : "Emulated network is off. Start it with ./netheal emu."}{" "}
-        Switching resets the incident and the detector re-learns the new network for 30 s.
+        Switching resets the incident and the detector relearns the new network for 30 s.
         {!isAdmin && " Only an admin can switch."}
       </p>
       {error && <p className="mt-2 text-xs text-critical">{error}</p>}
@@ -137,7 +137,7 @@ export default function SettingsPage() {
           </ol>
           <p className="text-sm">Document search: <b>{s.llm.embeddings}</b></p>
           <p className={`mt-2 text-sm ${s.llm.configured ? "text-healthy" : "text-warning"}`}>
-            {s.llm.configured ? "Built-in templates take over if every model is unreachable" : "No AI model set up: using offline templates"}
+            {s.llm.configured ? "NetHeal's own templates take over if every model is unreachable" : "No AI model set up: using offline templates"}
           </p>
         </Card>
 

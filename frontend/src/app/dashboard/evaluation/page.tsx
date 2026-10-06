@@ -40,8 +40,8 @@ type Results = {
   runs: Run[];
 };
 
-const pct = (v: number | null) => (v == null ? "–" : `${Math.round(v * 100)}%`);
-const sec = (v: number | null) => (v == null ? "–" : `${v.toFixed(1)} s`);
+const pct = (v: number | null) => (v == null ? "n/a" : `${Math.round(v * 100)}%`);
+const sec = (v: number | null) => (v == null ? "n/a" : `${v.toFixed(1)} s`);
 const css = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
 /** An ECharts chart in a glass card; the toolbox saves it as a PNG for slides. */
@@ -146,7 +146,7 @@ export default function EvaluationPage() {
         }],
       },
       {
-        xAxis: { type: "category", data: edges.slice(0, -1).map((e, i) => (i === edges.length - 2 ? `${e}+ s` : `${e}–${edges[i + 1]} s`)) },
+        xAxis: { type: "category", data: edges.slice(0, -1).map((e, i) => (i === edges.length - 2 ? `${e}+ s` : `${e} to ${edges[i + 1]} s`)) },
         yAxis: { type: "value", name: "faults", nameTextStyle: { color: css("--fg-muted") } },
         series: POLICIES.filter((p) => p !== "no_heal").map((p) => ({
           name: LABEL[p], type: "bar", itemStyle: { color: COLOR[p], borderRadius: [4, 4, 0, 0] },
@@ -210,7 +210,7 @@ export default function EvaluationPage() {
           ["Median MTTR", (x) => sec(x.healing.median_mttr_s)],
           ["Fixes rolled back", (x) => pct(x.healing.rollback_rate)],
           ["Escalated to a human", (x) => pct(x.healing.escalated_rate)],
-          ["p95 flow latency during a fault", (x) => (x.sla.p95_latency_ms == null ? "–" : `${x.sla.p95_latency_ms} ms`)],
+          ["p95 flow latency during a fault", (x) => (x.sla.p95_latency_ms == null ? "n/a" : `${x.sla.p95_latency_ms} ms`)],
         ]} />
       </section>
 
@@ -227,8 +227,8 @@ export default function EvaluationPage() {
           ["007 voting alone (top-1)", (x) => pct(x.rca.voting_007_top1)],
         ]} />
         <ul className="glass mt-4 list-disc space-y-2 p-6 pl-10 text-sm text-fg-muted">
-          <li>Reactive rules can recover a few more faults: they ignore the blast-radius guardrail (at most 5 flows moved automatically), for example moving every flow off a flapping internet uplink at once. NetHeal hands those to a human on purpose.</li>
-          <li>An overloaded access switch has no detour (the traffic starts there), so the rules escalate it. The RL agent sometimes mitigates it instead, moving the switch&apos;s flows onto less-loaded paths further up.</li>
+          <li>Reactive rules can recover a few more faults: they ignore the blast radius guardrail (at most 5 flows moved automatically), for example moving every flow off a flapping internet uplink at once. NetHeal hands those to a human on purpose.</li>
+          <li>An overloaded access switch has no detour (the traffic starts there), so the rules escalate it. The RL agent sometimes mitigates it instead, moving the switch&apos;s flows onto less loaded paths further up.</li>
           <li>Without the RL agent no fix is rolled back: in the simulator every detour around the fault works. The agent&apos;s mitigations are closer calls; some pass the twin but fail the 3 s check and are rolled back, ending no worse than without it.</li>
           <li>A mitigation of a gradually worsening overload can pass its check and break later. NetHeal notices, plans once more and hands it to a human when there is no better fix, which is why the RL policy heals more faults than it keeps recovered.</li>
           <li>Prediction detects gradual faults earlier; diagnosing that early occasionally names the wrong cause first, which is corrected before anything is applied.</li>
