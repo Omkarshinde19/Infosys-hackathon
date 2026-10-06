@@ -40,7 +40,7 @@ docs(contracts): document RCAHypothesis evidence field
 
 ## Branching
 
-- `main` must **always run** (`make demo` works).
+- `main` must **always run** (`./netheal start` works).
 - Work on short-lived branches: `<name>/<scope>-<thing>`, e.g. `abeer/detector-iforest`, `parth/netsim-topology`, `omkar/frontend-topology-map`.
 - Open a PR into `main`. Another teammate gives a quick review, then merge (squash **off**, so commits are kept).
 - Rebase or merge `main` into your branch at least twice a day.
@@ -62,4 +62,4 @@ Message formats live in `contracts/` and are documented in [docs/CONTRACTS.md](d
 ## Daily rhythm (until 7 Oct)
 
 - **Morning:** 10-minute sync: what's merged, what's next, any contract changes.
-- **Evening:** everyone's work is merged to `main`, and `make demo` passes.
+- **Evening:** everyone's work is merged to `main`, and `./netheal rehearse` passes.

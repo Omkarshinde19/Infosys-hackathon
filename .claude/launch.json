@@ -39,6 +39,8 @@
         "-m",
         "mlflow",
         "ui",
+        "--backend-store-uri",
+        "sqlite:///data/mlflow/mlflow.db",
         "--port",
         "5001"
       ],

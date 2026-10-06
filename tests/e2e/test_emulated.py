@@ -1,4 +1,6 @@
-"""Phase 6's scenario on real packets: needs `./netheal start` and `./netheal emu` (run: make e2e).
+"""Phase 6's scenario on real packets: needs `./netheal start` and `./netheal emu`.
+
+Run: ./netheal e2e
 
 Switches the engine to the Mininet + Open vSwitch network, cuts the Library's link and expects
 NetHeal to detect, diagnose, reroute it with OpenFlow rules and verify recovery.

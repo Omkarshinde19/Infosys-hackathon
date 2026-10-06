@@ -256,8 +256,8 @@ Each training script logs its **parameters, per-epoch metrics, final evaluation 
 | `netheal-rl-router` | ppo-mlp-2x128 | fixed / denied / flows moved for the agent, the rules and the better of both |
 
 ```bash
-make mlflow   # open http://localhost:5001
-make train    # regenerate the scenarios and retrain every model (~30 min, the RL agent is ~25 of it)
+./netheal mlflow   # open http://localhost:5001
+./netheal train    # regenerate the scenarios and retrain every model (~30 min, the RL agent is ~25 of it)
 ```
 
 ---

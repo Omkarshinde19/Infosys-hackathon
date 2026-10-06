@@ -300,7 +300,7 @@ def test_evaluation_results_are_served(monkeypatch, tmp_path):
     results = tmp_path / "evaluation.json"
     monkeypatch.setattr(main, "EVALUATION", results)
     with TestClient(app) as client:
-        assert client.get("/evaluation").status_code == 404  # make eval not run yet
+        assert client.get("/evaluation").status_code == 404  # ./netheal eval not run yet
         results.write_text(json.dumps({"meta": {"scenarios": 1}, "summary": {}, "runs": []}))
         assert client.get("/evaluation").json()["meta"] == {"scenarios": 1}
 

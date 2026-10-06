@@ -1,4 +1,4 @@
-"""End-to-end test against the Docker stack started by `make demo` (run: `make e2e`).
+"""End-to-end test against the Docker stack started by `./netheal start` (run: `./netheal e2e`).
 
 engine (REST) -> Redpanda -> stream (WebSocket) and sink (TimescaleDB).
 """
@@ -15,7 +15,7 @@ import websockets
 
 from tests.accounts import demo_password
 
-pytestmark = pytest.mark.skipif(not os.getenv("NETHEAL_E2E"), reason="needs `make demo` running")
+pytestmark = pytest.mark.skipif(not os.getenv("NETHEAL_E2E"), reason="needs ./netheal start")
 
 ENGINE = "http://localhost:8001"
 STREAM = "ws://localhost:8002/ws/live"

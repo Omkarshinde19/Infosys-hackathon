@@ -448,9 +448,9 @@ EVALUATION = Path(__file__).resolve().parents[2] / "docs" / "evaluation.json"
 
 @app.get("/evaluation")
 def evaluation() -> FileResponse:
-    """Results of `make eval`: summary per policy and fault type, plus every run."""
+    """Results of `./netheal eval`: summary per policy and fault type, plus every run."""
     if not EVALUATION.exists():
-        raise HTTPException(404, "No evaluation yet: run make eval")
+        raise HTTPException(404, "No evaluation yet: run ./netheal eval")
     return FileResponse(EVALUATION, media_type="application/json")
 
 

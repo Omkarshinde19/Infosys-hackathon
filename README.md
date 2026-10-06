@@ -125,11 +125,11 @@ One command does everything: it starts Docker Desktop if needed, builds and star
 | `./netheal ollama` | Installs and starts the **offline AI model** (Ollama + qwen2.5:7b, ≈4.7 GB once). Ask NetHeal and reports switch to it when the cloud model is unreachable |
 | `./netheal obs` | Also starts **Grafana** (http://localhost:3001), **Prometheus** (:9090) and **Jaeger** (:16686) and turns on tracing: NetHeal's own metrics and traces |
 | `./netheal eval` | Replays 300 held-out faults under 4 policies (≈17 min on 8 cores) → `docs/EVALUATION.md` + the dashboard's Evaluation page |
-| `./netheal dev` | Runs engine + frontend locally **without Docker** (fast development); logs in `.netheal/` |
+| `./netheal dev` | Runs engine + frontend locally **without Docker** (fast development); logs in `.cache/dev/` |
 | `./netheal dev-stop` | Stops the local dev servers |
 | `./netheal test` | Runs the test suite |
 | `./netheal e2e` | End-to-end test against the running Docker stack |
-| `./netheal train` | Regenerates 3,000 simulated faults and retrains all ML models, including the RL routing agent (`make train-rl` for that one alone) |
+| `./netheal train` | Regenerates 3,000 simulated faults and retrains all ML models, including the RL routing agent (`./netheal train rl` for that one alone) |
 | `./netheal mlflow` | Opens the ML training runs at http://localhost:5001 |
 | `./netheal help` | Lists all commands |
 
@@ -147,14 +147,14 @@ NetHeal can run against two interchangeable networks. The detect → diagnose �
 | Healing actions | Route changes in the model | **OpenFlow 1.3 rules** installed with `ovs-ofctl` |
 | Digital twin for dry-runs | Simulator | Simulator (same routes and faults) |
 
-Measured on real packets: a link failure is detected in 1.5 s and healed in 4.5 s (unreachable → 8.4 ms). `make e2e` includes this test when the emulator is running.
+Measured on real packets: a link failure is detected in 1.5 s and healed in 4.5 s (unreachable → 8.4 ms). `./netheal e2e` includes this test when the emulator is running.
 
 **Everything in Docker (recommended for the demo):**
 
 ```bash
-make demo      # builds and starts the full stack, waits until healthy
-make e2e       # end-to-end check: fault -> healed via Redpanda -> stored in TimescaleDB
-make down      # stop it
+./netheal start   # builds and starts the full stack, waits until healthy
+./netheal e2e     # end-to-end check: fault -> healed via Redpanda -> stored in TimescaleDB
+./netheal stop    # stop it
 ```
 
 | Service | What | URL |
@@ -165,7 +165,7 @@ make down      # stop it
 | sink | Redpanda → TimescaleDB | `psql postgresql://netheal:netheal@localhost:5433/netheal` |
 | redpanda / timescaledb / redis | Event bus / history / live-state cache | localhost:19092 / 5433 / internal |
 
-Before the venue (offline), run `make demo` once so all images are built and pulled.
+Before the venue (offline), run `./netheal start` once so all images are built and pulled.
 
 ### Watching NetHeal itself (`./netheal obs`)
 
@@ -175,18 +175,18 @@ Before the venue (offline), run `make demo` once so all images are built and pul
 
 ### Tests and CI
 
-`make test` runs the unit tests; `make e2e` and `npm --prefix frontend run e2e` (Playwright: sign in → cut a fibre → healed → open the incident) run against the Docker stack. GitHub Actions (`.github/workflows/ci.yml`) runs all of it on every push: ruff, pytest, eslint, the Next.js build, then the whole stack in Docker with the end-to-end tests.
+`./netheal test` runs the unit tests; `./netheal e2e` and `npm --prefix frontend run e2e` (Playwright: sign in → cut a fibre → healed → open the incident) run against the Docker stack. GitHub Actions (`.github/workflows/ci.yml`) runs all of it on every push: ruff, pytest, eslint, the Next.js build, then the whole stack in Docker with the end-to-end tests.
 
 **Sign in:** anyone can watch the dashboard. To inject faults, approve fixes or change the comfort level, sign in at http://localhost:3000/login. Demo accounts (viewer / operator / admin) are in [config/DEMO_ACCOUNTS.md](config/DEMO_ACCOUNTS.md).
 
-**Machine learning:** `make train` regenerates 3,000 simulated faults and retrains the GNN, forecaster and LSTM autoencoder (~3 min); `make mlflow` opens the training runs at http://localhost:5001. See [theory/ML.md](theory/ML.md).
+**Machine learning:** `./netheal train` regenerates 3,000 simulated faults and retrains the GNN, forecaster, LSTM autoencoder and RL agent (~30 min); `./netheal mlflow` opens the training runs at http://localhost:5001. See [theory/ML.md](theory/ML.md).
 
 **Local development (no Docker):**
 
 ```bash
-make install   # create .venv and install backend deps
-make test      # run all tests
-make dev       # start the gateway on http://localhost:8000 (API docs at /docs)
+./netheal setup   # create .venv and install backend + frontend deps
+./netheal test    # run all tests
+./netheal dev     # engine on http://localhost:8001 (API docs at /docs) + dashboard on :3000
 ```
 
 AI incident reports (optional; without a key a built-in template writes them):

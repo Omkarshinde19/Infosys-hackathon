@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-RUN_DIR=.netheal            # pids + logs for `dev` mode
+RUN_DIR=.cache/dev          # pids + logs for `dev` mode
 ENGINE=http://localhost:8001
 FRONTEND=http://localhost:3000
 STREAM=http://localhost:8002
@@ -83,6 +83,19 @@ cmd_obs() {
   echo "  Prometheus  http://localhost:9090"
 }
 
+PY=.venv/bin/python
+
+cmd_lint() {
+  $PY -m ruff check . && $PY -m ruff format --check . && npm --prefix frontend run lint
+}
+
+cmd_train() {
+  # Regenerates simulated faults and retrains every model (runs: ./netheal mlflow)
+  $PY -m pip install -q -e ".[train]"
+  if [[ ${1:-} == rl ]]; then $PY -m ml.train_rl; return; fi  # ./netheal train rl: only the RL agent
+  $PY -m ml.train_gnn && $PY -m ml.train_forecast && $PY -m ml.train_lstm_ae && $PY -m ml.train_rl
+}
+
 cmd_ollama() {
   bold "Setting up the offline AI model (Ollama + $OLLAMA_MODEL, ≈4.7 GB the first time)…"
   command -v ollama >/dev/null || brew install ollama
@@ -115,9 +128,9 @@ cmd_rehearse() {
 cmd_record() {
   bold "Recording the backup demo video (≈2.5 min, 1280x720)…"
   (cd frontend && RECORD=1 npx playwright test e2e/record.spec.ts) || { bad "Recording failed"; exit 1; }
-  mkdir -p demo
-  cp "$(ls -t frontend/test-results/*/video.webm | head -1)" demo/netheal-demo.webm
-  ok "Backup video: demo/netheal-demo.webm"
+  mkdir -p data/demo
+  cp "$(ls -t frontend/test-results/*/video.webm | head -1)" data/demo/netheal-demo.webm
+  ok "Backup video: data/demo/netheal-demo.webm"
 }
 
 cmd_status() {
@@ -183,7 +196,7 @@ NetHeal launcher
   ./netheal open           Open the dashboard in your browser
   ./netheal reset          Fresh demo state (restarts the engine, 30 s re-learn)
   ./netheal rehearse       Pre-flight checks + the demo 5x in a row with the internet blocked
-  ./netheal record         Record a backup video of the demo to demo/netheal-demo.webm
+  ./netheal record         Record a backup video of the demo to data/demo/netheal-demo.webm
   ./netheal emu            Also start the emulated network (Mininet + Open vSwitch, real packets)
   ./netheal ollama         Install and start the offline AI model (Ollama + qwen2.5:7b), used when offline
   ./netheal obs            Also start Grafana, Prometheus and Jaeger (NetHeal's own metrics + traces)
@@ -193,9 +206,10 @@ NetHeal launcher
 
   ./netheal setup          First-time install of Python and Node dependencies
   ./netheal test           Run the test suite
+  ./netheal lint           Lint and format checks (Python + frontend)
   ./netheal e2e            End-to-end test against the running Docker stack
-  ./netheal eval           Replay hundreds of faults under 4 policies -> docs/EVALUATION.md
-  ./netheal train          Regenerate simulated faults and retrain all ML models
+  ./netheal eval           Replay hundreds of faults under 5 policies -> docs/EVALUATION.md
+  ./netheal train [rl]     Regenerate simulated faults and retrain all ML models (rl: only the RL agent)
   ./netheal mlflow         Browse training runs at http://localhost:5001
 EOF
 }
@@ -216,11 +230,12 @@ case "${1:-help}" in
   dev)      cmd_dev ;;
   dev-stop) cmd_dev_stop ;;
   setup)    cmd_setup ;;
-  test)     make test ;;
-  e2e)      make e2e ;;
-  eval)     make eval ;;
-  train)    make train ;;
-  mlflow)   make mlflow ;;
+  test)     $PY -m pytest -q ;;
+  lint)     cmd_lint ;;
+  e2e)      NETHEAL_E2E=1 $PY -m pytest -q tests/e2e ;;
+  eval)     $PY -m services.evaluator.harness ;;
+  train)    cmd_train "${2:-}" ;;
+  mlflow)   $PY -m mlflow ui --backend-store-uri sqlite:///data/mlflow/mlflow.db --port 5001 ;;
   help|-h|--help) cmd_help ;;
   *) bad "Unknown command: $1"; cmd_help; exit 1 ;;
 esac

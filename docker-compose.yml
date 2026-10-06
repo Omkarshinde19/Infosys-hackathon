@@ -1,4 +1,4 @@
-# NetHeal demo stack: `make demo` (see README).
+# NetHeal demo stack: `./netheal start` (see README).
 #   engine   - sim -> detect -> diagnose -> heal loop + REST API   http://localhost:8001
 #   stream   - Redpanda -> WebSocket fan-out (+ Redis catch-up)    ws://localhost:8002/ws/live
 #   sink     - Redpanda -> TimescaleDB history                      postgres://localhost:5433
