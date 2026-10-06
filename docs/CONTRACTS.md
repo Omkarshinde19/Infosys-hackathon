@@ -135,7 +135,7 @@ LLM settings come from `.env`: `INFERENCE_CLOUD_API_KEY`, `INFERENCE_CLOUD_ENDPO
 - **Auth:** `POST /auth/login {username, password}` returns `{ token, username, role }` (JWT, 12 h). Send `Authorization: Bearer <token>`. Roles: `viewer` < `operator` < `admin`. Reads and the WebSocket are open; `POST /fault`, `POST /reset`, `POST /incidents/{id}/report` and `POST /approvals/{id}/approve|reject` need operator; `PUT /autonomy` needs admin. Demo accounts: `config/DEMO_ACCOUNTS.md`.
 - **Comfort level:** `GET /autonomy` returns `{ level, levels }`; `PUT /autonomy {level: 0-4}`.
 - **Approvals:** `GET /approvals` returns `{ awaiting: ActionCandidate | null, incident_id }`. New healing event kinds: `recommended`, `awaiting_approval`, `approved`, `rejected`. The incident state gains `awaiting`.
-- **Policy:** `ActionCandidate.policy_reasons` lists why `policies/healing.rego` denied a fix.
+- **Policy:** `ActionCandidate.policy_reasons` lists why `config/healing.rego` denied a fix.
 - **Audit:** `GET /audit?limit=200` returns the newest `LedgerEntry` first (with `payload`); `GET /audit/verify` returns `{ valid, broken_at, entries }`.
 
 ## Network backend (Phase 12)

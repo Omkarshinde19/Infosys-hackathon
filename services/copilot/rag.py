@@ -12,7 +12,7 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[2]
 DOCS = ["README.md", "docs/PRODUCT_OVERVIEW.md", "theory/ML.md", "docs/RESEARCH.md",
-        "docs/CONTRACTS.md", "docs/EVALUATION.md", "policies/healing.rego"]  # fmt: skip
+        "docs/CONTRACTS.md", "docs/EVALUATION.md", "config/healing.rego"]  # fmt: skip
 EMBED_MODEL = "BAAI/bge-base-en-v1.5"
 MAX_CHARS = 1500
 

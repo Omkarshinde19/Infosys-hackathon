@@ -4,7 +4,7 @@
    (link fault -> reroute around it, overloaded node -> drain it, misconfig -> roll back).
 2. Twin: try every candidate on a snapshot of the network for TWIN_TICKS and record
    the predicted latency / loss / peak utilisation of the links it will use.
-3. Guardrails: the OPA Rego policy (policies/healing.rego) must allow the candidate:
+3. Guardrails: the OPA Rego policy (config/healing.rego) must allow the candidate:
    it restores the traffic, keeps links under 85%, hurts no other flow, limits the
    blast radius and the rate of automatic changes.
 4. Apply the best allowed candidate, watch the real network for VERIFY_TICKS and

@@ -3,7 +3,7 @@ from pathlib import Path
 import networkx as nx
 import yaml
 
-DEFAULT_TOPOLOGY = Path(__file__).resolve().parents[2] / "topology" / "campus.yaml"
+DEFAULT_TOPOLOGY = Path(__file__).resolve().parents[2] / "config" / "campus.yaml"
 
 
 def link_id(a: str, b: str) -> str:

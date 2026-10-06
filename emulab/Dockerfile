@@ -7,7 +7,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
     && pip3 install --no-cache-dir --break-system-packages fastapi uvicorn pyyaml networkx
 WORKDIR /emulab
 COPY emulab/agent.py emulab/entrypoint.sh ./
-COPY topology/campus.yaml ./
+COPY config/campus.yaml ./
 EXPOSE 9000
 HEALTHCHECK --interval=3s --retries=60 CMD curl -sf http://localhost:9000/health | grep -q '"ready":true'
 ENTRYPOINT ["sh", "entrypoint.sh"]

@@ -1,4 +1,4 @@
-"""Healing guardrails written in OPA Rego (policies/healing.rego), evaluated in-process
+"""Healing guardrails written in OPA Rego (config/healing.rego), evaluated in-process
 with regopy (a Rego interpreter), so no policy server is needed for the demo or tests."""
 
 import json
@@ -6,7 +6,7 @@ from pathlib import Path
 
 from regopy import Interpreter
 
-POLICY_PATH = Path(__file__).resolve().parents[1] / "policies" / "healing.rego"
+POLICY_PATH = Path(__file__).resolve().parents[1] / "config" / "healing.rego"
 
 
 class Policy:
