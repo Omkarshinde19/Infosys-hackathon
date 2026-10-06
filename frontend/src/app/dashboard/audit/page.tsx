@@ -27,6 +27,7 @@ function detail(e: Entry): string {
 export default function AuditPage() {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [verdict, setVerdict] = useState<Verdict | null>(null);
+  const [shown, setShown] = useState(50); // a long log stays usable on a projector
 
   useEffect(() => {
     const load = () => fetch("/api/audit").then((r) => r.json()).then(setEntries);
@@ -59,7 +60,7 @@ export default function AuditPage() {
               : `Tampering detected at entry #${verdict.broken_at}`}
           </p>
         ) : (
-          <p className="text-sm text-fg-muted">{entries.length} entries recorded.</p>
+          <p className="text-sm text-fg-muted">The {entries.length} most recent entries, newest first.</p>
         )}
         <button onClick={verify} className="flex items-center gap-2 rounded-full bg-fg px-5 py-2.5 font-medium text-bg hover:opacity-90">
           <Link2 className="size-4" /> Verify integrity
@@ -79,7 +80,7 @@ export default function AuditPage() {
             </tr>
           </thead>
           <tbody>
-            {entries.map((e) => (
+            {entries.slice(0, shown).map((e) => (
               <tr key={e.seq} className="border-t border-[var(--glass-border)]">
                 <td className="p-3 text-fg-muted tabular-nums">{e.seq}</td>
                 <td className="p-3 whitespace-nowrap tabular-nums">{new Date(e.ts).toLocaleTimeString()}</td>
@@ -97,6 +98,11 @@ export default function AuditPage() {
             ))}
           </tbody>
         </table>
+        {entries.length > shown && (
+          <button onClick={() => setShown((n) => n + 50)} className="w-full p-3 text-sm text-fg-muted hover:text-fg">
+            Show older entries ({entries.length - shown} more)
+          </button>
+        )}
       </div>
     </div>
   );
