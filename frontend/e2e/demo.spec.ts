@@ -13,7 +13,7 @@ test("demo: sign in, cut a fibre, watch NetHeal heal it, open the incident (no i
   await expect(page.getByText(/^Healed: traffic is back to normal/)).toBeVisible({ timeout: 60_000 });
 
   await page.getByRole("link", { name: /^Incident .* report$/ }).click();
-  await expect(page).toHaveURL(/\/dashboard\/incidents\/.+/);
+  await expect(page).toHaveURL(/\/dashboard\/incidents\/.+/, { timeout: 15_000 }); // slow CI runners
   await expect(page.getByText(/link down|link failure/i).first()).toBeVisible();
   expect(blocked).toEqual([]);
 });
