@@ -184,7 +184,9 @@ export function useLiveConnection() {
       closed = true;
       clearInterval(warmup);
       clearTimeout(retry);
-      ws.close();
+      // Closing a socket that is still connecting logs a warning (React dev mounts twice).
+      if (ws.readyState === WebSocket.CONNECTING) ws.onopen = () => ws.close();
+      else ws.close();
     };
   }, []);
 }
