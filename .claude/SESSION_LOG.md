@@ -38,7 +38,7 @@
 | 24 | 10-06 | WhatsApp message for Abeer and Parth: setting the project up from GitHub | none (message text only) | none |
 | 25 | 10-06 | "Where do I decide?" on an idle-uplink incident; fix it; how to switch to the emulated network | see entry 25 | `ecf6bb2`…(log commit) |
 
-### Session 2: 2026-10-06 → 2026-10-07 · messages used: 7 / 25
+### Session 2: 2026-10-06 → 2026-10-07 · messages used: 8 / 25
 
 | Msg | Date | Request | Files touched | Commit(s) |
 |---|---|---|---|---|
@@ -49,6 +49,7 @@
 | 5 | 10-07 | Presentation slides from the Infosys template; found and fixed Ask NetHeal falling back from Qualcomm | `services/copilot/agent.py`, `tests/test_copilot.py`; deck in `documents/` (not in git) | `c5a0043`, `02e7494`, log commit |
 | 6 | 10-07 | Add Abeer Chaturvedi and Parth Mande to the deck; new colour palette for the slides only | deck in `documents/` (not in git) | log commit |
 | 7 | 10-07 | Review Abeer's audit report; implement the safe set (security, correctness without number changes, dead code, docs) | see entry S2·7 | `14df05e`…(log commit) |
+| 8 | 10-07 | WhatsApp message for Abeer about the audit changes; CI then failed → fixed a real 3D-map bug | see entry S2·8 | `4ca9fdb`…(log commit) |
 
 ---
 
@@ -772,4 +773,16 @@
   - `./netheal ui-check`: 0 findings, 3 role flows, including approving at level 2
   - 36 stored evaluation runs replayed with the new code: 0 differences, so the slide numbers still hold
 - **Teammates:** Abeer and Parth must run `./netheal start` once more; it replaces `change-me` in their `.env` (they will have to sign in again).
+
+### S2 · Msg 8 · Message for Abeer; CI failure → 3D map unmount bug ✅
+- Wrote the WhatsApp summary of the audit changes for Abeer (text only).
+- **CI for `36f09bf` failed** in the Playwright demo test. After "Healed", the incident link was clicked but the URL stayed `/dashboard`.
+  - First guess, a slow runner: gave it 15 s (`4ca9fdb`). Still failed, so that guess was wrong. The CI trace showed the incident page fetched and rendered within 1 s while the URL never changed.
+  - Real cause: today's other session made **3D the default map**. Leaving the dashboard unmounts the 3D scene, and drei's `<Html>` labels threw `removeChild … not a child of this node` on every navigation. That is the same bug fixed earlier for the 3D → 2D toggle, which only covered the toggle. On CI the exception left the URL behind.
+  - Why the UI check missed it: it opened every page with full loads and never navigated in-app away from a mounted 3D map.
+- **Fixed:** `frontend/src/components/dashboard/Topology3DScene.tsx`: the labels render (`portal`) into an overlay div we own, laid over the canvas. Labels are visually unchanged.
+- **Test:** `frontend/e2e/interactions.spec.ts` "in-app navigation": clicks every sidebar page from the live dashboard and back, failing on page errors or a stuck URL.
+  - Passes on the fix.
+  - Against the old scene (temporarily rebuilt) it fails with exactly the `removeChild` errors, so the test is proven to catch it.
+- **Verified:** demo spec (2), interaction specs (4), **CI green on `505231f`** (python, frontend, Docker e2e + Playwright).
 
