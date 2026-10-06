@@ -1,210 +1,154 @@
 # NetHeal: Self-Healing Network Simulator
 
-> **Team Syntax Cartel** · Infosys ENG NEXT 2026 Hack-AI-Thon · Pune, 7 Oct 2026
+> **Team Syntax Cartel** (Omkar, Abeer, Parth) · Infosys ENG NEXT 2026 Hack-AI-Thon · Pune, 7 Oct 2026
 > Problem statement **NC-04: Self-Healing Network Simulator** (Lane: Networks & Connectivity)
 
-An AI-native, digital-twin-driven platform that runs the full **detect → diagnose → decide → heal → verify** loop on a simulated or emulated campus network. Nothing touches live production infrastructure.
+NetHeal runs the full **detect → diagnose → decide → heal → verify** loop on a campus network, either a fast Python digital twin or an emulated network with real packets (Mininet + Open vSwitch). Every fix is tested on the twin and checked against safety rules before it touches the network, and an LLM explains what happened. Nothing touches live production infrastructure.
+
+> **Golden rule:** the AI never acts on its own. Detection, diagnosis and healing come from statistics, ML and a rule-checked healer; the language model only explains, with read-only tools.
 
 ---
 
-## The problem (in one paragraph)
-
-A campus network (core, distribution and access switches; Library, Hostel, Labs, Admin) constantly emits telemetry: latency, packet loss, throughput, and link/device load. When something breaks (a link fails, a switch is overloaded, a path congests), humans usually spend 30–60 minutes finding and fixing it. We build a system that does this **automatically and safely**:
-
-1. **Detect** degradation at the earliest stage (anomaly detection on streaming telemetry)
-2. **Diagnose** the most likely root cause with evidence (link failure / congestion / node overload / …)
-3. **Decide** on a safe corrective action (e.g. reroute around the fault), first validated on a digital twin
-4. **Heal** by applying it to the network, then **verify** that latency and loss recover (or roll back)
-5. **Explain** everything in plain language with an LLM (Qualcomm Cloud AI Playground): incident report + audit trail
-
-> **Golden rule:** the LLM **never makes decisions**. Detection, diagnosis and healing are done by the simulator and the ML pipeline. The LLM only explains.
-
-## Deliverable for the demo
-
-A web dashboard that shows: healthy network → injected fault → automatic detection → diagnosis → self-healing reroute → visible recovery → generated incident report, with **measurable before/after latency and packet-loss metrics**.
-
-## How we're judged
-
-| Weight | Criterion |
-|---|---|
-| 30% | Working prototype (live demo) |
-| 20% | AI usage & innovation |
-| 15% | Problem clarity & relevance |
-| 15% | Architecture & technical design |
-| 10% | Future enhancements & scalability |
-| 10% | Presentation & storytelling |
-
-Format: **5 min demo + 5 min judge Q&A**.
-
----
-
-## Architecture at a glance
-
-```
- Network (Python twin  OR  Mininet + Open vSwitch + SDN controller)
-        │ telemetry                                   ▲ flow rules / actions
-        ▼                                             │
- Collector ──► Redpanda (Kafka) ──► Detector ──► RCA ──► Healer ──► What-If Twin + OPA guardrails
-                     │                                   │
-                     ├──► TimescaleDB / Neo4j / Redis     └──► Audit ledger (hash chain)
-                     └──► LLM explainer + Copilot (Qualcomm Cloud AI, RAG)
-                                   │
-                     FastAPI gateway (REST + WebSocket)
-                                   │
-                     Next.js dashboard (Live NOC, Chaos Lab, Incidents, Copilot, …)
-```
-
-## Tech stack
-
-| Layer | Tech |
-|---|---|
-| Network | networkx, numpy, SimPy · Mininet, Open vSwitch, os-ken/Ryu (OpenFlow 1.3) · tc netem, iperf3, stress-ng |
-| Streaming & storage | Redpanda (Kafka API) · TimescaleDB + pgvector · Neo4j · Redis |
-| ML / AI | scikit-learn (IsolationForest), PyTorch (LSTM autoencoder), LightGBM/Darts (forecasting), PyTorch Geometric (GNN RCA), SHAP, Stable-Baselines3 (RL, stretch), MLflow |
-| Safety | Open Policy Agent (Rego) guardrails, autonomy levels L0–L4, verify-then-rollback |
-| LLM | Qualcomm Cloud AI Playground (OpenAI-compatible) · RAG over runbooks · Ollama/template fallback |
-| Backend | Python 3.12, FastAPI, Pydantic v2, aiokafka, pytest |
-| Frontend | Next.js 15, React 19, TypeScript, Tailwind + shadcn/ui, React Flow, ECharts, Zustand, TanStack Query, Framer Motion |
-| Platform | Docker Compose (`demo` / `full` profiles), GitHub Actions, Prometheus + Grafana + OpenTelemetry |
-
-## Team and ownership
-
-| Member | Owns |
-|---|---|
-| **Omkar** (lead) | Frontend (Next.js dashboard, all pages), LLM explainer + reports + Copilot, repo/CI, integration, slides |
-| **Abeer** | Data + ML: collector/features, anomaly detection ensemble, root-cause engine (voting + Bayes + GNN), synthetic data generator, evaluation harness |
-| **Parth** | Network + control: campus topology, Python twin, Mininet/SDN backend, chaos/fault injector, healer + what-if twin, OPA policies, FastAPI gateway, Docker Compose |
-
-## Docs (read in this order)
-
-0. **[docs/PRODUCT_OVERVIEW.md](docs/PRODUCT_OVERVIEW.md)**: NetHeal explained for non-tech readers: every feature, page and deliverable, with flowcharts
-1. **[docs/PLAN.md](docs/PLAN.md)**: the full build plan: architecture, stack, fault catalogue, message contracts, priorities, demo script, Q&A prep
-2. **[docs/RESEARCH.md](docs/RESEARCH.md)**: papers, existing apps and what each of us should learn
-3. **[docs/CONTRACTS.md](docs/CONTRACTS.md)**: the message formats every service must follow
-4. **[CONTRIBUTING.md](CONTRIBUTING.md)**: branching, commits and PR workflow
-5. **[theory/ML.md](theory/ML.md)**: the machine learning in NetHeal: every model, how it's trained on simulated faults, and the measured results
-6. **[docs/EVALUATION.md](docs/EVALUATION.md)**: 300 held-out faults replayed under five policies (no healing, reactive rules, NetHeal, + prediction, + RL agent), generated by `./netheal eval`
-7. **[docs/DEMO.md](docs/DEMO.md)**: the demo playbook: checklist, the 5-minute script, what to do if something breaks, judge Q&A
-
-## Repository layout (target)
-
-```
-contracts/      shared Pydantic models
-topology/       campus.yaml (topology-as-code)
-services/       gateway, netsim, netemu, chaos, collector, detector, rca, healer, llm, ledger, evaluator
-ml/             datagen, training, models
-policies/       OPA Rego
-frontend/       Next.js app
-infra/          docker-compose, grafana, prometheus, helm
-docs/           research, contracts, runbooks (RAG corpus)
-```
-
-## Running it
-
-### The `./netheal` launcher (easiest)
-
-One command does everything: it starts Docker Desktop if needed, builds and starts the whole stack, waits until the detector is ready and prints the URLs.
+## Quick start
 
 ```bash
-./netheal setup     # first time only: installs Python + Node dependencies, creates .env
-./netheal start     # start everything in Docker, then open http://localhost:3000
+./netheal setup     # first time: Python + Node dependencies, creates .env
+./netheal start     # whole stack in Docker; open http://localhost:3000
 ```
+
+Sign in at http://localhost:3000/login to inject faults or approve fixes (watching needs no account). Demo accounts: [config/DEMO_ACCOUNTS.md](config/DEMO_ACCOUNTS.md). For the AI features, put the Cirrascale key in `.env` (see `.env.example`); without it, built-in templates write reports and answers.
+
+**For the demo:** read [docs/DEMO.md](docs/DEMO.md) (checklist, 5-minute script, fallbacks, judge Q&A).
+
+## What it does, measured
+
+From [docs/EVALUATION.md](docs/EVALUATION.md): 300 faults it never trained on, each replayed under five policies.
+
+| | No healing | NetHeal (live configuration) |
+|---|---|---|
+| Faults that hurt users, recovered | 0% | **85%** |
+| Median time to detect / to a verified fix | 1.5 s / – | **1.5 s / 4.5 s** |
+| Total time users were hurt | 5,625 s | **865 s** |
+| False alarms on healthy traffic | 0% | **0%** |
+
+On the emulated network with real packets: a link failure is detected in 1.5 s and healed in 4.5 s.
+
+## How it works
+
+```
+ Network: Python twin  OR  Mininet + Open vSwitch (OpenFlow 1.3, real packets)
+    │ telemetry every 0.5 s                          ▲ reroute / drain / rollback
+    ▼                                                │
+ engine: detect ──► diagnose ──► decide ──► heal ──► verify (rollback if it doesn't help)
+         z-score     rules +      candidates   twin dry run
+         + IForest   007 voting   from rules   + OPA safety rules
+         + LSTM-AE   + GNN        + RL agent   + comfort level (L0–L4)
+         + forecast
+    │ every event
+    ▼
+ Redpanda ──► stream (WebSocket) ──► Next.js dashboard
+          └─► sink ──► TimescaleDB
+ Ask NetHeal + incident reports: Llama-3.3-70B on Qualcomm Cloud AI, qwen2.5:7b offline
+ Audit: hash-chained ledger · Self-monitoring: Prometheus, Grafana, OpenTelemetry → Jaeger
+```
+
+| Layer | What we use |
+|---|---|
+| Network | Python digital twin (networkx, numpy) · Mininet 2.3 + Open vSwitch 3.3, `ovs-ofctl` OpenFlow 1.3, tc netem, iperf3 |
+| Machine learning | scikit-learn (Isolation Forest, gradient-boosted forecaster) · PyTorch (LSTM autoencoder) · PyTorch Geometric (GraphSAGE root cause) · Stable-Baselines3 PPO (RL routing) · SHAP · MLflow |
+| Safety | OPA Rego policy (in-process via regopy), comfort levels L0–L4, verify-then-rollback, hash-chained audit ledger |
+| Language model | Llama-3.3-70B on Cirrascale AI Suite (OpenAI-compatible) · qwen2.5:7b on Ollama when offline · bge embeddings for document search |
+| Backend | Python 3.13, FastAPI, Pydantic 2, aiokafka · Redpanda, TimescaleDB, Redis · Docker Compose |
+| Frontend | Next.js 16, React 19, TypeScript, Tailwind 4, React Flow, react-three-fiber (3D), ECharts, Zustand |
+| Quality | pytest (158 tests), Playwright (demo, offline, UI audit with axe-core), ruff, eslint, GitHub Actions |
+
+## Docs
+
+| Read | For |
+|---|---|
+| [docs/PRODUCT_OVERVIEW.md](docs/PRODUCT_OVERVIEW.md) | NetHeal for non-technical readers: every feature and page, with flowcharts |
+| [docs/DEMO.md](docs/DEMO.md) | Running the demo: checklist, script, fallbacks, Q&A |
+| [theory/ML.md](theory/ML.md) | Every model: what it is, how it's trained on simulated faults, measured results |
+| [docs/EVALUATION.md](docs/EVALUATION.md) | The 300-fault evaluation (generated by `./netheal eval`) |
+| [docs/CONTRACTS.md](docs/CONTRACTS.md) | Message formats and the REST/WebSocket API |
+| [docs/PLAN.md](docs/PLAN.md) | The original build plan (architecture, fault catalogue, roadmap) |
+| [docs/RESEARCH.md](docs/RESEARCH.md) | Papers and prior art we built on |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Branches, commits, how to add a feature |
+| [.claude/](.claude/) | Rules for AI-assisted work, phase tracker and the full session log of how this was built |
+
+## Repository layout
+
+```
+config/       campus.yaml (topology), healing.rego (safety rules), users.yaml, DEMO_ACCOUNTS.md
+contracts/    shared Pydantic message models
+services/     gateway (engine API), netsim (twin + emulator client), detector, rca, healer,
+              ml (live models), copilot, llm, ledger, evaluator, stream, sink, observability
+ml/           training: scenario generator, GNN, forecaster, LSTM autoencoder, RL agent
+emulab/       Mininet + Open vSwitch container (real packets) and its agent API
+frontend/     Next.js dashboard; e2e/ holds the Playwright tests
+infra/        Python image, Grafana, Prometheus, TimescaleDB schema
+tests/        pytest unit tests; e2e/ needs the running stack
+docs/ theory/ documentation (also searched by Ask NetHeal)
+data/         generated, not in git: training scenarios, MLflow runs, backup demo video
+documents/    private event material, not in git
+netheal       the one command for everything (./netheal help)
+```
+
+## Commands
 
 | Command | What it does |
 |---|---|
-| `./netheal start` | Starts Docker Desktop if needed, builds and starts all 7 services, waits for the detector's 30 s warm-up, prints the URLs |
-| `./netheal stop` | Stops everything |
-| `./netheal restart` | Stop, then start |
-| `./netheal status` | Container states plus health checks (engine, stream, dashboard, detector ready) |
-| `./netheal logs [service]` | Follows logs: `engine`, `stream`, `sink`, `frontend`, `redpanda`, `timescaledb`, `redis` |
-| `./netheal open` | Opens the dashboard in your browser |
-| `./netheal reset` | Fresh demo state: restarts the engine (clears incidents; 30 s re-learn) |
-| `./netheal rehearse` | Pre-flight checks (images, offline model, results) + the demo 5× in a row with the internet blocked |
-| `./netheal record` | Records a backup video of the demo to `demo/netheal-demo.webm` |
-| `./netheal emu` | Also starts the **emulated network**: Mininet + Open vSwitch with real packets (then switch to it in Settings → Network backend, as admin) |
-| `./netheal ollama` | Installs and starts the **offline AI model** (Ollama + qwen2.5:7b, ≈4.7 GB once). Ask NetHeal and reports switch to it when the cloud model is unreachable |
-| `./netheal obs` | Also starts **Grafana** (http://localhost:3001), **Prometheus** (:9090) and **Jaeger** (:16686) and turns on tracing: NetHeal's own metrics and traces |
-| `./netheal eval` | Replays 300 held-out faults under 4 policies (≈17 min on 8 cores) → `docs/EVALUATION.md` + the dashboard's Evaluation page |
-| `./netheal dev` | Runs engine + frontend locally **without Docker** (fast development); logs in `.cache/dev/` |
-| `./netheal dev-stop` | Stops the local dev servers |
-| `./netheal test` | Runs the test suite |
-| `./netheal e2e` | End-to-end test against the running Docker stack |
-| `./netheal train` | Regenerates 3,000 simulated faults and retrains all ML models, including the RL routing agent (`./netheal train rl` for that one alone) |
-| `./netheal mlflow` | Opens the ML training runs at http://localhost:5001 |
-| `./netheal help` | Lists all commands |
+| `./netheal start` / `stop` / `restart` | Whole stack in Docker (starts Docker Desktop if needed, waits for the detector's 30 s warm-up) |
+| `./netheal status` | Containers, health checks, detector and offline model |
+| `./netheal logs [service]` | Follow logs: `engine`, `stream`, `sink`, `frontend`, `redpanda`, `timescaledb`, `redis` |
+| `./netheal open` | Open the dashboard |
+| `./netheal reset` | Fresh demo state (restarts the engine; 30 s re-learn) |
+| `./netheal rehearse` | Pre-flight checks, then the demo 5× in a row with the internet blocked |
+| `./netheal record` | Backup video of the demo → `data/demo/netheal-demo.webm` |
+| `./netheal ui-check` | Find UI errors: every page × screen size × theme × role, then every user flow |
+| `./netheal emu` | Also start the emulated network (then Settings → Network backend, as admin; uses ~10 CPU cores) |
+| `./netheal ollama` | Install and start the offline language model (qwen2.5:7b, ≈4.7 GB once) |
+| `./netheal obs` | Also start Grafana (:3001), Prometheus (:9090) and Jaeger (:16686) and turn on tracing |
+| `./netheal eval` | Re-run the 300-fault evaluation (≈6 min on 8 cores; stop the emulator first) |
+| `./netheal train [rl]` | Regenerate the simulated faults and retrain every model (≈30 min), or only the RL agent |
+| `./netheal mlflow` | Browse training runs at http://localhost:5001 |
+| `./netheal test` / `lint` / `e2e` | Unit tests · ruff + eslint · end-to-end tests against the running stack |
+| `./netheal dev` / `dev-stop` | Engine + dashboard without Docker (fast development; logs in `.cache/dev/`) |
 
-On first start the launcher adds a random `JWT_SECRET` to `.env`, so restarting the engine doesn't sign everyone out.
+## Ports
 
-### Simulated or emulated network
+| Service | URL |
+|---|---|
+| Dashboard | http://localhost:3000 |
+| Engine API (OpenAPI docs) | http://localhost:8001/docs |
+| Live stream (WebSocket) | ws://localhost:8002/ws/live |
+| TimescaleDB | `postgresql://netheal:netheal@localhost:5433/netheal` |
+| Emulator agent / Grafana / Prometheus / Jaeger / MLflow | :9000 / :3001 / :9090 / :16686 / :5001 |
 
-NetHeal can run against two interchangeable networks. The detect → diagnose → heal pipeline is identical on both:
+## Using the API directly
 
-| | Simulated (default) | Emulated (`./netheal emu`) |
-|---|---|---|
-| What | Python model of the campus (queueing, loss) | Mininet + Open vSwitch: 15 OVS switches, 9 hosts, 27 shaped links, real packets |
-| Traffic | Modelled | Real iperf3 UDP streams per flow (bandwidth scaled 1:100 to fit a laptop) |
-| Telemetry | Computed | Real pings per flow; link load, loss and queueing from interface counters and `tc` |
-| Healing actions | Route changes in the model | **OpenFlow 1.3 rules** installed with `ovs-ofctl` |
-| Digital twin for dry-runs | Simulator | Simulator (same routes and faults) |
-
-Measured on real packets: a link failure is detected in 1.5 s and healed in 4.5 s (unreachable → 8.4 ms). `./netheal e2e` includes this test when the emulator is running.
-
-**Everything in Docker (recommended for the demo):**
+Fault injection needs an operator or admin token (passwords in `config/DEMO_ACCOUNTS.md`):
 
 ```bash
-./netheal start   # builds and starts the full stack, waits until healthy
-./netheal e2e     # end-to-end check: fault -> healed via Redpanda -> stored in TimescaleDB
-./netheal stop    # stop it
+TOKEN=$(curl -s localhost:8001/auth/login -H 'content-type: application/json' \
+  -d '{"username": "operator", "password": "<from DEMO_ACCOUNTS.md>"}' | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])')
+curl -X POST localhost:8001/fault -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"type": "gray_failure", "target": "dist3-lab_cs", "severity": 0.5, "ramp_s": 15}'
 ```
 
-| Service | What | URL |
-|---|---|---|
-| frontend | Dashboard | http://localhost:3000 |
-| engine | Sim → detect → diagnose → heal + REST API | http://localhost:8001/docs |
-| stream | Redpanda → WebSocket fan-out (Redis catch-up) | ws://localhost:8002/ws/live |
-| sink | Redpanda → TimescaleDB | `psql postgresql://netheal:netheal@localhost:5433/netheal` |
-| redpanda / timescaledb / redis | Event bus / history / live-state cache | localhost:19092 / 5433 / internal |
+Fault types: `link_down`, `gray_failure`, `congestion`, `flapping` (target a link such as `dist1-library`), `node_overload` (a device such as `dist1`), `misconfig` (a flow such as `admin-internet`). Optional: `severity` (0–1) and `ramp_s` (gradual onset). Everything else is in [docs/CONTRACTS.md](docs/CONTRACTS.md) and at `/docs`.
 
-Before the venue (offline), run `./netheal start` once so all images are built and pulled.
+## Tests and CI
 
-### Watching NetHeal itself (`./netheal obs`)
+- `./netheal test`: 158 unit tests (detector, diagnosis, healer, twin, policy, LLM fallbacks, evaluation, API).
+- `./netheal e2e`: the loop over Redpanda and TimescaleDB, plus real packets when the emulator runs.
+- `./netheal rehearse` and `./netheal ui-check`: Playwright demo runs (internet blocked), page audit and user flows.
+- GitHub Actions (`.github/workflows/ci.yml`) on every push: ruff, pytest, eslint, Next.js build, then the stack in Docker with the end-to-end and Playwright tests.
 
-- **Metrics** (always on): `GET /metrics` on the engine and stream, `:9464` on the sink. Time per loop stage, anomalies raised, healing events, incidents with MTTD/MTTR, bus messages, WebSocket clients, Ask NetHeal answer time.
-- **Traces** (on with `./netheal obs`): OpenTelemetry, one trace per tick (simulate → detect → diagnose → heal), carried through Redpanda message headers into the stream and sink services. Open Jaeger and pick `netheal-engine`.
-- **Dashboard**: Grafana opens on the provisioned *NetHeal platform* dashboard (`infra/grafana/dashboards/netheal.json`), no sign-in needed.
+## Judging (from the event brief)
 
-### Tests and CI
+30% working prototype · 20% AI usage and innovation · 15% problem clarity · 15% architecture · 10% future scope · 10% presentation. Format: 5-minute demo + 5-minute Q&A.
 
-`./netheal test` runs the unit tests; `./netheal e2e` and `npm --prefix frontend run e2e` (Playwright: sign in → cut a fibre → healed → open the incident) run against the Docker stack. GitHub Actions (`.github/workflows/ci.yml`) runs all of it on every push: ruff, pytest, eslint, the Next.js build, then the whole stack in Docker with the end-to-end tests.
+## Team
 
-**Sign in:** anyone can watch the dashboard. To inject faults, approve fixes or change the comfort level, sign in at http://localhost:3000/login. Demo accounts (viewer / operator / admin) are in [config/DEMO_ACCOUNTS.md](config/DEMO_ACCOUNTS.md).
-
-**Machine learning:** `./netheal train` regenerates 3,000 simulated faults and retrains the GNN, forecaster, LSTM autoencoder and RL agent (~30 min); `./netheal mlflow` opens the training runs at http://localhost:5001. See [theory/ML.md](theory/ML.md).
-
-**Local development (no Docker):**
-
-```bash
-./netheal setup   # create .venv and install backend + frontend deps
-./netheal test    # run all tests
-./netheal dev     # engine on http://localhost:8001 (API docs at /docs) + dashboard on :3000
-```
-
-AI incident reports (optional; without a key a built-in template writes them):
-
-```bash
-cp .env.example .env   # then add your Cirrascale AI Suite key
-```
-
-Frontend (Node 24+):
-
-```bash
-cd frontend && npm install
-npm run dev    # http://localhost:3000 (homepage) and /dashboard (Control Room)
-```
-
-The frontend proxies `/api/*` to the gateway (`GATEWAY_URL`, default `http://localhost:8000`) and opens the WebSocket at `NEXT_PUBLIC_GATEWAY_WS` (default `ws://localhost:8000/ws/live`).
-
-Live telemetry: `ws://localhost:8000/ws/live`. Inject a fault with:
-`curl -X POST localhost:8000/fault -H 'content-type: application/json' -d '{"type":"link_down","target":"dist1-library"}'`
-
-Fault types: `link_down`, `gray_failure`, `congestion`, `flapping` (target a link id like `dist1-library`), `node_overload` (target a node like `dist1`), `misconfig` (target a flow like `admin-internet`). Optional: `severity` (0–1), `ramp_s` (gradual onset).
+Omkar (lead), Abeer and Parth. The code was written by Omkar with Claude Code. The `.claude/` folder records the rules, the phase plan and every working session, so anyone can see how and why each part was built.
