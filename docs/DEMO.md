@@ -8,7 +8,7 @@ Everything needed to run the 5-minute NetHeal demo, with or without venue intern
 ./netheal start      # builds and pulls every image
 ./netheal ollama     # offline AI model (qwen2.5:7b, ~4.7 GB once)
 ./netheal rehearse   # pre-flight checks + the demo 5x in a row with the internet blocked
-./netheal record     # fresh backup video -> demo/netheal-demo.webm
+./netheal record     # fresh backup video -> data/demo/netheal-demo.webm
 ```
 
 Then **turn Wi-Fi off and run `./netheal rehearse` once more.** The browser test already blocks the internet, but only a real Wi-Fi-off run proves the engine side too (Ask NetHeal and reports switch to the local model automatically).
@@ -19,7 +19,8 @@ Then **turn Wi-Fi off and run `./netheal rehearse` once more.** The browser test
 2. `./netheal reset`: fresh incidents, the detector re-learns for 30 s.
 3. Browser at http://localhost:3000, signed in as `operator` (password: `config/DEMO_ACCOUNTS.md`), zoom 100%, other tabs closed.
 4. The emulator is **off** unless you will show it (`./netheal emu` uses ~10 CPU cores).
-5. `demo/netheal-demo.webm` open in a second window, just in case.
+5. `data/demo/netheal-demo.webm` open in a second window, just in case.
+6. The dashboard only answers on this laptop (every port is bound to 127.0.0.1), so nobody on the venue Wi-Fi can reach it. Show it from this screen.
 
 ## The 5 minutes
 
