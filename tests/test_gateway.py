@@ -259,6 +259,7 @@ def test_whatif_insights_settings_and_offline_copilot(monkeypatch):
         assert client.post("/whatif", json={"fault": "link_down", "target": "x"}).status_code == 400
 
         stats = client.get("/insights").json()
+        assert stats["models"]["rl"]["rl"]["fixed"] > stats["models"]["rl"]["rules"]["fixed"] - 0.05
         assert stats["models"]["rca"]["all_snapshots"]["gnn"] > 0.9
         assert client.get("/insights/shap.png").headers["content-type"] == "image/png"
 

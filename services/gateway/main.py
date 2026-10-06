@@ -425,7 +425,7 @@ def insights() -> dict:
     return {
         "models": {
             name: json.loads((MODELS_DIR / f"{name}_eval.json").read_text())
-            for name in ("rca", "forecast", "lstm_ae")
+            for name in ("rca", "forecast", "lstm_ae", "rl")
         },  # fmt: skip
         "incidents": {
             "total": len(every),

@@ -1,6 +1,6 @@
 "use client";
 
-import { Brain, Gauge, LineChart, Network } from "lucide-react";
+import { Brain, Gauge, LineChart, Network, Route } from "lucide-react";
 import { useEffect, useState } from "react";
 import { CAUSES } from "@/components/dashboard/Diagnosis";
 import type { Hypothesis } from "@/lib/live";
@@ -11,6 +11,7 @@ type Insights = {
     rca: { all_snapshots: Scores; first_diagnosis: Scores; post_heal: Scores; test_snapshots: number };
     forecast: Record<string, number> & { shap_mean_abs: Scores };
     lstm_ae: Record<string, number>;
+    rl: Record<"rl" | "rules" | "best_of_both", { fixed: number; denied: number; flows_moved: number }> & { episodes: number };
   };
   incidents: { total: number; healed: number; escalated: number; avg_mttd_s: number | null; avg_mttr_s: number | null; by_cause: Record<string, number> };
 };
@@ -33,7 +34,7 @@ export default function InsightsPage() {
     fetch("/api/insights").then((r) => r.json()).then(setData);
   }, []);
   if (!data) return null;
-  const { rca, forecast, lstm_ae } = data.models;
+  const { rca, forecast, lstm_ae, rl } = data.models;
   const inc = data.incidents;
   const methods = [["voting_007_target", "007 voting alone"], ["rules", "Expert rules"], ["gnn", "Graph neural network"], ["ensemble", "Ensemble (live)"]];
   const shapTotal = Object.values(forecast.shap_mean_abs).reduce((a, b) => a + b, 0);
@@ -101,6 +102,15 @@ export default function InsightsPage() {
             Learned what 10 seconds of normal behaviour looks like for every link, device and flow. Typical reconstruction error:
             healthy {lstm_ae.healthy_error_median.toExponential(1)} vs faulty {lstm_ae.fault_error_median.toFixed(2)}.
           </div>
+        </div>
+      </section>
+
+      <section>
+        <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold"><Route className="size-5" /> RL routing agent</h2>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Stat label="Healing decisions fixed" value={pct(rl.rl.fixed)} hint={`vs ${pct(rl.rules.fixed)} for the rule-based planner, on ${rl.episodes} held-out decisions`} />
+          <Stat label="Twin picks the better of both (live)" value={pct(rl.best_of_both.fixed)} hint="the agent only proposes; the twin and safety rules decide" />
+          <Stat label="Flows moved per fix" value={rl.rl.flows_moved.toFixed(2)} hint={`rules: ${rl.rules.flows_moved.toFixed(2)}`} />
         </div>
       </section>
     </div>
