@@ -8,7 +8,7 @@
 
 ## Index
 
-### Session 1: 2026-10-02 → 2026-10-05 · messages used: 23 / 25
+### Session 1: 2026-10-02 → 2026-10-05 · messages used: 25 / 25 (threshold reached: next session starts fresh)
 
 | Msg | Date | Request | Files touched | Commit(s) |
 |---|---|---|---|---|
@@ -35,6 +35,8 @@
 | 21 | 10-06 | Phase 14 (stretch): RL routing agent + Ollama offline LLM | see entry 21 | `f8eaed7`…(log commit) |
 | 22 | 10-06 | Finish the two follow-ups (tick cadence, re-plan after a fix), Phase 15 demo hardening; what's left? | see entry 22 | `6b1c9e7`…(log commit) |
 | 23 | 10-06 | Clean up the file structure, find all UI errors (browser + CLI), update docs for handover | see entry 23 | `a34ff78`…(log commit) |
+| 24 | 10-06 | WhatsApp message for Abeer and Parth: setting the project up from GitHub | none (message text only) | none |
+| 25 | 10-06 | "Where do I decide?" on an idle-uplink incident; fix it; how to switch to the emulated network | see entry 25 | `ecf6bb2`…(log commit) |
 
 ---
 
@@ -585,4 +587,24 @@
     - a real Wi-Fi-off rehearsal on the demo laptop
     - small polish: assistant times in UTC; range citations like "[E5-E11]" not turned into chips
   - Start the next session from `.claude/CLAUDE.md` + this log.
+
+### Msg 25 · "No action needed" incidents looked stuck ✅ + session handoff
+- Omkar's screenshot: incident "Link failure · Internet Gateway ↔ Core Router 2", status resolved, with Decide/Heal/Verify showing "…" and no explanation. He asked where to decide.
+- Cause (checked via the API): the link is the idle standby uplink (no flow routed via core2). The healer emitted `no_action` ("No user traffic is affected; flagged for maintenance."), but the incident timeline never recorded the decision and the page didn't show the reason.
+- **Fixed:**
+  - `services/healer/incidents.py`: `no_action` now marks the `decide` stage. Test first: `tests/test_healer.py::test_fault_on_idle_link_needs_no_action`.
+  - `frontend/src/components/dashboard/SelfHealing.tsx`: Stepper shows Heal/Verify as "not needed" (resolved without a fix) or "to a human" (failed), with no pulse.
+  - `frontend/src/app/dashboard/incidents/[id]/page.tsx`: shows "NetHeal decided: …" from the last `no_action`/`escalated` event.
+- **Verified:**
+  - reproduced live (link_down on internet-core2): timeline detect → diagnose → decide; screenshot of the incident page
+  - 158 unit tests, lint, Playwright demo + offline tour
+- Answered: humans decide on the Approvals page at comfort levels 1–3 (2 = ask approval); at 4 NetHeal applies the safest tested fix itself. Emulated network: `./netheal emu`, then Settings → Network backend (admin).
+
+## Handoff (end of session 1)
+- **State:** Phases 0–15 done, CI green, `./netheal rehearse` and `./netheal ui-check` clean. README, `docs/DEMO.md`, `theory/ML.md` and `docs/CONTRACTS.md` are up to date for Abeer and Parth.
+- **Open:**
+  1. the presentation (template in `documents/`)
+  2. a real Wi-Fi-off rehearsal on the demo laptop
+  3. cosmetic: assistant times shown in UTC; range citations ("[E5-E11]") not turned into chips; rare production-only React #418 on the landing page
+- **Next session:** start from `.claude/CLAUDE.md` + this log; the presentation is the next task.
 
