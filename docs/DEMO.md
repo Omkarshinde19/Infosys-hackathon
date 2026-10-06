@@ -32,7 +32,7 @@ Then **turn Wi-Fi off and run `./netheal rehearse` once more.** The browser test
 | 2:40–3:10 | Click **Incident · report** → Generate report | The language model writes the report from the incident's facts only; it is checked against them before it is shown. |
 | 3:10–3:40 | **Fault Lab → "Core router meltdown"** | Not every fix is safe. Moving that much traffic breaks the blast-radius rule, so NetHeal escalates to a human instead of acting. |
 | 3:40–4:00 | **Ask NetHeal**: "Why didn't NetHeal fix the core router by itself?" | Read-only tools, every sentence cites evidence (hover the chips). |
-| 4:00–4:30 | **Evaluation** page | 300 faults it never trained on. Without healing, 0% recover; with NetHeal 85%, in a median 4.5 s, with 0 false alarms. Users hurt 864 s instead of 5,624 s. |
+| 4:00–4:30 | **Evaluation** page | 300 faults it never trained on. Without healing, 0% recover; with NetHeal 85%, in a median 4.5 s, with 0 false alarms. Users hurt 865 s instead of 5,625 s. |
 | 4:30–5:00 | Roadmap slide | Real devices (gNMI/SNMP in, NETCONF/SDN out), the emulated network with real packets (Settings → Network backend), multi-campus, RL policy graduating behind the guardrails. |
 
 Numbers above are from `docs/EVALUATION.md` (policy `rl`, the live configuration). Re-check them after any `./netheal eval`.

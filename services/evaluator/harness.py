@@ -271,7 +271,7 @@ def markdown(results: dict) -> str:
         row("Median MTTR (fault to verified fix)", lambda x: _s(x["healing"]["median_mttr_s"])),
         row("Rollback rate (of applied fixes)", lambda x: _pct(x["healing"]["rollback_rate"])),
         row("Escalated to a human", lambda x: _pct(x["healing"]["escalated_rate"])),
-        row("SLA violation, total (s)", lambda x: f"{x['sla']['violation_s_total']:.0f}"),
+        row("SLA violation, total (s)", lambda x: str(int(x["sla"]["violation_s_total"] + 0.5))),
         row("p95 flow latency during a fault", lambda x: f"{x['sla']['p95_latency_ms']} ms"),
         "",
         "## Detection and diagnosis",

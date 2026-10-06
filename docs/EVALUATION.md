@@ -15,7 +15,7 @@ Policies: `no_heal` detects and diagnoses only. `reactive` diagnoses with rules 
 | Median MTTR (fault to verified fix) | – | 4.5 s | 4.5 s | 4.5 s | 4.5 s |
 | Rollback rate (of applied fixes) | – | 0% | 0% | 0% | 7% |
 | Escalated to a human | 0% | 13% | 16% | 16% | 16% |
-| SLA violation, total (s) | 5624 | 836 | 918 | 918 | 864 |
+| SLA violation, total (s) | 5625 | 836 | 918 | 918 | 865 |
 | p95 flow latency during a fault | 1000.0 ms | 10.2 ms | 10.2 ms | 10.2 ms | 10.2 ms |
 
 ## Detection and diagnosis
