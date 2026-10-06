@@ -1,5 +1,8 @@
 # Syntax Cartel: NC-04 Self-Healing Network Simulator
+
 ## Full Build Plan (v2, maximised stack)
+
+> **This is the original build plan (2–4 Oct 2026).** Some choices changed while building (for example no Neo4j, no os-ken controller, an RL agent that proposes instead of acting). What actually exists is described in the [README](../README.md), [theory/ML.md](../theory/ML.md) and [.claude/PHASES.md](../.claude/PHASES.md).
 
 **Event:** Infosys ENG NEXT 2026 Hack-AI-Thon, Pune (Phase 2, Hinjewadi), **Wed 7 Oct 2026**
 **Team:** Omkar (lead), Abeer, Parth | DIT Pimpri | Lane: Networks & Connectivity
