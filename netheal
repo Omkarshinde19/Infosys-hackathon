@@ -125,6 +125,12 @@ cmd_rehearse() {
     && ok "Rehearsal passed" || { bad "Rehearsal failed: see frontend/playwright-report"; exit 1; }
 }
 
+cmd_ui_check() {
+  bold "UI check: every page x size x theme x role, then every user flow (≈5 min)…"
+  (cd frontend && AUDIT=1 npx playwright test e2e/audit.spec.ts e2e/interactions.spec.ts) \
+    && ok "No UI errors" || { bad "UI errors found: frontend/test-results/ui-audit.json, frontend/playwright-report"; exit 1; }
+}
+
 cmd_record() {
   bold "Recording the backup demo video (≈2.5 min, 1280x720)…"
   (cd frontend && RECORD=1 npx playwright test e2e/record.spec.ts) || { bad "Recording failed"; exit 1; }
@@ -196,6 +202,7 @@ NetHeal launcher
   ./netheal open           Open the dashboard in your browser
   ./netheal reset          Fresh demo state (restarts the engine, 30 s re-learn)
   ./netheal rehearse       Pre-flight checks + the demo 5x in a row with the internet blocked
+  ./netheal ui-check       Find UI errors: every page, size, theme and role, then every user flow
   ./netheal record         Record a backup video of the demo to data/demo/netheal-demo.webm
   ./netheal emu            Also start the emulated network (Mininet + Open vSwitch, real packets)
   ./netheal ollama         Install and start the offline AI model (Ollama + qwen2.5:7b), used when offline
@@ -224,6 +231,7 @@ case "${1:-help}" in
   reset)    cmd_reset ;;
   rehearse) cmd_rehearse ;;
   record)   cmd_record ;;
+  ui-check) cmd_ui_check ;;
   emu)      cmd_emu ;;
   obs)      cmd_obs ;;
   ollama)   cmd_ollama ;;
