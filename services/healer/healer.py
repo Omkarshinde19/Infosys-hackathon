@@ -123,12 +123,21 @@ class Healer:
         return [("proposed", candidates), *self._apply_next(latest, net, affected)]
 
     def approve(self, action_id: str, latest, net: Network) -> list[Event]:
-        """A human approved the waiting fix: apply it and start verifying."""
+        """A human approved the waiting fix: test it again on the twin and the safety rules
+        (the network may have changed while it waited), then apply it and start verifying."""
         if not self.awaiting or self.awaiting.id != action_id:
             raise KeyError(action_id)
         c, affected = self.awaiting, self.awaiting_affected
         self.awaiting = None
         self.pending.remove(c)
+        self._predict(c, net, affected)
+        if c.opa_decision != "allow":  # stale: plan again from the network as it is now
+            self.acted.discard(c.incident_id)
+            self.tried = {k for k in self.tried if k[0] != c.incident_id}
+            self.status = "replanning"
+            why = "; ".join(c.policy_reasons)
+            reason = f"The network changed while this fix waited and it now fails: {why}."
+            return [("approved", c.id), ("replanning", f"{reason} Planning again.")]
         return [("approved", c.id), *self.apply(c, latest, net, affected)]
 
     def reject(self, action_id: str) -> list[Event]:
