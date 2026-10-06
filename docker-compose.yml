@@ -8,7 +8,7 @@
 name: netheal
 
 x-python: &python
-  build: { context: ., dockerfile: docker/python.Dockerfile }
+  build: { context: ., dockerfile: infra/python.Dockerfile }
   image: netheal-python
   restart: on-failure
 
