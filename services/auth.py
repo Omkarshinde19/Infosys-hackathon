@@ -23,8 +23,19 @@ USERS_PATH = ROOT / "config" / "users.yaml"
 load_dotenv(ROOT / ".env")  # JWT_SECRET (made by ./netheal start) survives restarts
 ROLES = ["viewer", "operator", "admin"]
 TOKEN_HOURS = 12
-# Without JWT_SECRET a random one is used: every engine restart would sign everyone out.
-SECRET = os.getenv("JWT_SECRET") or secrets.token_hex(32)
+PLACEHOLDERS = {"change-me"}
+
+
+def signing_secret(value: str | None) -> str:
+    """The configured secret, or a random one when it is missing, a placeholder or short: a
+    known secret would let anyone forge an admin session. (Random means every engine restart
+    signs everyone out, so ./netheal start writes a real one to .env.)"""
+    if not value or value in PLACEHOLDERS or len(value) < 32:
+        return secrets.token_hex(32)
+    return value
+
+
+SECRET = signing_secret(os.getenv("JWT_SECRET"))
 
 USERS = yaml.safe_load(USERS_PATH.read_text())["users"]
 bearer = HTTPBearer(auto_error=False)
@@ -49,9 +60,12 @@ def require(role: str):
         if creds is None:
             raise HTTPException(401, "Log in first")
         try:
-            claims = jwt.decode(creds.credentials, SECRET, algorithms=["HS256"])
+            claims = jwt.decode(creds.credentials, SECRET, algorithms=["HS256"],
+                                options={"require": ["exp", "sub", "role"]})  # fmt: skip
         except jwt.PyJWTError as e:
             raise HTTPException(401, "Invalid or expired session") from e
+        if claims["role"] not in ROLES:
+            raise HTTPException(401, "Invalid or expired session")
         if ROLES.index(claims["role"]) < ROLES.index(role):
             raise HTTPException(403, f"Needs the {role} role")
         return {"username": claims["sub"], "role": claims["role"]}
