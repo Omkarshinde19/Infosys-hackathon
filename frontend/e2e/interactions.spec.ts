@@ -102,3 +102,19 @@ test("admin: approve a fix at comfort level 2, settings, sign out", async ({ pag
   await expect(page.getByText("Sign in to take actions")).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test("in-app navigation: every sidebar page from the live dashboard and back", async ({ page }) => {
+  // Leaving the dashboard unmounts the 3D map; that used to throw and could leave the URL behind.
+  const errors = watch(page);
+  await page.goto("/dashboard");
+  await page.waitForTimeout(2000);
+  for (const href of ["/dashboard/copilot", "/dashboard/whatif", "/dashboard/incidents", "/dashboard/approvals",
+                      "/dashboard/insights", "/dashboard/evaluation", "/dashboard/audit", "/dashboard/settings"]) {
+    await page.locator(`aside nav a[href="${href}"]`).click();
+    await expect(page).toHaveURL(new RegExp(`${href}$`), { timeout: 15_000 });
+    await page.locator("aside nav a[href^='/dashboard#']").first().click();
+    await expect(page).toHaveURL(/\/dashboard(#.*)?$/, { timeout: 15_000 });
+    await page.waitForTimeout(1000);
+  }
+  expect(errors).toEqual([]);
+});
