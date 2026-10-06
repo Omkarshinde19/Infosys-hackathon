@@ -134,11 +134,11 @@ flowchart LR
 
 ### Practice and planning
 - **"What-if" planner:** ask "What happens if the main connection fails during exam results day?" NetHeal shows the impact on the virtual copy and the ready-made fix, so you're prepared before it happens.
-- **Fire-drill mode (Chaos Lab):** safely trigger fake problems on the virtual network to test your setup and train your IT staff.
+- **Fire drills (Fault Lab):** safely trigger fake problems on the virtual network to test your setup and train your IT staff.
 
 ### Proof that it works
 - **Performance scorecard:** results from hundreds of test problems: how many were caught, how many were diagnosed correctly, the average time to fix, and the comparison with doing nothing.
-- **Monthly management summary:** uptime, problems prevented, time saved, money saved.
+- **Monthly management summary** *(planned)*: uptime, problems prevented, time saved, money saved.
 
 ---
 
@@ -146,17 +146,18 @@ flowchart LR
 
 | # | Page | What it's for (in plain words) |
 |---|---|---|
-| 1 | **Login** | Secure sign-in; each person sees what their role allows |
-| 2 | **Live Control Room** (home) | The main screen: network map, health score, live graphs, and the current problem and its progress (*noticed → diagnosed → fixing → fixed*) |
-| 3 | **Incidents** | List of all past and current problems, with status, time to fix and severity |
-| 4 | **Incident details** | The full story of one problem: timeline, cause and evidence, the fix chosen, before/after graphs, and the AI report with a download button |
-| 5 | **Fire-Drill Lab** | Trigger practice problems safely, set the auto-fix on/off, choose the comfort level |
-| 6 | **What-If Planner** | "What if X breaks?" questions, answered on the virtual copy |
-| 7 | **Ask NetHeal** | Chat with the AI assistant about your network |
-| 8 | **Approvals** | Fixes waiting for a human yes/no (at the "ask first" levels) |
-| 9 | **Audit Log** | Tamper-proof history of everything, with an integrity check |
-| 10 | **Performance & AI Insights** | Scorecards proving how well NetHeal works |
-| 11 | **Settings** | Safety rules, comfort level, users and roles, alert contacts |
+| 1 | **Home** | What NetHeal is, for visitors |
+| 2 | **Login** | Secure sign-in; each person sees what their role allows (viewer, operator, admin) |
+| 3 | **Live Control Room** | The main screen: health score, alerts, the diagnosis, the fix and its progress (*noticed → diagnosed → fixing → fixed*), the network map (2D or 3D), live graphs, and the **Fault Lab** with one-click fire drills and an auto-fix switch |
+| 4 | **Ask NetHeal** | Chat with the AI assistant about your network; every answer shows its evidence |
+| 5 | **What-If Planner** | "What if X breaks?" questions, answered on the virtual copy |
+| 6 | **Incidents** | List of all past and current problems, with status and time to fix |
+| 7 | **Incident details** | The full story of one problem: timeline, cause and evidence, the fixes tested, before/after numbers, and the AI report (download or PDF) |
+| 8 | **Approvals** | Choose the comfort level; fixes waiting for a human yes/no |
+| 9 | **Insights** | How well each AI model works, measured on problems it never trained on |
+| 10 | **Evaluation** | NetHeal vs doing nothing vs simpler approaches, on 300 test problems |
+| 11 | **Audit Log** | Tamper-proof history of everything, with an integrity check |
+| 12 | **Settings** | Simulated or real-packet network, users and roles, safety rules, AI models in use |
 
 ---
 
@@ -166,7 +167,7 @@ flowchart LR
 2. **Automatic 24/7 monitoring and self-healing** of their network.
 3. **Instant alerts** when something happens. In future, by email, WhatsApp, SMS or Teams.
 4. **An incident report for every problem**, written in plain English, as a PDF.
-5. **A monthly health and value report** for management.
+5. **A monthly health and value report** for management *(planned)*.
 6. **A digital twin** (virtual copy) of their network for planning and practice.
 7. **A complete, tamper-proof audit trail** for compliance.
 8. **Setup and onboarding:** we model their campus network, set their safety rules, and train their staff.
@@ -187,19 +188,17 @@ flowchart LR
 ## What's in the hackathon demo vs later
 
 **At the hackathon (7 Oct), we'll show:**
-- a simulated college network
-- triggering a fault
-- NetHeal catching, diagnosing and fixing it live
-- the graphs recovering
-- the AI report
-- the chat assistant
-- the audit log
-- the performance scorecard
+- a simulated college network, and the same loop on an emulated network with real packets
+- triggering a fault, and NetHeal catching, diagnosing and fixing it live (seconds, not minutes)
+- the graphs recovering, and the safety rules stopping a risky fix
+- the AI report and the chat assistant, which also work without internet
+- an AI agent that learned to suggest smarter reroutes, kept in check by the safety rules
+- the audit log, and the scorecard from 300 test problems
 
 **Future (for the "roadmap" part of the pitch):**
 - Connect to real network equipment from Cisco, Juniper, HP and others.
 - A mobile app, and alerts on WhatsApp, SMS and Teams.
 - Manage many campuses or clients from one screen.
 - Monthly billing plans for colleges, small businesses and enterprises.
-- On-premises AI for customers who can't send data to the cloud (hospitals, government).
+- Fully on-premises AI for customers who can't send data to the cloud (hospitals, government). A local model already takes over when the internet is down.
 - Smarter AI that learns from each customer's past incidents.
