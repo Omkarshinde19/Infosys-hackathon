@@ -38,7 +38,7 @@
 | 24 | 10-06 | WhatsApp message for Abeer and Parth: setting the project up from GitHub | none (message text only) | none |
 | 25 | 10-06 | "Where do I decide?" on an idle-uplink incident; fix it; how to switch to the emulated network | see entry 25 | `ecf6bb2`…(log commit) |
 
-### Session 2: 2026-10-06 → 2026-10-07 · messages used: 5 / 25
+### Session 2: 2026-10-06 → 2026-10-07 · messages used: 6 / 25
 
 | Msg | Date | Request | Files touched | Commit(s) |
 |---|---|---|---|---|
@@ -47,6 +47,7 @@
 | 3 | 10-06 | Push; lighter blob in light mode; remove the tagline pill; blob bursts after 2 s on it and merges back; push after verifying from now on | see entry S2·3 | `b31ad98`…(log commit) |
 | 4 | 10-07 | Prep for the judges: pitch + demo script (2.5 + 2.5 min), tech-stack Q&A, build process, Qualcomm usage | local `omkar-understanding/` only (not in git) | log commit |
 | 5 | 10-07 | Presentation slides from the Infosys template; found and fixed Ask NetHeal falling back from Qualcomm | `services/copilot/agent.py`, `tests/test_copilot.py`; deck in `documents/` (not in git) | `c5a0043`, `02e7494`, log commit |
+| 6 | 10-07 | Add Abeer Chaturvedi and Parth Mande to the deck; new colour palette for the slides only | deck in `documents/` (not in git) | log commit |
 
 ---
 
@@ -717,4 +718,20 @@
   - one question ("Is the network healthy right now, and are there any alerts?") was answered with no tool call and no citations, because the citation check only runs when tools returned evidence. Pre-existing; candidate follow-up.
   - Abeer's and Parth's surnames are not in the deck (not in any document); add them in PowerPoint.
 - Local prep folder updated: the slide map in `01-pitch-and-demo-script.md`; the bug story in `06` and `07`.
+
+### S2 · Msg 6 · Deck: full names + new palette ✅
+- Request:
+  - add the full names Abeer Chaturvedi and Parth Mande
+  - switch the slides (only the slides, not the app) to a new palette: FFFDF6 cream, E2D4E0 lavender, 949AB1 grey blue, 7C7E9D slate, 4C5372 ink
+- **Rebuilt** `documents/NetHeal_Syntax_Cartel_Presentation.pptx` + `.pdf` (same 12 slides and content; gitignored):
+  - cream content slides; dark ink title, demo and thank-you slides
+  - soft blob shapes and dots from the palette art
+  - lavender problem cards; ink highlight cards (engine, 85%, Qualcomm, NetHeal column)
+  - full names on the team and closing slides
+- Light slides use light-theme screenshots (retaken today: gray failure healed in 9.0 s, loss 4.1% → 0.05%; Ask NetHeal answered by Llama-3.3-70B on Qualcomm). The dark slides keep the dark landing and 3D map shots.
+- QA:
+  - `validate.py` passed; all 12 slides rendered and checked; fixed the slide 1 team line, the slide 2 circle, the slide 9 tagline centring and the slide 11 demo pill
+  - names present, no placeholders, no local paths in alt text
+  - layout ellipse/roundRect shapes aren't rendered by pptxgenjs, so they were removed
+- Memory: `hackathon-project` now has the full names, the college and the deck palette.
 
