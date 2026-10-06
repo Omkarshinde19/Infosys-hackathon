@@ -65,11 +65,11 @@ async def heal_through_the_stack() -> dict:
 async def stored(incident_id: str) -> tuple:
     conn = await asyncpg.connect(DATABASE)
     try:
-        for _ in range(20):  # the sink is asynchronous: give it a moment
+        for _ in range(20):  # the sink is asynchronous: wait for the final update to land
             row = await conn.fetchrow(
                 "SELECT status, mttr_s FROM incidents WHERE id = $1", incident_id
             )
-            if row:
+            if row and row["status"] == "resolved":
                 break
             await asyncio.sleep(0.5)
         telemetry = await conn.fetchval(
