@@ -12,8 +12,7 @@ __pycache__/
 .venv/
 venv/
 .mypy_cache/
-.pytest_cache/
-.ruff_cache/
+.cache/
 *.egg-info/
 
 # Node / Next.js
@@ -22,9 +21,7 @@ node_modules/
 out/
 dist/
 
-# ML artifacts
-mlruns/
-mlflow.db
+# Generated: training scenarios, MLflow runs (data/mlflow), backup video (data/demo)
 *.parquet
 *.pt
 *.ckpt
@@ -35,11 +32,5 @@ data/
 .idea/
 .vscode/
 
-# Trained models shipped with the app (small; regenerate with `make train`)
+# Trained models shipped with the app (small; regenerate with `./netheal train`)
 !services/ml/models/*.pt
-
-# ./netheal dev (pids + logs)
-.netheal/
-
-# Backup demo video (./netheal record)
-demo/
