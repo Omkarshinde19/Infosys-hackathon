@@ -17,6 +17,11 @@
   --healthy: #2a9d8f;
   --warning: #d19a3c;
   --critical: #d0607a;
+  /* Landing page app windows and the angled shapes behind them */
+  --window: #ffffff;
+  --window-bar: #f2f8ff;
+  --window-shadow: 0 2px 6px rgba(2, 16, 36, 0.06), 0 28px 60px -18px rgba(5, 38, 89, 0.38);
+  --shape: #a9c4e2;
 }
 
 [data-theme="dark"] {
@@ -32,6 +37,10 @@
   --healthy: #6fd6c4;
   --warning: #f2c77b;
   --critical: #f2919f;
+  --window: #071c3d;
+  --window-bar: #0a2550;
+  --window-shadow: 0 2px 6px rgba(0, 0, 0, 0.3), 0 28px 60px -12px rgba(0, 0, 0, 0.7);
+  --shape: #1d4475;
 }
 
 @theme inline {
