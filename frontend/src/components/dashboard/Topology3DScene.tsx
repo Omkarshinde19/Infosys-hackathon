@@ -2,7 +2,7 @@
 
 import { Html, Line, OrbitControls } from "@react-three/drei";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { useMemo, useRef } from "react";
+import { type RefObject, useMemo, useRef } from "react";
 import { Color, type Mesh, Vector3 } from "three";
 import { health, nodeHealth } from "@/lib/health";
 import { type Sample, type Topology, useLive } from "@/lib/live";
@@ -55,7 +55,7 @@ function Packet({ from, to, util, color, offset }: {
   );
 }
 
-function Strata({ topo, latest }: { topo: Topology; latest: Record<string, Sample> }) {
+function Strata({ topo, latest, labels }: { topo: Topology; latest: Record<string, Sample>; labels: RefObject<HTMLElement> }) {
   const pos = useMemo(() => positions(topo), [topo]);
   const tierLabels = { edge: "Internet", core: "Core", distribution: "Distribution", access: "Buildings" };
 
@@ -68,7 +68,7 @@ function Strata({ topo, latest }: { topo: Topology; latest: Record<string, Sampl
               <ringGeometry args={[RADII[layer] - 0.6, RADII[layer] + 0.6, 64]} />
               <meshBasicMaterial color={cssColor("--accent-2")} transparent opacity={0.08} />
             </mesh>
-            <Html position={[RADII[layer] + 0.9, 0, 0]} className="pointer-events-none text-[10px] tracking-widest text-fg-muted uppercase">
+            <Html portal={labels} position={[RADII[layer] + 0.9, 0, 0]} className="pointer-events-none text-[10px] tracking-widest text-fg-muted uppercase">
               {tierLabels[layer]}
             </Html>
           </group>
@@ -113,7 +113,7 @@ function Strata({ topo, latest }: { topo: Topology; latest: Record<string, Sampl
               opacity={0.9}
             />
           </mesh>
-          <Html center position={[0, -0.38, 0]} className="pointer-events-none text-[10px] whitespace-nowrap text-fg">
+          <Html portal={labels} center position={[0, -0.38, 0]} className="pointer-events-none text-[10px] whitespace-nowrap text-fg">
             {n.name}
           </Html>
         </group>
@@ -125,12 +125,18 @@ function Strata({ topo, latest }: { topo: Topology; latest: Record<string, Sampl
 export default function Topology3DScene({ active = true }: { active?: boolean }) {
   const topology = useLive((s) => s.topology);
   const latest = useLive((s) => s.latest);
+  // Labels render into our own overlay: in the canvas's container, drei's <Html> threw
+  // "removeChild ... not a child of this node" whenever the scene unmounted (e.g. leaving the page).
+  const labels = useRef<HTMLDivElement>(null);
   return (
-    <Canvas camera={{ position: [8.5, 5, 8.5], fov: 45 }} dpr={[1, 2]} frameloop={active ? "always" : "never"}>
-      <ambientLight intensity={0.6} />
-      <directionalLight position={[5, 8, 5]} intensity={1.5} />
-      {topology && <Strata topo={topology} latest={latest} />}
-      <OrbitControls target={[0, 0.3, 0]} autoRotate autoRotateSpeed={0.6} enableZoom={false} enablePan={false} />
-    </Canvas>
+    <div className="relative h-full">
+      <Canvas camera={{ position: [8.5, 5, 8.5], fov: 45 }} dpr={[1, 2]} frameloop={active ? "always" : "never"}>
+        <ambientLight intensity={0.6} />
+        <directionalLight position={[5, 8, 5]} intensity={1.5} />
+        {topology && <Strata topo={topology} latest={latest} labels={labels as RefObject<HTMLElement>} />}
+        <OrbitControls target={[0, 0.3, 0]} autoRotate autoRotateSpeed={0.6} enableZoom={false} enablePan={false} />
+      </Canvas>
+      <div ref={labels} className="pointer-events-none absolute inset-0 overflow-hidden" />
+    </div>
   );
 }
