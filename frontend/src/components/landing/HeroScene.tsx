@@ -2,21 +2,56 @@
 
 import { Environment, Lightformer, MeshDistortMaterial, Stars } from "@react-three/drei";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { useRef } from "react";
-import type { Mesh } from "three";
+import { type ComponentRef, useRef } from "react";
+import { type Mesh, Vector3 } from "three";
 
-/** Glossy liquid-metal blob rising from the bottom of a starfield (Dribbble reference). */
+const HOME = new Vector3(0, -3.2, 0);
+const RADIUS = 2.6;
+const REACH = 1.6; // how close (beyond the surface) the cursor must come before the blob shies away
+const MAX_SHIFT = 0.6;
+// The blob's centre is below the screen, so the cursor is always above it: slide mostly
+// sideways and only dip a little, or it would sink out of view and could never be touched.
+const DIRECTION = new Vector3(1, 0.35, 0);
+
+/** Glossy liquid-metal blob rising from the bottom of a starfield (Dribbble reference).
+ * It shies away from the cursor like a repelling magnet, and shivers while the cursor is on it. */
 function Blob() {
   const ref = useRef<Mesh>(null);
-  useFrame(({ clock, pointer }) => {
-    if (!ref.current) return;
-    ref.current.rotation.y = clock.elapsedTime * 0.15 + pointer.x * 0.3;
-    ref.current.rotation.x = pointer.y * 0.15;
+  const material = useRef<ComponentRef<typeof MeshDistortMaterial>>(null);
+  const hovered = useRef(false);
+  const target = useRef(new Vector3());
+  useFrame(({ clock, pointer, viewport }, delta) => {
+    const mesh = ref.current;
+    if (!mesh || !material.current) return;
+    const t = clock.elapsedTime;
+    mesh.rotation.y = t * 0.15 + pointer.x * 0.3;
+    mesh.rotation.x = pointer.y * 0.15;
+
+    // Push away from the cursor, harder the closer it gets to the surface.
+    const cursor = new Vector3((pointer.x * viewport.width) / 2, (pointer.y * viewport.height) / 2, 0);
+    const away = HOME.clone().sub(cursor);
+    const gap = away.length() - RADIUS;
+    const push = Math.max(0, 1 - gap / REACH) * MAX_SHIFT;
+    target.current.copy(HOME).add(away.normalize().multiply(DIRECTION).multiplyScalar(push));
+    mesh.position.lerp(target.current, 1 - Math.exp(-delta * 6));
+
+    // Shiver on hover: stronger distortion plus a fast, small wobble.
+    const shake = hovered.current ? 1 : 0;
+    material.current.distort += ((hovered.current ? 0.6 : 0.35) - material.current.distort) * (1 - Math.exp(-delta * 8));
+    mesh.scale.setScalar(RADIUS * (1 + shake * 0.012 * Math.sin(t * 55)));
+    mesh.position.x += shake * 0.02 * Math.sin(t * 47);
   });
   return (
-    <mesh ref={ref} position={[0, -3.2, 0]} scale={2.6}>
+    <mesh
+      ref={ref}
+      position={HOME}
+      scale={RADIUS}
+      onPointerOver={() => (hovered.current = true)}
+      onPointerOut={() => (hovered.current = false)}
+    >
       <sphereGeometry args={[1, 128, 128]} />
       <MeshDistortMaterial
+        ref={material}
         color="#4f77a5"
         metalness={0.65}
         roughness={0.2}
