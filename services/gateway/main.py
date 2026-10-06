@@ -13,13 +13,13 @@ import urllib.request
 from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 from aiokafka import AIOKafkaProducer
 from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from prometheus_client import make_asgi_app
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from contracts.models import Envelope
 from services import auth, bus
@@ -395,9 +395,16 @@ def simulate(req: WhatIfRequest) -> dict:
         raise HTTPException(400, str(e)) from e
 
 
+class Turn(BaseModel):
+    """Earlier chat turns: only user/assistant text, so nobody can inject a "system" message."""
+
+    role: Literal["user", "assistant"]
+    content: str = Field(max_length=8000)
+
+
 class CopilotRequest(BaseModel):
-    question: str
-    history: list[dict] = []
+    question: str = Field(min_length=1, max_length=2000)
+    history: list[Turn] = Field(default=[], max_length=200)  # the agent uses the last 6
 
 
 @app.post("/copilot")
@@ -407,7 +414,8 @@ async def copilot(req: CopilotRequest, user: Viewer) -> dict:
     ctx = Context(net=net, latest=latest, detector=detector, rca=rca, incidents=incidents,
                   ledger=ledger, healer=healer, docs=docs)  # fmt: skip
     with obs.COPILOT_SECONDS.time():
-        return await ask(req.question, req.history, ctx, llm)
+        history = [t.model_dump() for t in req.history]
+        return await ask(req.question, history, ctx, llm)
 
 
 MODELS_DIR = Path(__file__).resolve().parents[1] / "ml" / "models"
