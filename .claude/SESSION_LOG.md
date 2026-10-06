@@ -38,7 +38,7 @@
 | 24 | 10-06 | WhatsApp message for Abeer and Parth: setting the project up from GitHub | none (message text only) | none |
 | 25 | 10-06 | "Where do I decide?" on an idle-uplink incident; fix it; how to switch to the emulated network | see entry 25 | `ecf6bb2`…(log commit) |
 
-### Session 2: 2026-10-06 → 2026-10-07 · messages used: 6 / 25
+### Session 2: 2026-10-06 → 2026-10-07 · messages used: 7 / 25
 
 | Msg | Date | Request | Files touched | Commit(s) |
 |---|---|---|---|---|
@@ -48,6 +48,7 @@
 | 4 | 10-07 | Prep for the judges: pitch + demo script (2.5 + 2.5 min), tech-stack Q&A, build process, Qualcomm usage | local `omkar-understanding/` only (not in git) | log commit |
 | 5 | 10-07 | Presentation slides from the Infosys template; found and fixed Ask NetHeal falling back from Qualcomm | `services/copilot/agent.py`, `tests/test_copilot.py`; deck in `documents/` (not in git) | `c5a0043`, `02e7494`, log commit |
 | 6 | 10-07 | Add Abeer Chaturvedi and Parth Mande to the deck; new colour palette for the slides only | deck in `documents/` (not in git) | log commit |
+| 7 | 10-07 | Review Abeer's audit report; implement the safe set (security, correctness without number changes, dead code, docs) | see entry S2·7 | `14df05e`…(log commit) |
 
 ---
 
@@ -734,4 +735,41 @@
   - names present, no placeholders, no local paths in alt text
   - layout ellipse/roundRect shapes aren't rendered by pptxgenjs, so they were removed
 - Memory: `hackathon-project` now has the full names, the college and the deck palette.
+
+### S2 · Msg 7 · Audit report: the safe set on demo day ✅
+- Request: Abeer's audit (`audit_report.md`, written against `fdbd9df`): what can we implement in ~2 hours, focused on cleanup?
+- **Triage:** every concrete claim was checked against the current code.
+  - Confirmed: ports open to the LAN; `JWT_SECRET=change-me` kept by setup; raw assistant history; level-0 incidents marked resolved; approvals applied without re-checking; first candidate batch shown after a relapse; per-flow verification averaged; reachability muted while re-learning.
+  - Not a bug: "unverified shown as rolled back" (`rolled_back` is always `not verified`).
+  - Roadmap, not today: outbox/persistence, joint route optimisation, calibration, PPO redesign, OSPF/ECMP baselines, cookie sessions, lockfiles.
+- Omkar chose (AskUserQuestion) the **safe set**: no change to any evaluation number on the slides.
+- **Security:**
+  1. `docker-compose.yml`: all 9 published ports bound to `127.0.0.1`. Verified: `lsof` shows 127.0.0.1; the LAN IP is refused on 3000/8001/5433.
+  2. `services/auth.py`: `signing_secret()` refuses missing, placeholder or short secrets; `exp`, `sub` and a known role are required (else 401, not 500). `netheal` `ensure_secret` replaces placeholder or short values (tested on 5 scratch `.env` shapes); `.env.example` no longer ships `change-me`. Omkar's own `.env` was fine (64 chars, checked as booleans only).
+  3. `services/gateway/main.py`: `CopilotRequest` takes `Turn` items (`user`/`assistant` only, ≤ 8000 chars, ≤ 200 items) and a 1–2000-character question; the copilot textarea has `maxLength` 2000.
+  - Tests: `tests/test_auth.py` (new); `tests/test_gateway.py::test_assistant_rejects_injected_roles_and_oversized_input`
+- **Correctness (no evaluation impact):**
+  4. Level 0 now emits `alert_only` and the incident status is `alerted` (added to `IncidentStatus` in `contracts/models.py`; `services/healer/{healer,incidents}.py`, `services/llm/reports.py`). UI: "to a human".
+  5. `Healer.approve` re-runs the twin and policy. A stale fix is refused (event and status `replanning`) and the incident is planned again.
+  6. `frontend/src/components/dashboard/SelfHealing.tsx`: the latest candidate batch and decision are shown (`findLast`). Verified live on a relapse scenario: 2 batches, the latest one shown.
+  - Tests: `tests/test_healer.py::test_alert_only_level_does_not_claim_the_incident_is_resolved`, `::test_an_approval_is_rechecked_against_the_network_as_it_is_now`
+- **Dead code:**
+  - vulture: only false positives (FastAPI routes, Pydantic fields, torch `forward`, gym spaces), plus `y_val` in `ml/train_forecast.py`, now `_`.
+  - knip: 3 exports only used locally were un-exported.
+  - Removed `frontend/public/` (5 unreferenced Next.js template SVGs).
+  - Every Python dependency is used (`uvicorn` via the CLI).
+  - `audit_report.md` moved to `documents/` (contains local Windows paths).
+  - Kept, flagged: `contracts.FeatureVector` (defined, documented and tested, but never produced; it is a public contract, so it needs a decision).
+- **Docs:**
+  - `docs/CONTRACTS.md`: statuses, events, assistant input, token rules
+  - `docs/DEMO.md`: video path `data/demo/`, localhost-only dashboard
+  - `README.md`: ports note, link to the limitations doc
+  - new `docs/LIMITATIONS.md` (the deferred audit items, honestly stated)
+- **Verified:**
+  - 169 unit tests, lint, `next build`
+  - `./netheal e2e`
+  - `./netheal rehearse`: 10 of 10 + page tour
+  - `./netheal ui-check`: 0 findings, 3 role flows, including approving at level 2
+  - 36 stored evaluation runs replayed with the new code: 0 differences, so the slide numbers still hold
+- **Teammates:** Abeer and Parth must run `./netheal start` once more; it replaces `change-me` in their `.env` (they will have to sign in again).
 
