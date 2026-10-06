@@ -577,12 +577,12 @@
   - `./netheal lint`; 158 unit tests; `next build`; `./netheal e2e`
   - `./netheal rehearse`: 10 of 10 + page tour
   - `./netheal ui-check`: 0 findings, all flows pass (also rerun on the final build)
+  - **CI green** on `260d517` (python, frontend, Docker e2e + Playwright), after GitHub's outage ended. The first run exposed a race in `tests/e2e/test_stack.py`: it read the incident row before the sink stored the final "resolved" update. Fixed by waiting for that status.
 - **Handoff:**
   - The coding phases are complete (0–15).
   - Open items:
     - the presentation (template in `documents/`)
     - a real Wi-Fi-off rehearsal on the demo laptop
-    - CI to re-run once GitHub Actions recovers from its outage
     - small polish: assistant times in UTC; range citations like "[E5-E11]" not turned into chips
   - Start the next session from `.claude/CLAUDE.md` + this log.
 
