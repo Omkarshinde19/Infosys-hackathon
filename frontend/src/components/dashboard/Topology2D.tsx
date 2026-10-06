@@ -117,7 +117,6 @@ export function Topology2D() {
       nodeTypes={nodeTypes}
       fitView
       fitViewOptions={{ padding: 0.18 }}
-      proOptions={{ hideAttribution: true }}
       nodesConnectable={false}
       zoomOnScroll={false}
       preventScrolling={false}
