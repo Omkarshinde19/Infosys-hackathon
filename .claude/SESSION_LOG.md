@@ -38,13 +38,14 @@
 | 24 | 10-06 | WhatsApp message for Abeer and Parth: setting the project up from GitHub | none (message text only) | none |
 | 25 | 10-06 | "Where do I decide?" on an idle-uplink incident; fix it; how to switch to the emulated network | see entry 25 | `ecf6bb2`…(log commit) |
 
-### Session 2: 2026-10-06 → · messages used: 3 / 25
+### Session 2: 2026-10-06 → 2026-10-07 · messages used: 4 / 25
 
 | Msg | Date | Request | Files touched | Commit(s) |
 |---|---|---|---|---|
 | 1 | 10-06 | Session start: read the rules, project, hackathon and team | `.claude/SESSION_LOG.md` (this row) | log commit |
 | 2 | 10-06 | Landing windows, Ask NetHeal redesign + round button, no "AI-native"/hyphens, 3D map default, cursor-shy blob | see entry S2·2 | `7563ed0`…(log commit) |
 | 3 | 10-06 | Push; lighter blob in light mode; remove the tagline pill; blob bursts after 2 s on it and merges back; push after verifying from now on | see entry S2·3 | `b31ad98`…(log commit) |
+| 4 | 10-07 | Prep for the judges: pitch + demo script (2.5 + 2.5 min), tech-stack Q&A, build process, Qualcomm usage | local `omkar-understanding/` only (not in git) | log commit |
 
 ---
 
@@ -670,4 +671,26 @@
   - `./netheal lint`, `next build`
   - `./netheal ui-check` on the rebuilt production container: 0 findings, 3 flows pass
   - offline tour passes
+
+### S2 · Msg 4 · Judge prep folder (local only) ✅
+- Request: the Infosys email sets 10 minutes per team: 5 min presentation + demo (suggested 2.5 + 2.5) and 5 min Q&A. Omkar asked for:
+  1. an industrial, sales-style pitch that ends with a question
+  2. tech-stack prep: every feature/page with its file, why each language/tool over the alternatives, how the project was prompted and built in phases, and how Qualcomm Cloud AI is used
+  3. all of it in a local folder that is never pushed
+- **Created (local only, excluded via `.git/info/exclude`, never committed):** `omkar-understanding/`
+  - `README.md` (index, reading order)
+  - `01-pitch-and-demo-script.md` (≈360-word pitch with a slide map onto the Infosys template, 3 closing questions, a 2.5 min demo table, fallbacks)
+  - `02-why-us-vs-existing-tools.md`, `03-features-pages-files.md`, `04-architecture-diagrams.md` (6 Mermaid diagrams), `05-tech-choices-and-alternatives.md`, `06-how-we-built-it.md`, `07-qualcomm-ai.md`, `08-qa-bank.md` (45 questions), `09-numbers-cheatsheet.md`
+- Research (Rule 3), sources cited in the files:
+  - ITIC 2024: one hour of downtime costs more than $300K for over 90% of mid-size and large firms
+  - New Relic 2024: median MTTR for high-impact outages is 51 min
+  - Uptime Institute 2025: 50% of major network outages come from configuration/change failures
+  - Microsoft HotOS 2017: gray failure
+  - Juniper Marvis Actions and the Mist subscription; Cisco Catalyst Center's machine reasoning engine
+  - Qualcomm Cloud AI 100 Ultra: 870 TOPS, 150 W
+- Measured for the Q&A: a twin tick takes 0.18 ms; a twin dry run (3 s simulated) takes 1.27 ms; 160 pytest tests are collected today (the README still says 158).
+- Corrections made while writing:
+  - the old "30–60 min" claim has no source and is replaced by New Relic's 51 min
+  - Q43 (learning from new faults) states that this is roadmap, not built
+- Open: confirm with the Pune coordinator whether pre-built code is allowed (`docs/PLAN.md` noted this), and answer Q10 honestly either way.
 
