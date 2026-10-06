@@ -17,9 +17,9 @@ function Blob() {
     <mesh ref={ref} position={[0, -3.2, 0]} scale={2.6}>
       <sphereGeometry args={[1, 128, 128]} />
       <MeshDistortMaterial
-        color="#7da0ca"
-        metalness={0.6}
-        roughness={0.18}
+        color="#4f77a5"
+        metalness={0.65}
+        roughness={0.2}
         clearcoat={1}
         distort={0.35}
         speed={1.4}
