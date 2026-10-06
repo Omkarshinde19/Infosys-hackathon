@@ -79,14 +79,14 @@ export type Incident = {
   mttr_s: number | null;
   timeline: { ts: string; stage: string; ref_id: string | null }[];
 };
-export type IncidentState = {
+type IncidentState = {
   incident: Incident | null;
   healer_status: string;
   awaiting: ActionCandidate | null;
   actions: ActionEvent[];
 };
 
-export type AlertEvent = { time: string; kind: "raised" | "cleared"; entity: string; anomaly?: Anomaly };
+type AlertEvent = { time: string; kind: "raised" | "cleared"; entity: string; anomaly?: Anomaly };
 
 const HISTORY = 120; // ticks kept for charts (60 s at 2 ticks/s)
 const WS_URL = process.env.NEXT_PUBLIC_GATEWAY_WS ?? "ws://localhost:8000/ws/live";

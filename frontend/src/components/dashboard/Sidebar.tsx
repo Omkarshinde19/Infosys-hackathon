@@ -31,7 +31,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAuth } from "@/lib/auth";
 import { useLive } from "@/lib/live";
 
-export const SECTIONS = [
+const SECTIONS = [
   { id: "overview", label: "Overview", icon: Gauge },
   { id: "alerts", label: "Alerts", icon: BellRing },
   { id: "diagnosis", label: "Diagnosis", icon: Stethoscope },
