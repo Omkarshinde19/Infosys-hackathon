@@ -38,11 +38,12 @@
 | 24 | 10-06 | WhatsApp message for Abeer and Parth: setting the project up from GitHub | none (message text only) | none |
 | 25 | 10-06 | "Where do I decide?" on an idle-uplink incident; fix it; how to switch to the emulated network | see entry 25 | `ecf6bb2`…(log commit) |
 
-### Session 2: 2026-10-06 → · messages used: 1 / 25
+### Session 2: 2026-10-06 → · messages used: 2 / 25
 
 | Msg | Date | Request | Files touched | Commit(s) |
 |---|---|---|---|---|
 | 1 | 10-06 | Session start: read the rules, project, hackathon and team | `.claude/SESSION_LOG.md` (this row) | log commit |
+| 2 | 10-06 | Landing windows, Ask NetHeal redesign + round button, no "AI-native"/hyphens, 3D map default, cursor-shy blob | see entry S2·2 | `7563ed0`…(log commit) |
 
 ---
 
@@ -613,4 +614,42 @@
   2. a real Wi-Fi-off rehearsal on the demo laptop
   3. cosmetic: assistant times shown in UTC; range citations ("[E5-E11]") not turned into chips; rare production-only React #418 on the landing page
 - **Next session:** start from `.claude/CLAUDE.md` + this log; the presentation is the next task.
+
+## Session 2 entries
+
+### S2 · Msg 2 · Landing windows, Ask NetHeal redesign, copy, 3D default, blob ✅
+- Request (with 3 reference screenshots):
+  1. landing page: Mac-style app windows after the blob, themed with our palette
+  2. Ask NetHeal: more features, blended into the background (no card), moving stars, plus a round button on the dashboard that opens it
+  3. remove "AI-native" and unneeded "-" from the site
+  4. the network map opens in 3D
+  5. the blob avoids the cursor like a magnet, shivers on hover, and is a little darker
+- Asked first (Rule 1), Omkar chose:
+  - chat features: greeting + live timer only (not follow-up cards, model picker or voice)
+  - a light sky version of the chat background
+  - mini HTML UI inside the windows, not screenshots
+- **Created:**
+  - `frontend/src/components/landing/Window.tsx` (macOS window frame)
+  - `frontend/src/components/landing/Showcase.tsx` (`LoopShowcase`: Control Room + Diagnosis + report windows; `ApprovalShowcase`: Approvals window)
+  - `frontend/src/components/dashboard/AskButton.tsx` (round button, every dashboard page except Ask NetHeal)
+- **Modified:**
+  - `frontend/src/app/page.tsx`: loop section = windows + exclusive `<details name="loop">` accordion; safety section = text + Approvals window; tagline "Tested on a digital twin · Explainable"
+  - `frontend/src/app/globals.css`: `--window`, `--window-bar`, `--window-shadow`, `--shape` per theme; `.sky`, `.sky-stars`, `.sky-stars-far` (two drifting layers, seamless loop, off with reduced motion)
+  - `frontend/src/components/landing/HeroScene.tsx`: colour `#4f77a5`; pushed away within 1.6 units of the surface (mostly sideways: the centre is below the screen, so pushing straight away sank it out of view); on hover distort 0.35 → 0.6 plus a fast scale/position wobble (`speed` is not changed: it scales the shader clock and would jump)
+  - `frontend/src/app/dashboard/copilot/page.tsx`: fixed full-area sky behind the page; "Hey, {username}. Ready to dive in?"; `WorkLog` ("Thinking for Ns" live, then "Worked for Ns · N steps" folded, listing the real tools); pill composer pinned to the bottom; theme tokens instead of hardcoded navy
+  - `frontend/src/app/dashboard/layout.tsx` (AskButton), `frontend/src/components/dashboard/NetworkView.tsx` (3D default, 3D always mounted), `frontend/src/app/dashboard/page.tsx` (subtitle)
+  - Copy without hyphens or dashes (kept only in "Hack-AI-Thon" and "z-score"): `layout.tsx`, `Sidebar.tsx` ("Healing", "What If planner"), `whatif`, `incidents`, `insights`, `settings`, `evaluation` ("n/a", "0 to 2 s"), `FaultLab.tsx` ("Auto heal"), `ReportPanel.tsx` ("NetHeal's own template")
+  - Tests: `frontend/e2e/{helpers,interactions,record,offline}.spec.ts`
+  - Docs: `docs/DEMO.md` ("Healing" table, 3D map)
+- Research (Rule 3): drei `<Html>` logs "Attempted to synchronously unmount a root while React was already rendering" under StrictMode, because each label owns a React root and unmounts it in a layout effect ([react-three-a11y#52](https://github.com/pmndrs/react-three-a11y/issues/52)).
+  - Measured: 18 warnings (one per label) on the dev server, the same with the old code after clicking 3D; 0 on the production build. React prints it in development only.
+  - Two mount-timing experiments did not change it and were reverted. Added to the e2e ignore list with the reason.
+- **Verified:**
+  - browser: 3D by default and 2D still fits; blob shifts away and stays touchable; both landing sections in light and dark at 1280 px; no overflow at 390 px; Ask NetHeal in both themes (stars drift: background position changes over 2 s); a real question showed "Thinking for 5s" → "Worked for 12s · 1 step"; the round button on Incidents
+  - `./netheal lint`, `next build`
+  - `./netheal ui-check` on the rebuilt production container: 0 findings, all 3 flows pass
+  - Playwright demo drills and the offline tour pass (the offline test was updated for the new greeting)
+- Not done / notes:
+  - In light mode the darker blob reads quite heavy at its base. It could take a lighter colour in light mode if Omkar prefers.
+  - The "Thinking" lines while waiting are the existing canned steps; the folded "Worked for" list is the real tools.
 
