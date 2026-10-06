@@ -210,10 +210,11 @@ async def ask(question: str, history: list[dict], ctx: Context, client, model: s
                 msg = response.choices[0].message
                 if not msg.tool_calls:
                     break
-                calls = [c.model_dump() for c in msg.tool_calls]
-                messages.append({"role": "assistant", "content": msg.content or "",
-                                 "tool_calls": calls})  # fmt: skip
+                # One tool call per assistant turn: Cirrascale answers HTTP 500 ("Model Config
+                # not found") when a turn carries several.
                 for call in msg.tool_calls:
+                    messages.append({"role": "assistant", "content": msg.content or "",
+                                     "tool_calls": [call.model_dump()]})  # fmt: skip
                     used.append(call.function.name)
                     args = json.loads(call.function.arguments or "{}")
                     result = await run_tool(ctx, call.function.name, args)
