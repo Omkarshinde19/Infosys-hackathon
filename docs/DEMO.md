@@ -27,7 +27,7 @@ Then **turn Wi-Fi off and run `./netheal rehearse` once more.** The browser test
 |---|---|---|
 | 0:00–0:40 | Landing page | Campus outages take 30–60 min of manual troubleshooting, and nobody can safely test a fix on production. NetHeal detects, diagnoses and fixes faults itself, testing every fix on a digital twin first. |
 | 0:40–1:20 | Architecture slide | Detect → diagnose → decide → heal → verify. Statistics + 3 ML detectors, rules + GNN for root cause, twin dry runs, OPA safety rules. The AI explains but never acts. |
-| 1:20–1:40 | **Control Room**: health score, map (flip to 3D for a second) | A live campus: 15 devices, 27 links, 9 traffic flows, measured twice a second. |
+| 1:20–1:40 | **Control Room**: health score, the 3D map (drag it to rotate) | A live campus: 15 devices, 27 links, 9 traffic flows, measured twice a second. |
 | 1:40–2:40 | **Fault Lab → "Silent packet loss at the CS Lab"** | A gray failure: the link is "up" but quietly drops packets, which OSPF can't see. Point at: alert (≈2.5 s) → **Diagnosis** (gray failure on the Distribution South A ↔ CS Lab link, with the GNN's opinion) → **Healing** table (candidates tested on the twin, OPA "passed", sometimes an "RL agent" proposal) → "Healed" (≈9 s), before/after numbers. |
 | 2:40–3:10 | Click **Incident · report** → Generate report | The language model writes the report from the incident's facts only; it is checked against them before it is shown. |
 | 3:10–3:40 | **Fault Lab → "Core router meltdown"** | Not every fix is safe. Moving that much traffic breaks the blast-radius rule, so NetHeal escalates to a human instead of acting. |
