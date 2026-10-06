@@ -38,12 +38,13 @@
 | 24 | 10-06 | WhatsApp message for Abeer and Parth: setting the project up from GitHub | none (message text only) | none |
 | 25 | 10-06 | "Where do I decide?" on an idle-uplink incident; fix it; how to switch to the emulated network | see entry 25 | `ecf6bb2`…(log commit) |
 
-### Session 2: 2026-10-06 → · messages used: 2 / 25
+### Session 2: 2026-10-06 → · messages used: 3 / 25
 
 | Msg | Date | Request | Files touched | Commit(s) |
 |---|---|---|---|---|
 | 1 | 10-06 | Session start: read the rules, project, hackathon and team | `.claude/SESSION_LOG.md` (this row) | log commit |
 | 2 | 10-06 | Landing windows, Ask NetHeal redesign + round button, no "AI-native"/hyphens, 3D map default, cursor-shy blob | see entry S2·2 | `7563ed0`…(log commit) |
+| 3 | 10-06 | Push; lighter blob in light mode; remove the tagline pill; blob bursts after 2 s on it and merges back; push after verifying from now on | see entry S2·3 | `b31ad98`…(log commit) |
 
 ---
 
@@ -652,4 +653,21 @@
 - Not done / notes:
   - In light mode the darker blob reads quite heavy at its base. It could take a lighter colour in light mode if Omkar prefers.
   - The "Thinking" lines while waiting are the existing canned steps; the folded "Worked for" list is the real tools.
+
+### S2 · Msg 3 · Blob burst + merge, lighter light mode blob, no tagline pill ✅
+- Request: push; make the blob lighter in light mode; remove the "Tested on a digital twin · Explainable" pill; hold the cursor on the blob for 2 s and it explodes into droplets, which merge back into one blob in its original spot once the cursor leaves; from now on push as soon as a change is tested and verified (saved to memory: `push-after-verify`).
+- Pushed the 17 earlier commits first.
+- **Modified:**
+  - `frontend/src/app/page.tsx`: tagline pill removed
+  - `frontend/src/components/ThemeToggle.tsx`: `useTheme()` exported (the toggle's existing `data-theme` subscription), reused by the blob
+  - `frontend/src/components/landing/HeroScene.tsx`:
+    - light mode: colour `#8fb0d6`, metalness 0.25 (at 0.65 it mostly mirrored the navy light formers, so a lighter colour alone barely showed)
+    - phases `whole → burst → merging`: hover time builds up the shiver; at 2 s the blob pops (0.12 s) into 60 instanced droplets (`MeshDistortMaterial`, mostly small, a few big, flung up and sideways, then damped to a float)
+    - merge starts once the cursor is off the blob's area or out of the hero (`onPointerLeave` on the Canvas wrapper div, checked in R3F's source) and at least 0.8 s after the burst; droplets fly back to the surface and shrink while the blob regrows (1.4 s)
+- **Verified:**
+  - a timed Playwright run (1280×800), dark and light: still whole at 1.5 s; burst at 3.6 s; merged back in place 1.7 s after the cursor left; no console errors
+  - light/dark blob screenshots
+  - `./netheal lint`, `next build`
+  - `./netheal ui-check` on the rebuilt production container: 0 findings, 3 flows pass
+  - offline tour passes
 
