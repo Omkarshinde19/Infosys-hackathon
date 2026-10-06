@@ -122,11 +122,11 @@ function Strata({ topo, latest }: { topo: Topology; latest: Record<string, Sampl
   );
 }
 
-export default function Topology3DScene() {
+export default function Topology3DScene({ active = true }: { active?: boolean }) {
   const topology = useLive((s) => s.topology);
   const latest = useLive((s) => s.latest);
   return (
-    <Canvas camera={{ position: [8.5, 5, 8.5], fov: 45 }} dpr={[1, 2]}>
+    <Canvas camera={{ position: [8.5, 5, 8.5], fov: 45 }} dpr={[1, 2]} frameloop={active ? "always" : "never"}>
       <ambientLight intensity={0.6} />
       <directionalLight position={[5, 8, 5]} intensity={1.5} />
       {topology && <Strata topo={topology} latest={latest} />}
