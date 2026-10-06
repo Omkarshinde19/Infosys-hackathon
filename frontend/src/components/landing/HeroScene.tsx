@@ -4,6 +4,7 @@ import { Environment, Lightformer, MeshDistortMaterial, Stars } from "@react-thr
 import { Canvas, useFrame } from "@react-three/fiber";
 import { type ComponentRef, useRef } from "react";
 import { type Mesh, Vector3 } from "three";
+import { useTheme } from "@/components/ThemeToggle";
 
 const HOME = new Vector3(0, -3.2, 0);
 const RADIUS = 2.6;
@@ -16,6 +17,7 @@ const DIRECTION = new Vector3(1, 0.35, 0);
 /** Glossy liquid-metal blob rising from the bottom of a starfield (Dribbble reference).
  * It shies away from the cursor like a repelling magnet, and shivers while the cursor is on it. */
 function Blob() {
+  const light = useTheme() === "light";
   const ref = useRef<Mesh>(null);
   const material = useRef<ComponentRef<typeof MeshDistortMaterial>>(null);
   const hovered = useRef(false);
@@ -52,8 +54,8 @@ function Blob() {
       <sphereGeometry args={[1, 128, 128]} />
       <MeshDistortMaterial
         ref={material}
-        color="#4f77a5"
-        metalness={0.65}
+        color={light ? "#8fb0d6" : "#4f77a5"}
+        metalness={light ? 0.25 : 0.65} // less mirror in light mode, so the navy reflections don't darken it
         roughness={0.2}
         clearcoat={1}
         distort={0.35}

@@ -14,12 +14,17 @@ function subscribe(onChange: () => void) {
   return () => observer.disconnect();
 }
 
-export function ThemeToggle() {
-  const theme = useSyncExternalStore(
+/** The current theme, updated live when it is toggled. */
+export function useTheme() {
+  return useSyncExternalStore(
     subscribe,
     () => document.documentElement.dataset.theme as Theme,
     () => "dark" as Theme,
   );
+}
+
+export function ThemeToggle() {
+  const theme = useTheme();
 
   function toggle() {
     const next = theme === "dark" ? "light" : "dark";
