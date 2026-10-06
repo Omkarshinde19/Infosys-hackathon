@@ -7,7 +7,7 @@ We want a **rich, visible commit history**. It shows the judges real engineering
 - **Commit early, commit often.** Every working step is a commit: a new model, a new endpoint, a test, a UI component, a doc fix.
 - **One logical change per commit.** Don't bundle "add detector + fix UI + update README".
 - **Push at least every hour** while working.
-- Never commit secrets (`.env`, API keys), large datasets or model weights (use MLflow / git-lfs).
+- Never commit secrets (`.env`, API keys) or generated data (`data/` holds scenarios, MLflow runs and videos). The small trained models in `services/ml/models/` are committed on purpose: the app ships with them.
 
 ## Commit messages: Conventional Commits
 
@@ -27,7 +27,7 @@ We want a **rich, visible commit history**. It shows the judges real engineering
 | `perf` | performance |
 | `style` | formatting only |
 
-**Scopes:** `netsim`, `netemu`, `chaos`, `collector`, `detector`, `rca`, `healer`, `twin`, `llm`, `ledger`, `gateway`, `frontend`, `contracts`, `infra`, `ml`, `eval`, `docs`
+**Scopes** (match the folders): `netsim`, `emulab`, `detector`, `rca`, `healer`, `copilot`, `llm`, `ledger`, `engine` (gateway), `stream`, `sink`, `obs`, `ml`, `eval`, `frontend`, `contracts`, `infra`, `e2e`, `docs`
 
 Examples:
 ```
@@ -54,10 +54,18 @@ Message formats live in `contracts/` and are documented in [docs/CONTRACTS.md](d
 
 ## Code quality
 
-- **Python:** `ruff` (lint + format), `mypy`, `pytest`. Type hints everywhere.
-- **TypeScript:** `eslint`, `prettier`, strict mode.
-- Each service has a `README.md` with what it consumes, what it produces and how to run it.
-- Add a test with every non-trivial feature.
+- **Python:** `ruff` (lint + format, line length 100) and `pytest`. Type hints on public functions.
+- **TypeScript:** `eslint` and strict mode; Next.js 16 has breaking changes, so read `frontend/AGENTS.md` first.
+- Every module starts with a docstring saying what it does and why; `docs/CONTRACTS.md` covers what services exchange.
+- Add a test with every non-trivial feature, written before the fix when it's a bug.
+
+Before pushing:
+
+```bash
+./netheal lint       # ruff + eslint
+./netheal test       # unit tests
+./netheal ui-check   # if you touched the dashboard (needs ./netheal start)
+```
 
 ## Daily rhythm (until 7 Oct)
 
