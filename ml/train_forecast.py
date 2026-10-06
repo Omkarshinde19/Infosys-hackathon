@@ -12,6 +12,7 @@ import numpy as np
 import shap
 from sklearn.ensemble import HistGradientBoostingClassifier
 
+from ml import tracking
 from ml.train_gnn import load_scenarios, split
 from services.ml.forecast import (
     FEATURE_NAMES,
@@ -84,7 +85,7 @@ def main() -> None:
     x_train, y_train, _ = dataset(parts["train"])
     x_val, y_val, healthy_val = dataset(parts["val"])
 
-    mlflow.set_experiment("netheal-forecaster")
+    tracking.experiment("netheal-forecaster")
     with mlflow.start_run(run_name="hgb-sla-breach-5s"):
         model = HistGradientBoostingClassifier(max_iter=200, learning_rate=0.1, random_state=0)
         model.fit(x_train, y_train)

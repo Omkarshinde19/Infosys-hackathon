@@ -11,7 +11,7 @@ way NetHeal judges every candidate fix: a twin dry run plus the OPA guardrails.
            - 1 if the guardrails deny it
 
 Evaluated on held-out networks and seeds against the rule-based planner (the twin's best
-allowed rule candidate). Run: make train-rl
+allowed rule candidate). Run: ./netheal train rl
 """
 
 import copy
@@ -28,6 +28,7 @@ from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import SubprocVecEnv
 
 from contracts.models import ActionCandidate, RCAHypothesis
+from ml import tracking
 from ml.datagen import FAULT_TO_CAUSE, random_fault
 from services.detector.detector import WARMUP_TICKS
 from services.healer.healer import HEALTHY_LOSS_PCT, LATENCY_TOLERANCE, Healer
@@ -156,7 +157,7 @@ def evaluate(model: PPO, episodes: int = TEST_EPISODES) -> dict:
 
 def main() -> None:
     torch.set_num_threads(1)
-    mlflow.set_experiment("netheal-rl-router")
+    tracking.experiment("netheal-rl-router")
     with mlflow.start_run(run_name="ppo-mlp-2x128"):
         params = {"steps": STEPS, "n_envs": 8, "n_steps": 256, "batch_size": 512, "k_paths": K,
                   "learning_rate": 3e-4, "ent_coef": 0.01, "net_arch": "128,128"}  # fmt: skip

@@ -10,6 +10,7 @@ import mlflow
 import numpy as np
 import torch
 
+from ml import tracking
 from ml.datagen import BASE_SEEDS, base
 from services.detector.detector import METRICS
 from services.ml.lstm_ae import MODEL_PATH, SEQ, LSTMAutoencoder, errors, pad
@@ -67,7 +68,7 @@ def main() -> None:
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-2)
     loader = torch.utils.data.DataLoader(torch.from_numpy(train), batch_size=256, shuffle=True)
 
-    mlflow.set_experiment("netheal-lstm-autoencoder")
+    tracking.experiment("netheal-lstm-autoencoder")
     with mlflow.start_run(run_name="lstm-ae-16"):
         mlflow.log_params({"seq_ticks": SEQ, "hidden": 16, "epochs": EPOCHS,
                            "train_windows": len(train), "threshold_margin": MARGIN})  # fmt: skip

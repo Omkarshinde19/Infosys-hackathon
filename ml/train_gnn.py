@@ -1,6 +1,6 @@
 """Train the root-cause GNN on simulator scenarios and compare it with the rules and 007.
 
-Run: python -m ml.train_gnn   (logs to MLflow in ./mlruns, saves services/ml/models/rca_gnn.pt)
+Run: python -m ml.train_gnn   (logs to MLflow in data/mlflow, saves services/ml/models/rca_gnn.pt)
 """
 
 import json
@@ -12,6 +12,7 @@ import torch
 from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 
+from ml import tracking
 from ml.datagen import generate
 from services.ml.gnn import MODEL_PATH, RootCauseGNN, ensemble, probabilities, top
 from services.ml.graph import CAUSES
@@ -76,7 +77,7 @@ def main() -> None:
     weight[0] = NONE_WEIGHT
     loss_fn = torch.nn.CrossEntropyLoss(weight=weight)
 
-    mlflow.set_experiment("netheal-rca-gnn")
+    tracking.experiment("netheal-rca-gnn")
     with mlflow.start_run(run_name="graphsage-3x64"):
         mlflow.log_params({
             "scenarios": len(data), "train_snapshots": len(snaps["train"]), "epochs": EPOCHS,
