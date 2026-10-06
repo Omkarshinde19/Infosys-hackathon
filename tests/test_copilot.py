@@ -27,9 +27,11 @@ class ScriptedLLM:
 
     def __init__(self, *replies):
         self.replies = list(replies)
+        self.sent = []  # the messages of every request
         self.chat = SimpleNamespace(completions=SimpleNamespace(create=self.create))
 
     async def create(self, **kwargs):
+        self.sent.append(kwargs["messages"])
         content, calls = self.replies.pop(0)
         message = SimpleNamespace(content=content, tool_calls=calls)
         return SimpleNamespace(choices=[SimpleNamespace(message=message)])
@@ -47,6 +49,18 @@ def test_answer_uses_tools_and_cites_real_evidence():
     result = run(ask("Why was the Library slow?", [], context(), llm, model="Llama-3.3-70B"))
     assert result["source"] == "llm:Llama-3.3-70B" and result["tools"] == ["get_diagnosis"]
     assert "E1" in result["evidence"] and "link_failure" in result["evidence"]["E1"]["text"]
+
+
+def test_parallel_tool_calls_go_back_one_per_turn():
+    # Cirrascale answers HTTP 500 "Model Config not found" when one assistant turn carries
+    # several tool calls, so each call and its result is sent back as its own turn.
+    both = [tool_call("list_incidents", call_id="c1"), tool_call("get_diagnosis", call_id="c2")]
+    llm = ScriptedLLM((None, both), ("The Library link failed [E1].", None))
+    result = run(ask("What happened?", [], context(), llm))
+    assert result["tools"] == ["list_incidents", "get_diagnosis"]
+    turns = [m for m in llm.sent[1] if m["role"] in ("assistant", "tool")]
+    assert [m["role"] for m in turns] == ["assistant", "tool", "assistant", "tool"]
+    assert all(len(m["tool_calls"]) == 1 for m in turns if m["role"] == "assistant")
 
 
 def test_uncited_answer_is_rewritten_once():
