@@ -34,5 +34,6 @@ export const IGNORED = [
   /GL Driver Message|GPU stall due to ReadPixels/, // headless Chrome's software WebGL only
   /was preloaded using link preload but not used/, // Next.js prefetching the next page's CSS
   /\[Fast Refresh\]|Download the React DevTools/, // dev-server chatter
+  /Attempted to synchronously unmount a root/, // dev only: drei <Html> labels under StrictMode
 ];
 
