@@ -90,5 +90,5 @@ def test_fault_is_healed_through_redpanda_and_stored_in_timescale():
     row, recent_telemetry, event_topics = asyncio.run(stored(incident["id"]))
     assert row is not None and row["status"] == "resolved"
     assert recent_telemetry > 100  # ~51 entities x 2 ticks/s
-    assert event_topics == 2  # rca.hypotheses and actions
+    assert event_topics == 3  # anomalies, rca.hypotheses and actions
     call("/reset", {})
