@@ -52,6 +52,12 @@
 | 7 | 10-07 | Review Abeer's audit report; implement the safe set (security, correctness without number changes, dead code, docs) | see entry S2·7 | `14df05e`…(log commit) |
 | 8 | 10-07 | WhatsApp message for Abeer about the audit changes; CI then failed → fixed a real 3D-map bug | see entry S2·8 | `4ca9fdb`…(log commit) |
 
+### Session 3: 2026-10-07 · messages used: 1 / 25
+
+| Msg | Date | Request | Files touched | Commit(s) |
+|---|---|---|---|---|
+| 1 | 10-07 | Pull Abeer's push, check it is in sync with our commits, gather context for the PPT (don't build it yet) | `.claude/SESSION_LOG.md` (this row + entry S3·1) | log commit |
+
 ---
 
 ## Entries
@@ -787,3 +793,19 @@
   - Against the old scene (temporarily rebuilt) it fails with exactly the `removeChild` errors, so the test is proven to catch it.
 - **Verified:** demo spec (2), interaction specs (4), **CI green on `505231f`** (python, frontend, Docker e2e + Playwright).
 
+
+## Session 3 entries
+
+### S3 · Msg 1 · Pulled Abeer's push; sync check; PPT context ✅
+- Pulled `8174f27` (Abeer, "Complete guarded NetHeal simulator and publish hackathon deliverables", 105 files). Fast-forward: its parent is our `fb690e8`, so nothing of ours was dropped.
+- Checked our latest fixes survived: the 3D label overlay (`Topology3DScene.tsx`) and the in-app navigation test (`interactions.spec.ts`) are kept and extended; `services/auth.py` adds a check that the token's user and role match `users.yaml`.
+- **Verified locally (macOS):** 279 pytest passed, 2 skipped (emulator); ruff, eslint and `tsc --noEmit` clean. Matches `deliverables/verification.json` (Abeer ran on Windows; Docker, Mininet and live Qualcomm were not in his run).
+- **CI is red** (not fixed, waiting for Omkar):
+  1. `8174f27`: `tests/e2e/test_stack.py:93` expects 2 event topics, gets 3. Abeer's sink now also stores the anomaly envelopes in `events` (`services/sink/main.py`), so the assertion is stale, not a bug. That step only runs in Docker, which Abeer couldn't run.
+  2. `fb690e8` (docs only): `e2e/demo.spec.ts` stayed on `/dashboard` after clicking the incident link. The same code passed on `252fea5`, so it is intermittent.
+- **Evaluation numbers changed** (new harness: 7 policies, per-flow scoring, 148 impacted faults instead of 104). Policy `rl` (live config) vs `no_heal`:
+  - recovered 72% vs 2% (old: 85% vs 0%); verified fix 76%; median MTTR 4.5 s; MTTD 1.5 s; 0 false alarms; 0 collateral breaches
+  - SLA violation 1,991 s vs 7,647 s (−74%; old: 865 vs 5,625); p95 latency 10.2 vs 107.8 ms; escalated 24%; 8 relapses; RCA top-1 84%
+  - new: `native_shortest` (OSPF-like reference) recovers 12%; 100-scenario hidden-delay stress suite: `rl` 54/92 vs `no_heal` 36/92
+- Stale against the new numbers: `docs/DEMO.md:36` (85%, 865 vs 5,625 s), our deck in `documents/` (slides 6 and 12), `omkar-understanding/01` and `09`.
+- New from Abeer: `deliverables/` (8-slide detection/RCA/evaluation deck, 75 s demo video, study companion HTML, verification record), `netheal.ps1` (Windows launcher), `services/storage.py` (SQLite history), `docs/LIMITATIONS.md` rewritten.
