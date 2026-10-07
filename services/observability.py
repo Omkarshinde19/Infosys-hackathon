@@ -2,9 +2,9 @@
 
 Metrics are always on (GET /metrics on the engine and stream, :9464 on the sink).
 Traces are exported only when OTEL_EXPORTER_OTLP_ENDPOINT is set: `./netheal obs` starts
-Jaeger, Prometheus and Grafana and sets it. The aiokafka instrumentation carries the trace
-context in Kafka message headers, so one trace follows a tick from the engine through
-Redpanda into the stream and sink services.
+Jaeger, Prometheus and Grafana and sets it. The aiokafka instrumentation propagates
+broker-operation context in message headers. Archive publication runs in a separate
+task; originating tick context is not restored from the durable event envelope.
 """
 
 import os
@@ -34,6 +34,14 @@ COPILOT_SECONDS = Histogram(
 WS_CLIENTS = Gauge("netheal_ws_clients", "Browsers connected over WebSocket", ["service"])
 # stream + sink
 MESSAGES = Counter("netheal_bus_messages_total", "Bus messages handled", ["service", "topic"])
+BUS_ERRORS = Counter("netheal_bus_errors_total", "Failed event archive deliveries")
+TICK_SECONDS = Histogram(
+    "netheal_tick_seconds",
+    "Complete controller tick duration",
+    buckets=(0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5),
+)
+TICK_OVERRUNS = Counter("netheal_tick_overruns_total", "Ticks exceeding the sampling interval")
+LAST_SAMPLE_UNIX = Gauge("netheal_last_sample_unixtime", "Receipt time of last complete telemetry")
 
 
 @contextmanager

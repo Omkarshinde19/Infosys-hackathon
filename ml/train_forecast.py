@@ -21,6 +21,7 @@ from services.ml.forecast import (
     WINDOW,
     breached,
     flow_features,
+    healthy_threshold,
 )  # fmt: skip
 
 matplotlib.use("Agg")
@@ -42,7 +43,8 @@ def examples(scenario: dict):
             if bad[t]:
                 continue
             x = flow_features(series[: t + 1], base)
-            yield x, any(bad[t + 1 : t + 1 + HORIZON]), t < onset
+            if x is not None:
+                yield x, any(bad[t + 1 : t + 1 + HORIZON]), t < onset
 
 
 def dataset(scenarios: list[dict]):
@@ -90,7 +92,7 @@ def main() -> None:
         model = HistGradientBoostingClassifier(max_iter=200, learning_rate=0.1, random_state=0)
         model.fit(x_train, y_train)
         val_probs = model.predict_proba(x_val)[:, 1]
-        threshold = float(min(0.95, val_probs[healthy_val].max() * MARGIN))
+        threshold = healthy_threshold(val_probs[healthy_val], MARGIN)
 
         leads = lead_times(model, threshold, parts["test"])
         warned = [lead for lead in leads if lead is not None and lead > 0]
@@ -98,6 +100,10 @@ def main() -> None:
         test_probs = model.predict_proba(x_test)[:, 1]
         results = {
             "threshold": threshold,
+            "warnings_disabled_by_calibration": threshold > 1.0,
+            "calibration_healthy_examples": int(healthy_val.sum()),
+            "calibration_healthy_false_warnings": int((val_probs[healthy_val] >= threshold).sum()),
+            "evaluation_scope": "Held-out synthetic scenarios; finite calibration; simulator only",
             "train_examples": int(len(y_train)),
             "test_healthy_false_warnings": int((test_probs[healthy_test] >= threshold).sum()),
             "test_healthy_examples": int(healthy_test.sum()),
@@ -105,12 +111,19 @@ def main() -> None:
             "warned_before_breach": len(warned),
             "warned_before_breach_pct": len(warned) / len(leads) if leads else None,
             "median_lead_time_s": float(np.median(warned)) if warned else None,
-            "precision_at_threshold": float(y_test[test_probs >= threshold].mean()),
-            "recall_at_threshold": float((test_probs[y_test] >= threshold).mean()),
+            "precision_at_threshold": float(y_test[test_probs >= threshold].mean())
+            if np.any(test_probs >= threshold)
+            else None,
+            "recall_at_threshold": float((test_probs[y_test] >= threshold).mean())
+            if y_test.any()
+            else None,
         }
 
         explainer = shap.TreeExplainer(model)
+        # Calibration may disable all warnings. Explain observed test examples in that case.
         positives = x_test[test_probs >= threshold][:500]
+        if not len(positives):
+            positives = x_test[:500]
         values = np.abs(explainer.shap_values(positives)).mean(axis=0)
         importance = dict(sorted(zip(FEATURE_NAMES, values.round(4).tolist(), strict=True),
                                  key=lambda kv: kv[1], reverse=True))  # fmt: skip

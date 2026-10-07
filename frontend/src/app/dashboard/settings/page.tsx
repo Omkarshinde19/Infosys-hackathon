@@ -2,32 +2,38 @@
 
 import { Bot, Brain, ClipboardCheck, Network, Shield, Users } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useRef, useState } from "react";
+import { QueryState } from "@/components/dashboard/QueryState";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAuth, useCan } from "@/lib/auth";
-import { postJSON } from "@/lib/live";
+import { postJSON, useLive } from "@/lib/live";
+import { useQuery } from "@/lib/query";
 
 type Backend = { kind: "sim" | "emu"; emulab_ready: boolean };
 
 /** Simulator vs the real-packet emulated network (Mininet + Open vSwitch). */
 function BackendCard() {
-  const [b, setB] = useState<Backend | null>(null);
+  const generation = useLive((s) => s.generation ?? "");
+  const query = useQuery<Backend>("/api/backend", generation);
+  const b = query.data;
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const pending = useRef(false);
   const isAdmin = useCan("admin");
-  useEffect(() => {
-    fetch("/api/backend").then((r) => r.json()).then(setB);
-  }, []);
 
   async function choose(kind: Backend["kind"]) {
+    if (pending.current) return;
+    pending.current = true;
     setBusy(true);
     setError("");
     try {
-      setB(await postJSON("/backend", { kind }));
+      await postJSON("/backend", { kind });
+      query.refresh();
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setBusy(false);
+      pending.current = false;
     }
   }
 
@@ -37,11 +43,13 @@ function BackendCard() {
   ] as const;
   return (
     <Card icon={Network} title="Network backend">
+      <QueryState {...query} />
       <div className="grid gap-2">
         {options.map(([kind, label, text]) => (
           <button
             key={kind}
-            disabled={!isAdmin || busy || (kind === "emu" && !b?.emulab_ready)}
+            disabled={!isAdmin || busy || !b || (kind === "emu" && !b.emulab_ready)}
+            aria-pressed={b?.kind === kind}
             onClick={() => choose(kind)}
             className={`rounded-xl border p-3 text-left text-sm disabled:cursor-not-allowed ${
               b?.kind === kind ? "border-accent-2 bg-[var(--glass-hover)]" : "border-[var(--glass-border)] enabled:hover:bg-[var(--glass-hover)]"
@@ -53,7 +61,7 @@ function BackendCard() {
         ))}
       </div>
       <p className="mt-3 text-xs text-fg-muted">
-        {b?.emulab_ready ? "Emulated network is running." : "Emulated network is off. Start it with ./netheal emu."}{" "}
+        {b ? (b.emulab_ready ? "Emulated network is running." : "Emulated network is off. Start it with ./netheal emu.") : "Checking backend availability…"}{" "}
         Switching resets the incident and the detector relearns the new network for 30 s.
         {!isAdmin && " Only an admin can switch."}
       </p>
@@ -81,12 +89,11 @@ function Card({ icon: Icon, title, children }: { icon: typeof Shield; title: str
 }
 
 export default function SettingsPage() {
-  const [s, setS] = useState<Settings | null>(null);
+  const version = useLive((st) => `${st.generation}/${st.autonomy?.level}`);
+  const query = useQuery<Settings>("/api/settings", version);
+  const s = query.data;
   const session = useAuth((st) => st.session);
-  useEffect(() => {
-    fetch("/api/settings").then((r) => r.json()).then(setS);
-  }, []);
-  if (!s) return null;
+  if (!s) return <QueryState {...query} />;
   const rules = [...s.policy.matchAll(/^(\w+) := (.+)$/gm)];
 
   return (

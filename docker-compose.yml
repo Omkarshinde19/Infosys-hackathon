@@ -61,6 +61,8 @@ services:
       EMULAB_URL: http://emulab:9000  # used only when the emulated backend is switched on
       OTEL_EXPORTER_OTLP_ENDPOINT: ${NETHEAL_OTLP:-}  # set by ./netheal obs: traces to Jaeger
       OLLAMA_URL: http://host.docker.internal:11434/v1  # offline model on the host (./netheal ollama)
+      NETHEAL_STATE_PATH: /state/controller.sqlite3
+    volumes: ["controllerdata:/state"]
     extra_hosts: ["host.docker.internal:host-gateway"]  # also resolvable on Linux
     env_file: [{ path: .env, required: false }]  # LLM key, passed at runtime only
     ports: ["127.0.0.1:8001:8000"]
@@ -137,3 +139,4 @@ services:
 
 volumes:
   tsdata:
+  controllerdata:

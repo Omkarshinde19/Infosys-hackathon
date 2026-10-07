@@ -82,6 +82,7 @@ class Context:
     healer: object
     docs: DocIndex
     evidence: dict = field(default_factory=dict)
+    snapshot_generation: str | None = None
 
     def cite(self, kind: str, text: str) -> str:
         eid = f"E{len(self.evidence) + 1}"
@@ -96,6 +97,20 @@ def _items(ctx: Context, kind: str, texts: list[str]) -> str:
 
 
 async def run_tool(ctx: Context, name: str, args: dict) -> str:
+    schema = next(
+        (t["function"]["parameters"] for t in TOOLS if t["function"]["name"] == name), None
+    )
+    if schema is None:
+        return _items(ctx, "error", [f"Unknown tool {name}"])
+    if (
+        not isinstance(args, dict)
+        or set(args) - set(schema["properties"])
+        or any(
+            not isinstance(args.get(k), str) or not args[k].strip() or len(args[k]) > 512
+            for k in schema["required"]
+        )
+    ):
+        return _items(ctx, "error", [f"Invalid arguments for {name}; no operation was performed."])
     name_of = entity_namer(ctx.net)
     if name == "get_network_status":
         facts = []
@@ -103,11 +118,25 @@ async def run_tool(ctx: Context, name: str, args: dict) -> str:
             s = ctx.latest.get(f)
             if s is None:
                 continue
-            state = "unreachable" if s.latency_ms is None else f"{s.latency_ms:.1f} ms latency"
-            facts.append(f"{name_of(f)}: {state}, {s.loss_pct:.2f}% packet loss")
+            state = (
+                "unreachable"
+                if s.latency_ms is None and s.loss_pct == 100
+                else "latency unavailable"
+                if s.latency_ms is None
+                else f"{s.latency_ms:.1f} ms latency"
+            )
+            loss = (
+                f"{s.loss_pct:.2f}% packet loss" if s.loss_pct is not None else "loss unavailable"
+            )
+            facts.append(f"{name_of(f)}: {state}, {loss}")
         down = [name_of(lid) for lid in ctx.net.links
-                if ctx.latest.get(lid) and ctx.latest[lid].latency_ms is None]  # fmt: skip
-        facts.append(f"Links down: {', '.join(down) if down else 'none'}")
+                if ctx.latest.get(lid) and ctx.latest[lid].latency_ms is None
+                and ctx.latest[lid].loss_pct == 100]  # fmt: skip
+        facts.append(
+            f"Links down in available measurements: {', '.join(down) if down else 'none observed'}"
+            if ctx.latest
+            else "Telemetry is unavailable; network health is unknown."
+        )
         return _items(ctx, "status", facts)
     if name == "get_active_alerts":
         return _items(ctx, "alert", [
@@ -117,7 +146,8 @@ async def run_tool(ctx: Context, name: str, args: dict) -> str:
         ])  # fmt: skip
     if name == "get_diagnosis":
         return _items(ctx, "diagnosis", [
-            f"{h.cause} at {name_of(h.target)}, {h.confidence:.0%} confident. Evidence: "
+            f"{h.cause} at {name_of(h.target)}, ranking score {h.confidence:.0%} "
+            "(not a calibrated probability). Evidence: "
             + "; ".join(e.description for e in h.evidence)
             for h in ctx.rca.hypotheses[:3]
         ])  # fmt: skip
@@ -134,16 +164,29 @@ async def run_tool(ctx: Context, name: str, args: dict) -> str:
                          f"detected in {inc.mttd_s}s, healed in {inc.mttr_s}s")  # fmt: skip
         return _items(ctx, "incident", facts)
     if name == "get_incident":
-        key = str(args.get("incident_id", ""))[:8]
-        inc = next((i for i in [ctx.incidents.current, *ctx.incidents.history]
-                    if i and i.id.startswith(key)), None)  # fmt: skip
-        if inc is None:
+        key = args["incident_id"]
+        matches = [
+            i
+            for i in [ctx.incidents.current, *ctx.incidents.history]
+            if i and len(key) >= 8 and i.id.startswith(key)
+        ]
+        if len(matches) != 1:
             return _items(ctx, "incident", [f"No incident matches {key!r}."])
+        inc = matches[0]
         facts = [f"{e.stage} at {e.ts:%H:%M:%S}" for e in inc.timeline]
         for a in ctx.incidents.context[inc.id]["actions"]:
             if a["kind"] == "result":
                 r = a["payload"]
-                outcome = "verified" if r.verified else "rolled back"
+                outcome = r.outcome or (
+                    "verified" if r.verified else "rolled back" if r.rolled_back else "not verified"
+                )
+                if not r.after:
+                    facts.append(
+                        f"Fix {outcome}: no post-action measurement. "
+                        f"Reason: {r.failure_reason or 'unavailable'}. "
+                        f"Rollback error: {r.rollback_error or 'none recorded'}."
+                    )
+                    continue
                 facts.append(
                     f"Fix {outcome}: latency {r.before['latency_ms']:.1f} → "
                     f"{r.after['latency_ms']:.1f} ms, loss {r.before['loss_pct']:.1f}% → "
@@ -160,7 +203,7 @@ async def run_tool(ctx: Context, name: str, args: dict) -> str:
         return _items(ctx, "doc", [f"[{d['source']}] {d['text'][:600]}" for d in found])
     if name == "what_if":
         try:
-            r = what_if(ctx.net, ctx.healer, str(args.get("fault")), str(args.get("target")))
+            r = await asyncio.to_thread(what_if, ctx.net, ctx.healer, args["fault"], args["target"])
         except (ValueError, KeyError) as e:
             return _items(ctx, "what-if", [f"Can't simulate that: {e}"])
         facts = [
@@ -179,21 +222,38 @@ def _cited(text: str, ctx: Context) -> set[str]:
     return set(re.findall(r"\[(E\d+)\]", text)) & ctx.evidence.keys()
 
 
-async def fallback(ctx: Context, reason: str) -> dict:
+def _supported_answer(text: str, ctx: Context) -> bool:
+    """Citation coverage is a deterministic check, not a proof of semantic entailment."""
+    cited = set(re.findall(r"\[(E\d+)\]", text))
+    if not cited or not cited <= ctx.evidence.keys():
+        return False
+    statements = re.split(r"\n+|(?<=[.!?])\s+(?=[A-Z])", text)
+    return all(_cited(s, ctx) for s in statements if s.strip() and not s.lstrip().startswith("#"))
+
+
+async def fallback(ctx: Context, reason: str, question: str = "") -> dict:
     """No usable AI answer: state the facts directly, still with citations."""
     lines = []
-    for tool in ("get_active_alerts", "get_diagnosis"):
-        for item in json.loads(await run_tool(ctx, tool, {})):
+    tools = [("get_active_alerts", {}), ("get_diagnosis", {})]
+    lower = question.lower()
+    if any(word in lower for word in ("incident", "history", "last", "report")):
+        tools = [("list_incidents", {})]
+    elif any(word in lower for word in ("how", "algorithm", "threshold", "isolation")):
+        tools = [("search_docs", {"query": question})]
+    elif any(word in lower for word in ("status", "health", "network")):
+        tools.insert(0, ("get_network_status", {}))
+    for tool, args in tools:
+        for item in json.loads(await run_tool(ctx, tool, args)):
             lines.append(f"- {item['fact']} [{item['id']}]")
     text = "Here is what NetHeal can see right now:\n\n" + "\n".join(lines)
     return {"answer": text, "evidence": ctx.evidence,
-            "tools": ["get_active_alerts", "get_diagnosis"], "source": "template",
+            "tools": [name for name, _ in tools], "source": "template",
             "fallback_reason": reason}  # fmt: skip
 
 
 async def ask(question: str, history: list[dict], ctx: Context, client, model: str = MODEL) -> dict:
     if client is None:
-        return await fallback(ctx, "No AI credentials configured")
+        return await fallback(ctx, "No AI credentials configured", question)
     messages = [{"role": "system", "content": SYSTEM_PROMPT}, *history[-6:],
                 {"role": "user", "content": question}]  # fmt: skip
     used: list[str] = []
@@ -220,7 +280,9 @@ async def ask(question: str, history: list[dict], ctx: Context, client, model: s
                     result = await run_tool(ctx, call.function.name, args)
                     messages.append({"role": "tool", "tool_call_id": call.id, "content": result})
             answer = (msg.content or "").strip()
-            if ctx.evidence and not _cited(answer, ctx):  # one chance to fix missing citations
+            if not ctx.evidence:
+                return await fallback(ctx, "AI returned no supporting evidence", question)
+            if not _supported_answer(answer, ctx):  # one chance to fix missing citations
                 messages += [{"role": "assistant", "content": answer},
                              {"role": "user", "content": "Rewrite that answer citing the "
                               "evidence IDs from the tool results in square brackets, like "
@@ -232,12 +294,12 @@ async def ask(question: str, history: list[dict], ctx: Context, client, model: s
                     timeout=TIMEOUT_S,
                 )
                 answer = (response.choices[0].message.content or "").strip()
-            if ctx.evidence and not _cited(answer, ctx):
-                return await fallback(ctx, "AI answer did not cite its evidence")
+            if not _supported_answer(answer, ctx):
+                return await fallback(ctx, "AI answer did not cite its evidence", question)
     except TimeoutError:
-        return await fallback(ctx, "AI took too long to answer")
+        return await fallback(ctx, "AI took too long to answer", question)
     except Exception as e:  # network, auth, malformed tool call
-        return await fallback(ctx, f"AI unavailable ({type(e).__name__})")
+        return await fallback(ctx, f"AI unavailable ({type(e).__name__})", question)
     cited = _cited(answer, ctx)
     served = getattr(response, "model", None) or model  # the model that actually answered
     return {"answer": answer, "evidence": {k: v for k, v in ctx.evidence.items() if k in cited},

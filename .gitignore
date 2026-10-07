@@ -13,6 +13,9 @@ __pycache__/
 venv/
 .mypy_cache/
 .cache/
+.netheal/
+.pytest_cache/
+services/evaluator/results/
 *.egg-info/
 
 # Node / Next.js

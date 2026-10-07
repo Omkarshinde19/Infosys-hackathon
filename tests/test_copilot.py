@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 from services.copilot.agent import TOOLS, Context, ask, run_tool
 from services.copilot.rag import DocIndex
+from services.netsim.engine import Network
 from tests.test_healer import Pipeline
 
 
@@ -39,6 +40,16 @@ class ScriptedLLM:
 
 def run(coro):
     return asyncio.run(coro)
+
+
+def test_missing_loss_and_latency_are_unknown_in_status_not_a_false_down_claim():
+    net = Network()
+    row = next(s for s in net.step() if s.entity_type == "flow")
+    row = row.model_copy(update={"latency_ms": None, "loss_pct": None})
+    ctx = Context(net, {row.entity_id: row}, None, None, None, None, None, None)
+    facts = json.loads(run(run_tool(ctx, "get_network_status", {})))
+    assert "latency unavailable, loss unavailable" in facts[0]["fact"]
+    assert "unreachable" not in facts[0]["fact"]
 
 
 def test_answer_uses_tools_and_cites_real_evidence():

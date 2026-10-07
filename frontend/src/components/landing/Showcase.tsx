@@ -15,15 +15,15 @@ export function LoopShowcase() {
       <Slab className="top-[14%] left-[2%] h-[72%] w-[64%]" />
       <div className="absolute top-[34%] right-[6%] size-44 rounded-full border-[26px] border-[var(--shape)]" />
 
-      <Window title="NetHeal · Control Room" className="absolute top-0 left-0 w-full sm:top-[19%] sm:left-[6%] sm:w-[76%]">
+      <Window title="Illustrative example · Control Room" className="absolute top-0 left-0 w-full sm:top-[19%] sm:left-[6%] sm:w-[76%]">
         <div className="flex items-center gap-2">
           <p className="text-sm font-semibold">Campus network</p>
-          <span className="rounded-full bg-healthy/15 px-2 py-0.5 text-[11px] font-medium text-healthy">Healed in 9 s</span>
+          <span className="rounded-full bg-healthy/15 px-2 py-0.5 text-[11px] font-medium text-healthy">Example: healed in 9 s</span>
         </div>
         <div className="mt-3 flex items-center gap-2 rounded-lg bg-critical/10 px-2.5 py-2 text-xs">
           <BellRing className="size-3.5 shrink-0 text-critical" />
           <span className="font-medium">Silent packet loss · CS Lab</span>
-          <span className="ml-auto text-fg-muted">found in 2.5 s</span>
+          <span className="ml-auto text-fg-muted">example: 2.5 s</span>
         </div>
         <div className="mt-4 flex items-start">
           {STAGES.map((s, i) => (
@@ -39,7 +39,7 @@ export function LoopShowcase() {
             </div>
           ))}
         </div>
-        <p className="mt-4 text-[10px] text-fg-muted">Packet loss on the CS Lab flow, before and after the fix</p>
+        <p className="mt-4 text-[10px] text-fg-muted">Illustrative packet-loss curve · actual timings and metrics are shown in the Control Room</p>
         <svg viewBox="0 0 300 60" className="mt-1 h-14 w-full" fill="none" strokeWidth="2" strokeLinecap="round">
           <path d="M0 48 L60 47 L90 46" className="stroke-accent-2" />
           <path d="M90 46 L110 14 L140 10 L165 18 L180 44" className="stroke-critical" />
@@ -53,7 +53,7 @@ export function LoopShowcase() {
         <div className="mt-3 h-1.5 rounded-full bg-bg-2">
           <div className="h-full w-[90%] rounded-full bg-accent-2" />
         </div>
-        <p className="mt-1.5 text-[11px] text-fg-muted">Confidence 90% · rules and GNN agree</p>
+        <p className="mt-1.5 text-[11px] text-fg-muted">Example heuristic ranking 90% · not a calibrated probability</p>
       </Window>
 
       <Window title="Incident report" className="absolute bottom-0 left-0 hidden w-[48%] sm:block">
@@ -80,7 +80,7 @@ export function ApprovalShowcase() {
   return (
     <div className="relative mx-auto w-full max-w-xl py-10">
       <Slab className="inset-y-0 right-[2%] w-[70%]" />
-      <Window title="NetHeal · Approvals" className="relative sm:ml-[4%] sm:w-[92%]">
+      <Window title="Illustrative example · Approvals" className="relative sm:ml-[4%] sm:w-[92%]">
         <div className="flex items-center justify-between gap-2">
           <p className="text-sm font-semibold">Fixes for you to approve</p>
           <span className="rounded-full border border-[var(--glass-border)] px-2 py-0.5 text-[10px] text-fg-muted">Comfort level 2</span>
@@ -100,7 +100,7 @@ export function ApprovalShowcase() {
             <p className="text-xs font-medium">Reroute around Distribution North A ↔ Library</p>
             <p className="text-[10px] text-fg-muted">via Distribution North B → Core Router 1</p>
             <ul className="mt-3 space-y-1.5 text-[11px]">
-              {["Tested on the digital twin first", "Safety rules passed", "Undone automatically if it doesn't help", "Recorded in the audit log"].map((c) => (
+              {["Tested on the digital twin first", "Safety rules passed", "Recovery verified; unsuccessful changes trigger rollback and escalation", "Recorded in the audit log"].map((c) => (
                 <li key={c} className="flex items-center gap-1.5">
                   <Check className="size-3 text-healthy" strokeWidth={3} /> {c}
                 </li>

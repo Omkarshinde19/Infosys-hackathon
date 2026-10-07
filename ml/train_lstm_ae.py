@@ -22,6 +22,7 @@ MARGIN = 1.5  # threshold = 99.9th percentile of healthy validation error x marg
 EVAL_PATH = MODEL_PATH.with_name("lstm_ae_eval.json")
 FAULTS = [("gray_failure", "dist1-library", 0.4), ("congestion", "dist3-lab_cs", 0.6),
           ("node_overload", "dist2", 0.6), ("gray_failure", "core1-dist3", 0.4)]  # fmt: skip
+TEST_SEED = 909  # disjoint from training bases 101..303 and calibration base 404
 
 
 def z_vectors(det, samples) -> dict[str, np.ndarray]:
@@ -86,17 +87,25 @@ def main() -> None:
         model.eval()
         val_err = errors(model, val)
         threshold = float(np.percentile(val_err, 99.9) * MARGIN)
-        fault_err = errors(model, fault_windows(BASE_SEEDS[3]))
+        test_err = errors(model, healthy_windows(TEST_SEED, HEALTHY_TICKS))
+        fault_err = errors(model, fault_windows(TEST_SEED))
         results = {
             "threshold": threshold,
-            "healthy_false_positive_rate": float((val_err > threshold).mean()),
+            "healthy_false_positive_rate": float((test_err > threshold).mean()),
+            "calibration_false_positive_rate": float((val_err > threshold).mean()),
             "fault_detection_rate": float((fault_err > threshold).mean()),
-            "healthy_error_median": float(np.median(val_err)),
+            "healthy_error_median": float(np.median(test_err)),
             "fault_error_median": float(np.median(fault_err)),
+            "training_seeds": list(BASE_SEEDS[:3]),
+            "calibration_seed": BASE_SEEDS[3],
+            "test_seed": TEST_SEED,
+            "healthy_test_windows": len(test_err),
+            "fault_test_windows": len(fault_err),
+            "evaluation_scope": "Synthetic campus; four cases; correlated overlapping windows",
         }
         torch.save({"state": model.state_dict(), "threshold": threshold}, MODEL_PATH)
         EVAL_PATH.write_text(json.dumps(results, indent=2))
-        mlflow.log_metrics(results)
+        mlflow.log_metrics({k: v for k, v in results.items() if isinstance(v, (int, float))})
         mlflow.log_artifact(str(MODEL_PATH))
         mlflow.log_artifact(str(EVAL_PATH))
     print(json.dumps(results, indent=2))

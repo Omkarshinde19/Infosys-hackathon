@@ -106,7 +106,7 @@ def test_gnn_adds_a_third_opinion_when_a_model_is_loaded():
         rca.update(samples, det.active, net, detector=det)
     top = rca.hypotheses[0]
     assert (top.cause, top.target) == ("link_failure", "dist1-library")
-    # Calibrated, not certain: a link that has just gone down looks exactly like a flapping
+    # Uncalibrated heuristic score: a link that has just gone down looks like a flapping
     # link in its "down" phase, so the GNN splits its belief roughly evenly between the two.
     assert top.method_scores["gnn"] > 0.4
     assert any("Graph neural network" in e.description for e in top.evidence)
@@ -134,3 +134,102 @@ def test_ensemble_ignores_a_gnn_with_no_valid_pick(value):
     ranked = ensemble([("link_failure", "dist1-library", 0.9, 1.0)], probs, ids)
     assert [(c, t) for c, t, *_ in ranked] == [("link_failure", "dist1-library")]
     assert ranked[0][3] == 0.0
+
+
+def test_forecast_only_risk_has_no_actionable_cause():
+    from contracts.models import Anomaly
+
+    net, det, rca = trained()
+    samples = net.step()
+    warning = Anomaly(
+        ts=samples[0].ts,
+        entity_id="library-internet",
+        metric="predicted_sla_breach",
+        value=0.95,
+        baseline=0.9,
+        score=0.95,
+        detectors=["forecast"],
+        severity="warning",
+    )
+    assert rca.update(samples, {warning.entity_id: warning}, net, detector=det)
+    assert rca.diagnosis_status == "uncertain" and rca.uncertainty_reason
+    assert not rca.hypotheses
+
+
+def test_rca_refreshes_evidence_without_changing_hypothesis_identity():
+    net, det, rca = trained()
+    net.inject_fault("gray_failure", "dist1-library", severity=0.2)
+    for _ in range(5):
+        step(net, det, rca)
+    first = rca.hypotheses[0]
+    net.inject_fault("gray_failure", "dist1-library", severity=0.8)
+    samples = net.step()
+    det.update(samples)
+    assert rca.update(samples, det.active, net, detector=det)
+    fresh = next(h for h in rca.hypotheses if h.target == first.target)
+    assert fresh.id == first.id and fresh.incident_id == first.incident_id
+    assert fresh.evidence[0].description != first.evidence[0].description
+    assert fresh.confidence_kind == "heuristic"
+
+
+def test_invalid_or_missing_telemetry_causes_explicit_non_actuation_uncertainty():
+    net, det, rca = trained()
+    net.inject_fault("link_down", "dist1-library")
+    for _ in range(5):
+        step(net, det, rca)
+    samples = [s for s in net.step() if s.entity_id != "core2"]
+    det.update(samples)
+    rca.update(samples, det.active, net, detector=det)
+    assert rca.diagnosis_status == "uncertain" and rca.uncertainty_reason
+    assert all(not h.supported for h in rca.hypotheses)
+
+
+def test_unreachable_flow_with_an_unobserved_path_is_not_named_misconfiguration():
+    net, det, rca = trained()
+    net.inject_fault("link_down", "dist1-library")
+    det.relearn(["dist1-library"])
+    for _ in range(5):
+        samples = net.step()
+        det.update(samples)
+    flow_only = {"library-internet": det.active["library-internet"]}
+    rca.update(samples, flow_only, net, detector=det)
+    assert not any(h.cause == "misconfig" for h in rca.hypotheses)
+
+
+def test_a_clearing_old_alert_is_not_evidence_for_a_new_congestion_cause():
+    net, det, rca = trained()
+    net.inject_fault("link_down", "dist1-library")
+    for _ in range(4):
+        step(net, det, rca)
+    assert rca.hypotheses[0].cause == "link_failure"
+    net.clear_faults()
+    samples = net.step()
+    det.update(samples)
+    assert det.active  # clear debounce has not expired
+    rca.update(samples, det.active, net, detector=det)
+    assert not rca.hypotheses and rca.diagnosis_status == "uncertain"
+
+
+def test_idle_known_fault_does_not_explain_a_new_unrelated_service_symptom():
+    from contracts.models import Anomaly
+
+    net, det, rca = trained()
+    net.inject_fault("link_down", "dist4-cafeteria")  # standby, no route uses this link
+    for _ in range(4):
+        step(net, det, rca)
+    samples = net.step()
+    det.update(samples)
+    flow = "admin-internet"
+    det.active[flow] = Anomaly(
+        ts=samples[0].ts,
+        entity_id=flow,
+        metric="latency_ms",
+        value=20,
+        baseline=10,
+        score=0.7,
+        detectors=["service_sla"],
+        severity="warning",
+    )
+    rca.update(samples, det.active, net, detector=det)
+    assert flow in rca.unexplained_flows and rca.diagnosis_status == "uncertain"
+    assert all(not h.supported for h in rca.hypotheses)

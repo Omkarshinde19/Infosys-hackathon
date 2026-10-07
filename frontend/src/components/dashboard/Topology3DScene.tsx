@@ -6,6 +6,8 @@ import { type RefObject, useMemo, useRef } from "react";
 import { Color, type Mesh, Vector3 } from "three";
 import { health, nodeHealth } from "@/lib/health";
 import { type Sample, type Topology, useLive } from "@/lib/live";
+import { useReducedMotion } from "@/lib/motion";
+import { useTheme } from "@/components/ThemeToggle";
 
 // "Network Strata": each network layer is a floating tier, Internet on top.
 const TIERS = { edge: 3, core: 1.6, distribution: 0, access: -1.8 } as const;
@@ -16,7 +18,8 @@ function cssColor(name: string) {
 }
 
 /** Same healthy → warning → critical blend as the 2D view, as a three.js colour. */
-function statusColor(h: number) {
+function statusColor(h: number | null) {
+  if (h === null) return new Color("#8996a8");
   const [ok, warn, bad] = ["--healthy", "--warning", "--critical"].map(cssColor);
   return h >= 0.5 ? ok.lerp(warn, (1 - h) * 2) : warn.lerp(bad, 1 - h * 2);
 }
@@ -55,7 +58,7 @@ function Packet({ from, to, util, color, offset }: {
   );
 }
 
-function Strata({ topo, latest, labels }: { topo: Topology; latest: Record<string, Sample>; labels: RefObject<HTMLElement> }) {
+function Strata({ topo, latest, labels, current, reducedMotion }: { topo: Topology; latest: Record<string, Sample>; labels: RefObject<HTMLElement>; current: boolean; reducedMotion: boolean }) {
   const pos = useMemo(() => positions(topo), [topo]);
   const tierLabels = { edge: "Internet", core: "Core", distribution: "Distribution", access: "Buildings" };
 
@@ -78,8 +81,8 @@ function Strata({ topo, latest, labels }: { topo: Topology; latest: Record<strin
       {topo.links.map((l, i) => {
         const s = latest[l.id];
         const down = s?.latency_ms === null;
-        const active = !down && (s?.throughput_mbps ?? 0) > 1;
-        const color = statusColor(health(s));
+        const active = current && !down && (s?.throughput_mbps ?? 0) > 1;
+        const color = statusColor(current ? health(s) : null);
         return (
           <group key={l.id}>
             <Line
@@ -92,7 +95,7 @@ function Strata({ topo, latest, labels }: { topo: Topology; latest: Record<strin
               dashSize={0.15}
               gapSize={0.1}
             />
-            {active && (
+            {active && !reducedMotion && (
               <Packet from={pos[l.a]} to={pos[l.b]} util={s?.util ?? 0} color={color} offset={i / topo.links.length} />
             )}
           </group>
@@ -104,8 +107,8 @@ function Strata({ topo, latest, labels }: { topo: Topology; latest: Record<strin
           <mesh>
             <sphereGeometry args={[n.layer === "edge" ? 0.35 : 0.2, 32, 32]} />
             <meshPhysicalMaterial
-              color={statusColor(nodeHealth(n.id, latest, topo.flows))}
-              emissive={statusColor(nodeHealth(n.id, latest, topo.flows))}
+              color={statusColor(current ? nodeHealth(n.id, latest, topo.flows) : null)}
+              emissive={statusColor(current ? nodeHealth(n.id, latest, topo.flows) : null)}
               emissiveIntensity={0.35}
               roughness={0.1}
               clearcoat={1}
@@ -125,16 +128,19 @@ function Strata({ topo, latest, labels }: { topo: Topology; latest: Record<strin
 export default function Topology3DScene({ active = true }: { active?: boolean }) {
   const topology = useLive((s) => s.topology);
   const latest = useLive((s) => s.latest);
+  const current = useLive((s) => s.dataStatus === "fresh");
+  const reducedMotion = useReducedMotion();
+  useTheme(); // Recompute material colours even when telemetry has stopped.
   // Labels render into our own overlay: in the canvas's container, drei's <Html> threw
   // "removeChild ... not a child of this node" whenever the scene unmounted (e.g. leaving the page).
   const labels = useRef<HTMLDivElement>(null);
   return (
     <div className="relative h-full">
-      <Canvas camera={{ position: [8.5, 5, 8.5], fov: 45 }} dpr={[1, 2]} frameloop={active ? "always" : "never"}>
+      <Canvas camera={{ position: [8.5, 5, 8.5], fov: 45 }} dpr={[1, 1.5]} frameloop={active ? reducedMotion ? "demand" : "always" : "never"}>
         <ambientLight intensity={0.6} />
         <directionalLight position={[5, 8, 5]} intensity={1.5} />
-        {topology && <Strata topo={topology} latest={latest} labels={labels as RefObject<HTMLElement>} />}
-        <OrbitControls target={[0, 0.3, 0]} autoRotate autoRotateSpeed={0.6} enableZoom={false} enablePan={false} />
+        {topology && <Strata topo={topology} latest={latest} labels={labels as RefObject<HTMLElement>} current={current} reducedMotion={reducedMotion} />}
+        <OrbitControls target={[0, 0.3, 0]} autoRotate={!reducedMotion && active} autoRotateSpeed={0.6} enableZoom={false} enablePan={false} />
       </Canvas>
       <div ref={labels} className="pointer-events-none absolute inset-0 overflow-hidden" />
     </div>

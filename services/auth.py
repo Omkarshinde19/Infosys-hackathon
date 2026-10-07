@@ -64,7 +64,14 @@ def require(role: str):
                                 options={"require": ["exp", "sub", "role"]})  # fmt: skip
         except jwt.PyJWTError as e:
             raise HTTPException(401, "Invalid or expired session") from e
-        if claims["role"] not in ROLES:
+        subject, actual_role = claims.get("sub"), claims.get("role")
+        if (
+            not isinstance(subject, str)
+            or not isinstance(actual_role, str)
+            or subject not in USERS
+            or actual_role not in ROLES
+            or USERS[subject]["role"] != actual_role
+        ):
             raise HTTPException(401, "Invalid or expired session")
         if ROLES.index(claims["role"]) < ROLES.index(role):
             raise HTTPException(403, f"Needs the {role} role")

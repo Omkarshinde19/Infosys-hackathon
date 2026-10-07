@@ -25,6 +25,17 @@ deny contains msg if {
 }
 
 deny contains msg if {
+	input.prediction.loss_pct < healthy_loss_pct
+	input.prediction.max_loss_pct >= healthy_loss_pct
+	msg := sprintf("Doesn't restore every service: worst flow has %.1f%% loss", [input.prediction.max_loss_pct])
+}
+
+deny contains msg if {
+	input.prediction.other_latency_ratio > 1.1
+	msg := "Would hurt other traffic: an unaffected flow exceeds its latency SLA"
+}
+
+deny contains msg if {
 	count(input.action.flows_moved) > max_flows_moved
 	msg := sprintf("Moves %d flows at once (limit %d)", [count(input.action.flows_moved), max_flows_moved])
 }

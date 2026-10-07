@@ -9,3 +9,6 @@ frontend
 **/__pycache__
 .pytest_cache
 .ruff_cache
+.cache
+.netheal
+netheal.egg-info

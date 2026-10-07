@@ -1,7 +1,7 @@
 "use client";
 
 import { FlaskConical, Play, ShieldAlert, ShieldCheck } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { describeAction } from "@/components/dashboard/SelfHealing";
 import { type ActionCandidate, postJSON, useLive } from "@/lib/live";
 import { useEntityName } from "@/lib/names";
@@ -11,6 +11,9 @@ type Result = {
   candidates: ActionCandidate[];
   best: ActionCandidate | null;
   verdict: string;
+  autonomy?: number;
+  approval_required?: boolean;
+  mode?: "isolated" | "compound";
 };
 
 const FAULTS = [
@@ -30,6 +33,8 @@ export default function WhatIfPage() {
   const [result, setResult] = useState<Result | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const pending = useRef(false);
+  const [tested, setTested] = useState<{ fault: string; target: string } | null>(null);
 
   const kind = FAULTS.find((f) => f[0] === fault)![2];
   const targets =
@@ -37,14 +42,18 @@ export default function WhatIfPage() {
   const chosen = targets?.includes(target) ? target : (targets?.[0] ?? "");
 
   async function run() {
+    if (pending.current || !chosen) return;
+    pending.current = true;
     setBusy(true);
     setError("");
     try {
-      setResult(await postJSON("/whatif", { fault, target: chosen }));
+      setResult(await postJSON<Result>("/whatif", { fault, target: chosen }));
+      setTested({ fault, target: chosen });
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setBusy(false);
+      pending.current = false;
     }
   }
 
@@ -61,14 +70,14 @@ export default function WhatIfPage() {
       <div className="glass flex flex-wrap items-end gap-4 p-6">
         <label className="text-sm">
           <span className="text-fg-muted">If this happens…</span>
-          <select value={fault} onChange={(e) => setFault(e.target.value as typeof fault)}
+          <select disabled={busy} value={fault} onChange={(e) => setFault(e.target.value as typeof fault)}
             className="mt-1.5 block rounded-lg border border-[var(--glass-border)] bg-[var(--glass)] px-3 py-2">
             {FAULTS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
           </select>
         </label>
         <label className="text-sm">
           <span className="text-fg-muted">…on</span>
-          <select value={chosen} onChange={(e) => setTarget(e.target.value)}
+          <select disabled={busy} value={chosen} onChange={(e) => setTarget(e.target.value)}
             className="mt-1.5 block min-w-72 rounded-lg border border-[var(--glass-border)] bg-[var(--glass)] px-3 py-2">
             {targets?.map((t) => <option key={t} value={t}>{name(t)}</option>)}
           </select>
@@ -83,6 +92,7 @@ export default function WhatIfPage() {
 
       {result && (
         <>
+          <p className="text-xs text-fg-muted">Result for {tested?.fault} on {tested ? name(tested.target) : "—"}{tested && (tested.fault !== fault || tested.target !== chosen) ? " · inputs changed; run again to update the result" : ""}. {result.mode && `Mode: ${result.mode}.`} {result.autonomy !== undefined && `Comfort level ${result.autonomy}.`} {result.approval_required && "Human approval would be required."}</p>
           <div className="glass flex items-center gap-3 p-5 font-medium" style={{ borderColor: result.best || !result.impact.length ? "var(--healthy)" : "var(--critical)" }}>
             {result.best || !result.impact.length ? <ShieldCheck className="size-5 text-healthy" /> : <ShieldAlert className="size-5 text-critical" />}
             {result.verdict}
@@ -92,7 +102,7 @@ export default function WhatIfPage() {
             <div className="glass p-6">
               <h3 className="flex items-center gap-2 font-semibold"><FlaskConical className="size-4" /> Who would suffer</h3>
               {result.impact.length === 0 ? (
-                <p className="mt-3 text-sm text-fg-muted">Nobody: no traffic uses that element right now.</p>
+                <p className="mt-3 text-sm text-fg-muted">No affected traffic was recorded in this what-if snapshot.</p>
               ) : (
                 <ul className="mt-3 space-y-2 text-sm">
                   {result.impact.map((i) => (
@@ -109,13 +119,12 @@ export default function WhatIfPage() {
             <div className="glass p-6">
               <h3 className="font-semibold">NetHeal&apos;s plan, tested on the twin</h3>
               <ul className="mt-3 space-y-3 text-sm">
-                {result.candidates.length === 0 && <li className="text-fg-muted">No alternative path exists.</li>}
+                {result.candidates.length === 0 && <li className="text-fg-muted">No candidates were returned for this simulation and comfort level. Read the verdict for the reason.</li>}
                 {result.candidates.map((c) => (
                   <li key={c.id}>
                     <p className={c.opa_decision === "allow" ? "" : "text-fg-muted line-through"}>{describeAction(c, name)}</p>
                     <p className="text-xs text-fg-muted tabular-nums">
-                      twin: {c.twin_prediction?.latency_ms.toFixed(1)} ms · {c.twin_prediction?.loss_pct.toFixed(2)}% loss · peak load{" "}
-                      {Math.round((c.twin_prediction?.max_util ?? 0) * 100)}%
+                      {c.twin_prediction ? `twin: ${c.twin_prediction.latency_ms.toFixed(1)} ms · ${c.twin_prediction.loss_pct.toFixed(2)}% loss · peak load ${Math.round(c.twin_prediction.max_util * 100)}%` : "Twin prediction unavailable"}
                     </p>
                     {c.policy_reasons.map((r) => <p key={r} className="text-xs text-critical">Blocked: {r}</p>)}
                   </li>

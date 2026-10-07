@@ -1,8 +1,9 @@
 "use client";
 
-import * as echarts from "echarts";
+import * as echarts from "@/lib/charts";
 import { useEffect, useMemo, useRef } from "react";
 import { type Sample, useLive } from "@/lib/live";
+import { useTheme } from "@/components/ThemeToggle";
 
 // Blues and soft tints that sit with the palette.
 const SERIES_COLORS = ["#7da0ca", "#c1e8ff", "#5483b3", "#6fd6c4", "#a5b4fc", "#93c5fd", "#f2c77b", "#f2919f", "#b8a1e3"];
@@ -16,7 +17,9 @@ export function LiveChart({ title, metric, unit }: { title: string; metric: keyo
   const el = useRef<HTMLDivElement>(null);
   const chart = useRef<echarts.ECharts>(null);
   const history = useLive((s) => s.history);
+  const status = useLive((s) => s.dataStatus);
   const topology = useLive((s) => s.topology);
+  const theme = useTheme();
   const flowIds = useMemo(() => topology?.flows.map((f) => f.id), [topology]);
 
   useEffect(() => {
@@ -26,13 +29,15 @@ export function LiveChart({ title, metric, unit }: { title: string; metric: keyo
     return () => {
       observer.disconnect();
       chart.current?.dispose();
+      chart.current = null;
     };
   }, []);
 
   useEffect(() => {
     if (!chart.current || !flowIds) return;
     const muted = css("--fg-muted");
-    const times = history.map((tick) => new Date(tick[0].ts).toLocaleTimeString());
+    const indexed = history.filter((tick) => tick.length).map((tick) => ({ time: new Date(tick[0].ts).toLocaleTimeString(), samples: new Map(tick.map((sample) => [sample.entity_id, sample])) }));
+    const times = indexed.map((tick) => tick.time);
     chart.current.setOption({
       animation: false,
       color: SERIES_COLORS,
@@ -54,10 +59,10 @@ export function LiveChart({ title, metric, unit }: { title: string; metric: keyo
         showSymbol: false,
         smooth: true,
         lineStyle: { width: 1.5 },
-        data: history.map((tick) => tick.find((s) => s.entity_id === id)?.[metric] ?? null),
+        data: indexed.map((tick) => tick.samples.get(id)?.[metric] ?? null),
       })),
-    });
-  }, [history, flowIds, metric, title, unit]);
+    }, { replaceMerge: ["series"] });
+  }, [history, flowIds, metric, title, unit, theme]);
 
-  return <div ref={el} className="glass h-80 p-4" />;
+  return <div role="img" aria-label={`${title}, measured ${unit} by flow; ${status} data`} ref={el} className="glass h-80 p-4" />;
 }

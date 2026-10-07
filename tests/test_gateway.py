@@ -16,6 +16,14 @@ def flow_loss(message: dict, flow_id: str) -> float:
     return next(s["loss_pct"] for s in message["data"] if s["entity_id"] == flow_id)
 
 
+def next_telemetry(ws):
+    for _ in range(100):
+        message = ws.receive_json()
+        if message["type"] == "telemetry":
+            return message
+    raise AssertionError("No telemetry among100 control events")
+
+
 def test_topology_lists_nodes_links_and_routes():
     with TestClient(app) as client:
         body = client.get("/topology").json()
@@ -42,11 +50,18 @@ def test_fault_changes_next_ticks_and_reset_clears_it():
         assert flow_loss(ws.receive_json(), "library-internet") < 1
         r = client.post("/fault", headers=OP, json={"type": "link_down", "target": "dist1-library"})
         assert r.status_code == 200
-        ws.receive_json()  # tick may have been computed before the fault landed
-        assert flow_loss(ws.receive_json(), "library-internet") == 100
+        # Audit/diagnosis/reset messages are legitimate interleaved control events.
+        for _ in range(4):
+            message = next_telemetry(ws)
+            if flow_loss(message, "library-internet") == 100:
+                break
+        assert flow_loss(message, "library-internet") == 100
         client.post("/reset", headers=OP)
-        ws.receive_json()
-        assert flow_loss(ws.receive_json(), "library-internet") < 1
+        for _ in range(4):
+            message = next_telemetry(ws)
+            if flow_loss(message, "library-internet") < 1:
+                break
+        assert flow_loss(message, "library-internet") < 1
 
 
 def test_bad_fault_is_rejected():
@@ -171,7 +186,7 @@ def test_events_are_published_to_their_bus_topic(monkeypatch):
     sent = []
 
     class FakeProducer:
-        async def send(self, topic, value):
+        async def send_and_wait(self, topic, value):
             sent.append((topic, json.loads(value)))
 
         async def stop(self):

@@ -51,3 +51,29 @@ def test_evaluation_is_fast_enough_for_the_tick_loop():
     for _ in range(20):
         policy.evaluate(SAFE)
     assert (time.perf_counter() - start) / 20 < 0.05  # well under the 500 ms tick
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), -1, True, "0.1"])
+def test_invalid_prediction_fails_closed(value):
+    assert Policy().evaluate(with_(prediction__max_util=value))
+
+
+def test_malformed_policy_does_not_become_an_allow():
+    policy = Policy()
+    policy.source = "package unrelated\nallow := true"
+    reasons = policy.evaluate(SAFE)
+    assert reasons and "policy" in reasons[0].lower()
+
+
+def test_missing_prediction_fails_closed():
+    assert Policy().evaluate({"action": SAFE["action"], "actions_last_minute": 0})
+
+
+def test_one_bad_flow_is_denied_even_if_the_affected_mean_is_good():
+    reasons = Policy().evaluate(with_(prediction__max_loss_pct=2.0))
+    assert len(reasons) == 1 and "every service" in reasons[0]
+
+
+def test_other_service_latency_has_a_guardrail():
+    reasons = Policy().evaluate(with_(prediction__other_latency_ratio=1.2))
+    assert len(reasons) == 1 and "latency SLA" in reasons[0]

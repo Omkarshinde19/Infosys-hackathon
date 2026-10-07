@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAuth } from "@/lib/auth";
@@ -42,7 +42,7 @@ const SECTIONS = [
 ];
 
 /** Highlights whichever section is currently in view. */
-function useActiveSection() {
+function useActiveSection(pathname: string) {
   const [active, setActive] = useState(SECTIONS[0].id);
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -54,22 +54,26 @@ function useActiveSection() {
       if (el) observer.observe(el);
     });
     return () => observer.disconnect();
-  }, []);
+  }, [pathname]);
   return active;
 }
 
+function subscribeDesktop(listener: () => void) {
+  const media = window.matchMedia("(min-width: 768px)");
+  media.addEventListener("change", listener);
+  return () => media.removeEventListener("change", listener);
+}
+const desktopSnapshot = () => window.matchMedia("(min-width: 768px)").matches;
+const serverSnapshot = () => false;
+
 export function Sidebar() {
-  const active = useActiveSection();
-  const connected = useLive((s) => s.connected);
-  const alertCount = useLive((s) => Object.keys(s.anomalies).length);
   const pathname = usePathname();
-  const [backend, setBackend] = useState<string>("");
-  useEffect(() => {
-    const load = () => fetch("/api/backend").then((r) => r.json()).then((b) => setBackend(b.kind)).catch(() => {});
-    load();
-    const timer = setInterval(load, 10000);
-    return () => clearInterval(timer);
-  }, []);
+  const active = useActiveSection(pathname);
+  const status = useLive((s) => s.dataStatus);
+  const alertCount = useLive((s) => Object.keys(s.anomalies).length);
+  const backend = useLive((s) => s.backend);
+  const desktop = useSyncExternalStore(subscribeDesktop, desktopSnapshot, serverSnapshot);
+  const panel = useRef<HTMLElement>(null);
   const waiting = useLive((s) => s.incident.awaiting !== null);
   const [open, setOpen] = useState(false); // phones: the sidebar slides in from the left
   const [shownFor, setShownFor] = useState(pathname);
@@ -79,6 +83,36 @@ export function Sidebar() {
   }
   const session = useAuth((s) => s.session);
   const logout = useAuth((s) => s.logout);
+  const checking = useAuth((s) => s.checking);
+  useEffect(() => {
+    if (!open || desktop) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const main = document.getElementById("dashboard-main");
+    const assistant = document.getElementById("dashboard-assistant");
+    const assistantVisibility = assistant?.style.visibility ?? "";
+    const previousOverflow = document.body.style.overflow;
+    if (main) main.inert = true;
+    if (assistant) { assistant.inert = true; assistant.style.visibility = "hidden"; }
+    document.body.style.overflow = "hidden";
+    const focusable = () => [...(panel.current?.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), select, input, [tabindex="0"]') ?? [])].filter((element) => element.getClientRects().length);
+    focusable()[0]?.focus();
+    function handleKey(event: KeyboardEvent) {
+      if (event.key === "Escape") { event.preventDefault(); setOpen(false); }
+      if (event.key !== "Tab") return;
+      const elements = focusable();
+      const first = elements[0]; const last = elements.at(-1);
+      if (event.shiftKey && (document.activeElement === first || !panel.current?.contains(document.activeElement))) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && (document.activeElement === last || !panel.current?.contains(document.activeElement))) { event.preventDefault(); first?.focus(); }
+    }
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("keydown", handleKey);
+      if (main) main.inert = false;
+      if (assistant) { assistant.inert = false; assistant.style.visibility = assistantVisibility; }
+      document.body.style.overflow = previousOverflow;
+      if (previous?.isConnected) previous.focus();
+    };
+  }, [open, desktop]);
   const pages = [
     { href: "/dashboard/copilot", label: "Ask NetHeal", icon: MessageSquareText, badge: false },
     { href: "/dashboard/whatif", label: "What If planner", icon: FlaskRound, badge: false },
@@ -94,12 +128,12 @@ export function Sidebar() {
     <>
     <header className="glass fixed inset-x-3 top-3 z-20 flex items-center justify-between rounded-2xl! px-4 py-2 md:hidden print:hidden">
       <Logo className="text-base" />
-      <button onClick={() => setOpen(true)} aria-label="Open menu" className="grid size-9 place-items-center rounded-full hover:bg-[var(--glass-hover)]">
+      <button onClick={() => setOpen(true)} aria-label="Open menu" aria-expanded={open} aria-controls="dashboard-navigation" className="grid size-9 place-items-center rounded-full hover:bg-[var(--glass-hover)]">
         <Menu className="size-5" />
       </button>
     </header>
     {open && <div onClick={() => setOpen(false)} className="fixed inset-0 z-20 bg-black/50 md:hidden" />}
-    <aside className={`glass fixed inset-y-4 left-4 z-30 flex w-60 flex-col overflow-y-auto rounded-2xl! p-4 transition-transform md:translate-x-0 print:hidden ${open ? "translate-x-0" : "-translate-x-[110%]"}`}>
+    <aside id="dashboard-navigation" ref={panel} inert={!desktop && !open} role={!desktop && open ? "dialog" : undefined} aria-modal={!desktop && open ? true : undefined} aria-label="Dashboard navigation" className={`glass fixed inset-y-4 left-4 z-30 flex w-60 flex-col overflow-y-auto rounded-2xl! p-4 transition-transform md:translate-x-0 print:hidden ${open ? "translate-x-0 visible" : "-translate-x-[110%] invisible md:visible"}`}>
       <button onClick={() => setOpen(false)} aria-label="Close menu" className="absolute top-4 right-3 text-fg-muted hover:text-fg md:hidden">
         <X className="size-5" />
       </button>
@@ -159,14 +193,14 @@ export function Sidebar() {
           </div>
         ) : (
           <Link href="/login" className="flex items-center gap-2 text-fg-muted hover:text-fg">
-            <LogIn className="size-4" /> Sign in to take actions
+            <LogIn className="size-4" /> {checking ? "Checking saved session…" : "Sign in to take actions"}
           </Link>
         )}
       </div>
       <div className="flex items-center justify-between px-2">
         <span className="flex items-center gap-2 text-xs text-fg-muted">
-          <span className={`size-2 rounded-full ${connected ? "bg-healthy animate-pulse" : "bg-critical"}`} />
-          {connected ? "Live" : "Offline"}
+          <span className={`size-2 rounded-full ${status === "fresh" ? "bg-healthy animate-pulse" : status === "learning" ? "bg-warning" : "bg-fg-muted"}`} />
+          {status === "fresh" ? "Live · fresh" : status === "learning" ? "Learning baseline" : status === "stale" ? "Stale data" : "No data yet"}
         </span>
         <ThemeToggle />
       </div>

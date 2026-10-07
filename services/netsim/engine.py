@@ -8,6 +8,7 @@ until it is healed.
 """
 
 import copy
+import math
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -68,6 +69,10 @@ class Network:
         )
         if target not in valid:
             raise ValueError(f"unknown target {target!r} for {type}")
+        if not math.isfinite(severity) or not 0 <= severity <= 2:
+            raise ValueError("severity must be finite and between 0 and 2")
+        if not math.isfinite(ramp_s) or not 0 <= ramp_s <= 300:
+            raise ValueError("ramp_s must be finite and between 0 and 300")
         fault = Fault(new_id(), type, target, severity, round(ramp_s / TICK_S), self.tick)
         self.faults[fault.id] = fault
         return fault
@@ -77,6 +82,8 @@ class Network:
 
     def rollback_config(self, flow_id: str) -> None:
         """Restore a flow's last known-good forwarding rules (undoes a misconfig)."""
+        if flow_id not in self.flows:
+            raise ValueError(f"unknown flow {flow_id!r}")
         self.faults = {
             k: f for k, f in self.faults.items() if (f.type, f.target) != ("misconfig", flow_id)
         }
@@ -86,10 +93,19 @@ class Network:
         return self.t0 + timedelta(seconds=self.tick * TICK_S)
 
     def set_route(self, flow_id: str, path: list[str]) -> None:
+        if flow_id not in self.flows:
+            raise ValueError(f"unknown flow {flow_id!r}")
         f = self.flows[flow_id]
-        if path[0] != f["src"] or path[-1] != f["dst"] or not nx.is_path(self.graph, path):
+        if (
+            len(path) < 2
+            or len(set(path)) != len(path)
+            or path[0] != f["src"]
+            or path[-1] != f["dst"]
+            or not all(n in self.graph for n in path)
+            or not nx.is_path(self.graph, path)
+        ):
             raise ValueError(f"invalid path for {flow_id}: {path}")
-        self.routes[flow_id] = path
+        self.routes[flow_id] = list(path)
 
     def snapshot(self) -> "Network":
         """Independent copy for what-if dry runs."""

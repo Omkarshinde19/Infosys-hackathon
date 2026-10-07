@@ -5,11 +5,15 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { useAuth } from "@/lib/auth";
+import { type Session, useAuth } from "@/lib/auth";
 import { postJSON } from "@/lib/live";
+import { useReducedMotion } from "@/lib/motion";
 
 type Evidence = Record<string, { kind: string; text: string }>;
-type Answer = { answer: string; evidence: Evidence; tools: string[]; source: string; provider?: string | null; fallback_reason: string | null };
+type Answer = {
+  answer: string; evidence: Evidence; tools: string[]; source: string; provider?: string | null; fallback_reason: string | null;
+  captured_at?: string; observed_at?: string | null; generation?: string; snapshot_age_s?: number | null; stale?: boolean; documentation_version?: string;
+};
 type Message = { role: "user" | "assistant"; content: string; answer?: Answer; seconds?: number };
 
 const SUGGESTIONS = [
@@ -96,18 +100,28 @@ function WorkLog({ seconds, steps, live }: { seconds: number; steps: string[]; l
 
 export default function CopilotPage() {
   const session = useAuth((s) => s.session);
+  // A changed identity starts a separate conversation and discards outstanding answers.
+  return <Conversation key={session?.token ?? "signed-out"} session={session} />;
+}
+
+function Conversation({ session }: { session: Session | null }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const requestPending = useRef(false);
+  const active = useRef(true);
+  const reducedMotion = useReducedMotion();
   const [step, setStep] = useState(0);
   const [seconds, setSeconds] = useState(0);
   const end = useRef<HTMLDivElement>(null);
 
+  useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
+
   useEffect(() => {
     // Block body on purpose: scrollIntoView() now returns a Promise in Chrome, and an effect
     // must not return anything but a cleanup function.
-    end.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, busy]);
+    end.current?.scrollIntoView({ behavior: reducedMotion ? "instant" : "smooth" });
+  }, [messages, busy, reducedMotion]);
   useEffect(() => {
     if (!busy) return;
     const started = Date.now();
@@ -120,7 +134,8 @@ export default function CopilotPage() {
   }, [busy]);
 
   async function send(question: string) {
-    if (!question.trim() || busy) return;
+    if (!question.trim() || requestPending.current) return;
+    requestPending.current = true;
     const history = messages.map((m) => ({ role: m.role, content: m.content }));
     setMessages((m) => [...m, { role: "user", content: question }]);
     setInput("");
@@ -129,13 +144,14 @@ export default function CopilotPage() {
     setSeconds(0);
     const started = Date.now();
     try {
-      const answer: Answer = await postJSON("/copilot", { question, history });
+      const answer = await postJSON<Answer>("/copilot", { question, history });
       const took = Math.max(1, Math.round((Date.now() - started) / 1000));
-      setMessages((m) => [...m, { role: "assistant", content: answer.answer, answer, seconds: took }]);
+      if (active.current) setMessages((m) => [...m, { role: "assistant", content: answer.answer, answer, seconds: took }]);
     } catch (e) {
-      setMessages((m) => [...m, { role: "assistant", content: `Sorry, that failed: ${(e as Error).message}` }]);
+      if (active.current) setMessages((m) => [...m, { role: "assistant", content: `The request failed: ${(e as Error).message}` }]);
     } finally {
-      setBusy(false);
+      requestPending.current = false;
+      if (active.current) setBusy(false);
     }
   }
 
@@ -229,6 +245,16 @@ export default function CopilotPage() {
                             ? `${m.answer.source.slice(4)} · ${m.answer.provider ?? "Qualcomm Cloud AI"}`
                             : `offline answer (${m.answer.fallback_reason})`}{" "}
                           · {Object.keys(m.answer.evidence).length} evidence cited
+                        </p>
+                      )}
+                      {m.answer?.captured_at && (
+                        <p className="mt-2 text-[11px] text-fg-muted">
+                          Captured snapshot · {new Date(m.answer.captured_at).toLocaleString()}
+                          {m.answer.observed_at ? ` · observed ${new Date(m.answer.observed_at).toLocaleTimeString()}` : " · observation time unavailable"}
+                          {m.answer.snapshot_age_s != null && Number.isFinite(m.answer.snapshot_age_s) ? ` · ${m.answer.snapshot_age_s.toFixed(1)} s old at capture` : ""}
+                          {m.answer.stale ? " · stale when captured" : ""}
+                          {m.answer.generation ? ` · generation ${m.answer.generation.slice(0, 8)}` : ""}
+                          {m.answer.documentation_version ? ` · docs ${m.answer.documentation_version.slice(0, 8)}` : ""}
                         </p>
                       )}
                     </div>

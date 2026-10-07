@@ -107,14 +107,16 @@ test("in-app navigation: every sidebar page from the live dashboard and back", a
   // Leaving the dashboard unmounts the 3D map; that used to throw and could leave the URL behind.
   const errors = watch(page);
   await page.goto("/dashboard");
-  await page.waitForTimeout(2000);
+  await page.getByRole("button", { name: "3d", exact: true }).click();
+  await expect(page.locator("#network canvas")).toBeVisible({ timeout: 15_000 });
   for (const href of ["/dashboard/copilot", "/dashboard/whatif", "/dashboard/incidents", "/dashboard/approvals",
                       "/dashboard/insights", "/dashboard/evaluation", "/dashboard/audit", "/dashboard/settings"]) {
     await page.locator(`aside nav a[href="${href}"]`).click();
     await expect(page).toHaveURL(new RegExp(`${href}$`), { timeout: 15_000 });
     await page.locator("aside nav a[href^='/dashboard#']").first().click();
     await expect(page).toHaveURL(/\/dashboard(#.*)?$/, { timeout: 15_000 });
-    await page.waitForTimeout(1000);
+    await page.getByRole("button", { name: "3d", exact: true }).click();
+    await expect(page.locator("#network canvas")).toBeVisible({ timeout: 15_000 });
   }
   expect(errors).toEqual([]);
 });

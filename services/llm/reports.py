@@ -27,6 +27,7 @@ load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 MODEL = os.getenv("LLM_MODEL", "Llama-3.3-70B")
 TIMEOUT_S = 25
+PROVIDER_TIMEOUT_S = 10
 
 CAUSES = {
     "link_failure": "Link failure (the connection went down completely)",
@@ -49,7 +50,10 @@ Sections, in this order:
 ## Results (a Markdown table: metric | before | after | normal)
 ## Recommendations (2-3 short bullets for the IT team)
 
-Keep it under 300 words. Plain English, no jargon without a short explanation."""
+Keep it under 300 words. Plain English, no jargon without a short explanation.
+Use per-flow reachability and measurements for recovery evidence. An aggregate latency
+containing unreachable traffic uses a simulation sentinel, not measured round-trip time.
+Root cause refers to the latest repair attempt; earlier causes belong to incident history."""
 
 
 CLOUD = "Qualcomm Cloud AI (Cirrascale)"
@@ -71,24 +75,35 @@ class Failover:
         error = None
         for client, name, label in self.providers:
             try:
-                response = await client.chat.completions.create(model=name, **kwargs)
+                response = await asyncio.wait_for(
+                    client.chat.completions.create(model=name, **kwargs),
+                    timeout=PROVIDER_TIMEOUT_S,
+                )
             except Exception as e:  # offline, timeout, auth: try the next provider
                 error = e
                 continue
             response.model, response.provider = name, label
             return response
-        raise error
+        raise error or ConnectionError("No explanation provider is available")
 
 
 def make_client() -> Failover | None:
     providers = []
     key, endpoint = os.getenv("INFERENCE_CLOUD_API_KEY"), os.getenv("INFERENCE_CLOUD_ENDPOINT")
-    if key and endpoint:  # fail fast when the venue Wi-Fi drops: the local model takes over
-        timeout = httpx2.Timeout(20.0, connect=3.0)  # Wi-Fi without internet hangs on connect
-        cloud = AsyncOpenAI(api_key=key, base_url=endpoint, timeout=timeout, max_retries=1)
+    if key and key != "your-api-key" and endpoint:
+        timeout = httpx2.Timeout(PROVIDER_TIMEOUT_S, connect=3.0)
+        cloud = AsyncOpenAI(api_key=key, base_url=endpoint, timeout=timeout, max_retries=0)
         providers.append((cloud, MODEL, CLOUD))
     if url := os.getenv("OLLAMA_URL"):  # e.g. http://localhost:11434/v1 (./netheal ollama)
-        providers.append((AsyncOpenAI(api_key="ollama", base_url=url), LOCAL_MODEL, LOCAL))
+        providers.append(
+            (
+                AsyncOpenAI(
+                    api_key="ollama", base_url=url, timeout=PROVIDER_TIMEOUT_S, max_retries=0
+                ),
+                LOCAL_MODEL,
+                LOCAL,
+            )
+        )
     return Failover(providers) if providers else None
 
 
@@ -111,13 +126,29 @@ def entity_namer(net: Network) -> Callable[[str], str]:
 
 
 def incident_facts(incident: Incident, ctx: dict, name: Callable[[str], str]) -> dict:
-    top = ctx["diagnosis"][0] if ctx["diagnosis"] else None
     applied = [p for a in ctx["actions"] if a["kind"] == "applied" for p in [a["payload"]]]
+    diagnosis = ctx["diagnosis"]
+    top = diagnosis[0] if diagnosis else None
+    # A later repair can address a different cause while the original fault remains
+    # visible on an unused resource. Explain the repair actually applied most recently.
+    if applied:
+        latest = applied[-1]
+        target = (
+            latest.params.get("flow")
+            if latest.type == "rollback_config"
+            else next(iter(latest.params.get("avoid", [])), None)
+        )
+        top = next((h for h in diagnosis if h.target == target and h.supported), None)
     results = [a["payload"] for a in ctx["actions"] if a["kind"] == "result"]
-    verified = next((r for r in results if r.verified), None)
+    last_result = results[-1] if results else None
+    verified = (
+        last_result
+        if last_result and last_result.verified and incident.status == "resolved"
+        else None
+    )
     why_no_fix = ("escalated", "no_action", "alert_only")
     notes = [a["payload"] for a in ctx["actions"] if a["kind"] in why_no_fix]
-    proposed = next((a["payload"] for a in ctx["actions"] if a["kind"] == "proposed"), [])
+    proposed = [c for a in ctx["actions"] if a["kind"] == "proposed" for c in a["payload"]]
 
     def describe(c) -> str:
         if c.type == "rollback_config":
@@ -135,6 +166,7 @@ def incident_facts(incident: Incident, ctx: dict, name: Callable[[str], str]) ->
     return {
         "incident_id": incident.id,
         "status": incident.status,
+        "confidence_kind": "heuristic ranking score; not a calibrated probability",
         "fault_started_at": incident.opened_at.isoformat(timespec="seconds"),
         "time_to_detect_s": incident.mttd_s,
         "time_to_heal_s": incident.mttr_s,
@@ -153,6 +185,13 @@ def incident_facts(incident: Incident, ctx: dict, name: Callable[[str], str]) ->
         "fix_verified": verified is not None,
         "affected_traffic_before": verified and _rounded(verified.before),
         "affected_traffic_after": verified and _rounded(verified.after),
+        "per_flow_before": verified and verified.per_flow_before,
+        "per_flow_after": verified and verified.per_flow_after,
+        "flow_names": {fid: name(fid) for fid in (verified.per_flow_before if verified else {})},
+        "metric_note": "Aggregate latency substitutes 1000 ms for unreachable flows; "
+        "it is a simulation scoring sentinel, not a measured delay. Per-flow reachability "
+        "and post-action measurements determine verification.",
+        "latest_result": last_result and last_result.model_dump(mode="json"),
         "notes": notes,
     }
 
@@ -195,7 +234,11 @@ async def write_report(facts: dict, client: AsyncOpenAI | None, model: str = MOD
 
 
 def _grounded(text: str, facts: dict) -> bool:
-    """The draft must name the real cause, every device at the root cause and the real MTTR."""
+    """Check identities, timing, numeric evidence and current outcome.
+
+    This deterministic check cannot prove semantic entailment of arbitrary prose.
+    The UI retains the authoritative evidence alongside any explanatory AI draft.
+    """
     root, lower = facts["root_cause"], text.lower()
     if root:
         cause = root["cause"].split(" (")[0].lower()  # "Link failure (...)" -> "link failure"
@@ -203,7 +246,26 @@ def _grounded(text: str, facts: dict) -> bool:
         if cause not in lower or any(d.lower() not in lower for d in devices):
             return False
     mttr = facts["time_to_heal_s"]
-    return mttr is None or f"{mttr:g}" in text or f"{mttr:.1f}" in text
+    if mttr is not None and not (f"{mttr:g}" in text or f"{mttr:.1f}" in text):
+        return False
+    # An accurate cause/MTTR alone must not allow an invented 99.9% recovery metric.
+    number = r"(?<![\w])\d+(?:\.\d+)?"
+    known = {float(n) for n in re.findall(number, json.dumps(facts, default=str))}
+    if any(float(n) not in known for n in re.findall(number, text)):
+        return False
+    # A past successful attempt must not turn a currently failed incident into a success.
+    if not facts["fix_verified"]:
+        affirmative = re.sub(
+            r"\b(?:not|never|no longer)\s+(?:successfully\s+)?(?:healed|restored|recovered)",
+            "",
+            lower,
+        )
+        if re.search(
+            r"\b(?:successfully healed|traffic (?:was )?restored|service (?:was )?recovered)\b",
+            affirmative,
+        ):
+            return False
+    return True
 
 
 def _report(
@@ -221,14 +283,23 @@ def _report(
 def template_report(f: dict) -> str:
     root = f["root_cause"]
     before, after = f["affected_traffic_before"], f["affected_traffic_after"]
-    healed = f"in {f['time_to_heal_s']:g} s" if f["time_to_heal_s"] is not None else "(not healed)"
+    recovery = (
+        f"Verified recovery in {f['time_to_heal_s']:g} s."
+        if f["fix_verified"] and f["time_to_heal_s"] is not None
+        else "Recovery has not been verified for the current service state."
+    )
+    detection = (
+        f"Detected in {f['time_to_detect_s']:g} s."
+        if f["time_to_detect_s"] is not None
+        else "Fault onset is unknown."
+    )
     cause = root["cause"] if root else "A network problem"
     where = root["where"] if root else "the affected device"
     verified = "yes" if f["fix_verified"] else "no"
     lines = [
         "## Summary",
         f"{cause} at **{where}**. "
-        f"NetHeal detected it in {f['time_to_detect_s']:g} s and restored traffic {healed}.",
+        f"{detection} {recovery} Status: {f['status']}.",
         "",
         "## Impact",
         *[f"- {a}" for a in f["alerts"]],
@@ -236,8 +307,11 @@ def template_report(f: dict) -> str:
         "## Root cause",
     ]  # fmt: skip
     if root:
-        lines += [f"{root['cause']} at **{root['where']}** ({root['confidence_pct']}% confidence).",
-                  *[f"- {e}" for e in root["evidence"]]]  # fmt: skip
+        lines += [
+            f"{root['cause']} at **{root['where']}** "
+            f"(ranking score {root['confidence_pct']}%; not a calibrated probability).",
+            *[f"- {e}" for e in root["evidence"]],
+        ]
     lines += [
         "",
         "## What NetHeal did",
@@ -257,10 +331,37 @@ def template_report(f: dict) -> str:
             f"| {after['baseline_latency_ms']} |",
             f"| Packet loss (%) | {before['loss_pct']} | {after['loss_pct']} | <1 |",
         ]  # fmt: skip
+        lines += ["", f["metric_note"]]
+        per_before, per_after = f.get("per_flow_before") or {}, f.get("per_flow_after") or {}
+        if per_before and per_after:
+            lines += [
+                "",
+                "### Flow evidence",
+                "| Flow | Before latency / loss | After latency / loss | After delivered Mbps |",
+                "|---|---|---|---|",
+            ]
+            for fid, row in per_after.items():
+                previous = per_before.get(fid, {})
+
+                def latency(sample):
+                    return (
+                        f"{sample['latency_ms']:.2f} ms"
+                        if sample.get("reachable") and "latency_ms" in sample
+                        else "unreachable"
+                    )
+
+                label = f.get("flow_names", {}).get(fid, fid).replace("|", "\\|")
+                lines.append(
+                    f"| {label} | {latency(previous)} / {previous.get('loss_pct', 0):.2f}% "
+                    f"| {latency(row)} / {row.get('loss_pct', 0):.2f}% "
+                    f"| {row.get('throughput_mbps', 0):.2f} |"
+                )
     lines += [
         "",
         "## Recommendations",
         f"- Send a technician to inspect **{where}**.",
-        "- Keep the rerouted path until the repair is confirmed.",
+        ("- Keep the verified route while the physical fault is investigated."
+         if f["fix_verified"] and f["fix_applied"] else
+         "- Review the evidence and safety constraints before approving another action."),
     ]  # fmt: skip
     return "\n".join(lines)

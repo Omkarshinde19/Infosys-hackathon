@@ -24,9 +24,15 @@ FEATURE_NAMES = [
 ]  # fmt: skip
 
 
-def breached(latency_ms: float | None, loss_pct: float, baseline_ms: float) -> bool:
+def breached(latency_ms: float | None, loss_pct: float | None, baseline_ms: float) -> bool:
+    """An unknown/invalid observation cannot establish that the SLA was met."""
     return (
         latency_ms is None
+        or loss_pct is None
+        or not np.isfinite([latency_ms, loss_pct, baseline_ms]).all()
+        or latency_ms < 0
+        or not 0 <= loss_pct <= 100
+        or baseline_ms <= 0
         or loss_pct > SLA_LOSS_PCT
         or latency_ms > SLA_LATENCY_RATIO * baseline_ms
     )
@@ -34,9 +40,17 @@ def breached(latency_ms: float | None, loss_pct: float, baseline_ms: float) -> b
 
 def flow_features(history, baseline_ms: float) -> np.ndarray | None:
     """history: [(latency_ms | None, loss_pct), ...] oldest first; needs WINDOW + 1 points."""
-    if len(history) < WINDOW + 1:
+    if len(history) < WINDOW + 1 or not np.isfinite(baseline_ms) or baseline_ms <= 0:
         return None
     window = list(history)[-(WINDOW + 1) :]
+    if any(
+        loss is None
+        or not np.isfinite(loss)
+        or not 0 <= loss <= 100
+        or (lat is not None and (not np.isfinite(lat) or lat < 0))
+        for lat, loss in window
+    ):
+        return None
     r = np.array([UNREACHABLE_RATIO if lat is None else min(lat / baseline_ms, UNREACHABLE_RATIO)
                   for lat, _ in window])  # fmt: skip
     loss = np.array([lo for _, lo in window])
@@ -46,8 +60,25 @@ def flow_features(history, baseline_ms: float) -> np.ndarray | None:
     ])  # fmt: skip
 
 
+def healthy_threshold(probabilities, margin: float = 1.1) -> float:
+    """Exceed every held-out healthy score; never cap below observed healthy scores.
+
+    A threshold above one deliberately disables warnings when calibration cannot
+    separate healthy traffic. This finite calibration set does not guarantee future FPR.
+    """
+    p = np.asarray(probabilities, dtype=float)
+    if not p.size or not np.isfinite(p).all() or np.any((p < 0) | (p > 1)):
+        raise ValueError("Calibration needs finite healthy probabilities in [0, 1]")
+    if not np.isfinite(margin) or margin <= 1:
+        raise ValueError("The healthy threshold margin must exceed one")
+    maximum = float(p.max())
+    return max(maximum * margin, float(np.nextafter(maximum, np.inf)))
+
+
 class Forecaster:
     def __init__(self, model, threshold: float):
+        if not np.isfinite(threshold) or threshold <= 0:
+            raise ValueError("Forecast threshold must be finite and positive")
         self.model, self.threshold = model, threshold
         self.history: dict[str, deque] = defaultdict(lambda: deque(maxlen=WINDOW + 1))
 
@@ -56,6 +87,16 @@ class Forecaster:
         rows, flows = [], []
         for s in samples:
             if s.entity_type != "flow":
+                continue
+            if (
+                s.loss_pct is None
+                or not np.isfinite(s.loss_pct)
+                or not 0 <= s.loss_pct <= 100
+                or (
+                    s.latency_ms is not None and (not np.isfinite(s.latency_ms) or s.latency_ms < 0)
+                )
+            ):
+                self.history[s.entity_id].clear()
                 continue
             self.history[s.entity_id].append((s.latency_ms, s.loss_pct))
             if s.entity_id not in baseline:
@@ -69,7 +110,11 @@ class Forecaster:
         if not rows:
             return {}
         probs = self.model.predict_proba(np.vstack(rows))[:, 1]
-        return {f: float(p) for f, p in zip(flows, probs, strict=True) if p >= self.threshold}
+        return {
+            f: float(p)
+            for f, p in zip(flows, probs, strict=True)
+            if np.isfinite(p) and 0 <= p <= 1 and p >= self.threshold
+        }
 
 
 def load(path: Path = MODEL_PATH) -> Forecaster | None:

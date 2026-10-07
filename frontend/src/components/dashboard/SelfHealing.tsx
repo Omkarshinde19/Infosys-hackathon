@@ -27,6 +27,8 @@ const STATUS: Record<string, string> = {
   awaiting_approval: "Waiting for a human to approve the fix",
   replanning: "The network changed while the fix waited for approval; planning a new one",
   rejected: "The proposed fix was rejected by a human",
+  execution_failed: "The fix could not be applied; review the recorded failure",
+  rollback_failed: "Rollback failed: a human must intervene",
 };
 
 /** "Reroute around Distribution North A ↔ Library · via Distribution North B → Core Router 1" */
@@ -34,7 +36,7 @@ export function describeAction(c: ActionCandidate, name: (id: string) => string)
   if (c.type === "rollback_config") return `Roll back forwarding rules of ${name(c.params.flow!)}`;
   const verb = c.type === "drain_node" ? "Drain" : "Reroute around";
   const via = Object.values(c.params.routes ?? {})[0]?.slice(1, -1).map(name).join(" → ");
-  return `${verb} ${name(c.params.avoid![0])}${via ? ` · via ${via}` : ""}`;
+  return `${verb} ${c.params.avoid?.[0] ? name(c.params.avoid[0]) : "affected traffic"}${via ? ` · via ${via}` : ""}`;
 }
 
 function seconds(from: string, to: string) {
@@ -43,6 +45,10 @@ function seconds(from: string, to: string) {
 
 export function Stepper({ incident }: { incident: Incident }) {
   const done = new Map(incident.timeline.map((e) => [e.stage, e.ts]));
+  const latestIndex = (stage: string) => incident.timeline.findLastIndex((event) => event.stage === stage);
+  // The history keeps earlier successes; the stepper represents the current attempt.
+  if (latestIndex("decide") > latestIndex("heal")) { done.delete("heal"); done.delete("verify"); }
+  if (incident.mttr_s === null || latestIndex("heal") > latestIndex("verify") || latestIndex("rollback") > latestIndex("verify")) done.delete("verify");
   const current = STAGES.find((s) => !done.has(s.id))?.id;
   // Resolved without a fix (nothing to fix) or left to a human: the rest won't happen.
   const toHuman = incident.status === "failed" || incident.status === "alerted";
@@ -51,7 +57,7 @@ export function Stepper({ incident }: { incident: Incident }) {
     <ol className="grid grid-cols-5 gap-2">
       {STAGES.map((s, i) => {
         const ts = done.get(s.id);
-        const active = s.id === current && !skipped;
+        const active = s.id === current && !skipped && !toHuman;
         return (
           <li key={s.id} className="relative flex flex-col items-center text-center">
             {i > 0 && (
@@ -71,7 +77,7 @@ export function Stepper({ incident }: { incident: Incident }) {
             </span>
             <span className="mt-2 text-sm font-medium">{s.label}</span>
             <span className="text-xs text-fg-muted tabular-nums">
-              {ts ? `+${seconds(incident.opened_at, ts)}s` : !skipped ? "…" : toHuman ? "to a human" : "not needed"}
+              {ts ? `+${seconds(incident.opened_at, ts)}s` : toHuman ? "to a human" : skipped ? "not needed" : "…"}
             </span>
           </li>
         );
@@ -90,19 +96,30 @@ function Kpi({ label, value, hint }: { label: string; value: string; hint?: stri
   );
 }
 
-function fmtLatency(v: number | undefined, loss: number | undefined) {
-  if (v === undefined) return "-";
-  return loss !== undefined && loss >= 99 ? "unreachable" : `${v.toFixed(1)} ms`;
+function fmtLatency(v: number | null | undefined, loss: number | null | undefined) {
+  if (loss != null && loss >= 99) return "unreachable";
+  return v == null || !Number.isFinite(v) ? "—" : `${v.toFixed(1)} ms`;
+}
+const fmtLoss = (value: number | null | undefined) => value == null || !Number.isFinite(value) ? "—" : `${value.toFixed(2)}%`;
+
+export function resultOutcome(result: ActionResult): string {
+  if (result.outcome) return result.outcome.replaceAll("_", " ");
+  if (result.verified) return "verified";
+  if (result.rolled_back) return "rolled back";
+  if (result.rollback_error) return "rollback failed";
+  if (result.failure_reason) return "execution failed";
+  return "unverified";
 }
 
 export function SelfHealing() {
   const { incident, healer_status, actions } = useLive((s) => s.incident);
+  const status = useLive((s) => s.dataStatus);
 
   if (!incident) {
     return (
       <div className="glass flex min-h-40 flex-col items-center justify-center p-6 text-center">
-        <HeartPulse className="size-8 text-healthy" />
-        <p className="mt-2 font-semibold">{STATUS.idle}</p>
+        <HeartPulse className={`size-8 ${status === "fresh" ? "text-healthy" : "text-fg-muted"}`} />
+        <p className="mt-2 font-semibold">{status === "fresh" ? STATUS.idle : "Waiting for a reliable detection baseline"}</p>
         <p className="text-sm text-fg-muted">Inject a fault in the Fault Lab to watch NetHeal detect, diagnose and heal it.</p>
       </div>
     );
@@ -140,7 +157,8 @@ export function SelfHealing() {
 /** MTTD/MTTR, before → after, and the twin-ranked candidate fixes of one incident. */
 export function HealingResults({ incident, actions }: { incident: Incident; actions: ActionEvent[] }) {
   const name = useEntityName();
-  const candidates = (actions.findLast((a) => a.kind === "proposed")?.payload ?? []) as ActionCandidate[];
+  const proposals = actions.filter((action) => action.kind === "proposed");
+  const candidates = [...new Map(proposals.flatMap((action) => (action.payload as ActionCandidate[]).map((candidate) => [candidate.id, candidate] as const))).values()];
   const applied = new Set(actions.filter((a) => a.kind === "applied").map((a) => (a.payload as ActionCandidate).id));
   const results = new Map(
     actions.filter((a) => a.kind === "result").map((a) => [(a.payload as ActionResult).action_id, a.payload as ActionResult]),
@@ -150,16 +168,16 @@ export function HealingResults({ incident, actions }: { incident: Incident; acti
   return (
     <>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Kpi label="Time to detect (MTTD)" value={incident.mttd_s != null ? `${incident.mttd_s.toFixed(1)} s` : "-"} hint="from the moment the fault began" />
-        <Kpi label="Time to heal (MTTR)" value={incident.mttr_s != null ? `${incident.mttr_s.toFixed(1)} s` : "-"} hint="fault start → verified fix" />
+        <Kpi label="Time to detect (MTTD)" value={incident.mttd_s != null ? `${incident.mttd_s.toFixed(1)} s` : "-"} hint="simulated seconds from fault start" />
+        <Kpi label="Time to heal (MTTR)" value={incident.mttr_s != null ? `${incident.mttr_s.toFixed(1)} s` : "-"} hint="simulated seconds · fault start → verified fix" />
         <Kpi
           label="Latency, affected traffic"
-          value={final ? `${fmtLatency(final.before.latency_ms, final.before.loss_pct)} → ${final.after.latency_ms.toFixed(1)} ms` : "-"}
-          hint={final ? `normal ${final.after.baseline_latency_ms.toFixed(1)} ms` : undefined}
+          value={final ? `${fmtLatency(final.before.latency_ms, final.before.loss_pct)} → ${fmtLatency(final.after.latency_ms, final.after.loss_pct)}` : "—"}
+          hint={final ? `Latest attempt: ${resultOutcome(final)} · baseline ${fmtLatency(final.after.baseline_latency_ms, 0)}` : undefined}
         />
         <Kpi
           label="Packet loss, affected traffic"
-          value={final ? `${final.before.loss_pct.toFixed(1)}% → ${final.after.loss_pct.toFixed(2)}%` : "-"}
+          value={final ? `${fmtLoss(final.before.loss_pct)} → ${fmtLoss(final.after.loss_pct)}` : "—"}
         />
       </div>
 
@@ -168,6 +186,7 @@ export function HealingResults({ incident, actions }: { incident: Incident; acti
           <h3 className="flex items-center gap-2 font-semibold">
             <Search className="size-4" /> Candidate fixes, tested on the digital twin first
           </h3>
+          <p className="mt-1 text-xs text-fg-muted">Complete history · {proposals.length} proposal rounds · {results.size} attempted fixes with recorded outcomes. Predictions describe the planned state; verification describes the measured result.</p>
           <table className="mt-4 w-full text-sm">
             <thead className="text-left text-xs text-fg-muted">
               <tr>
@@ -196,17 +215,32 @@ export function HealingResults({ incident, actions }: { incident: Incident; acti
                       {c.policy_reasons?.map((r) => (
                         <p key={r} className="text-xs text-critical">Blocked: {r}</p>
                       ))}
+                      {c.planned_at && <p className="mt-1 text-xs text-fg-muted">Planned {new Date(c.planned_at).toLocaleTimeString()} · {c.id.slice(0, 8)}</p>}
+                      {r?.failure_reason && <p className="text-xs text-critical">{r.failure_reason}</p>}
+                      {r?.rollback_error && <p className="text-xs text-critical">Rollback error: {r.rollback_error}</p>}
+                      {r?.verification_reasons?.map((reason) => <p key={reason} className="text-xs text-fg-muted">{reason}</p>)}
+                      {r?.per_flow_before && (
+                        <details className="mt-2 text-xs">
+                          <summary className="cursor-pointer text-fg-muted">Measured before / after by service</summary>
+                          <ul className="mt-1 space-y-1">
+                            {Object.entries(r.per_flow_before).map(([id, before]) => {
+                              const after = r.per_flow_after?.[id];
+                              return <li key={id}>{name(id)}: {fmtLatency(before.latency_ms, before.loss_pct)} / {fmtLoss(before.loss_pct)} → {fmtLatency(after?.latency_ms, after?.loss_pct)} / {fmtLoss(after?.loss_pct)}</li>;
+                            })}
+                          </ul>
+                        </details>
+                      )}
                     </td>
-                    <td className="py-2.5 text-right tabular-nums">{c.twin_prediction?.latency_ms.toFixed(1)} ms</td>
-                    <td className="py-2.5 text-right tabular-nums">{c.twin_prediction?.loss_pct.toFixed(2)}%</td>
-                    <td className="py-2.5 text-right tabular-nums">{Math.round((c.twin_prediction?.max_util ?? 0) * 100)}%</td>
+                    <td className="py-2.5 text-right tabular-nums">{fmtLatency(c.twin_prediction?.latency_ms, c.twin_prediction?.loss_pct)}</td>
+                    <td className="py-2.5 text-right tabular-nums">{fmtLoss(c.twin_prediction?.loss_pct)}</td>
+                    <td className="py-2.5 text-right tabular-nums">{c.twin_prediction ? `${Math.round(c.twin_prediction.max_util * 100)}%` : "—"}</td>
                     <td className="py-2.5 text-right">
-                      <span className={c.opa_decision === "allow" ? "text-healthy" : "text-critical"}>
-                        {c.opa_decision === "allow" ? "passed" : "blocked"}
+                      <span className={c.opa_decision === "allow" ? "text-healthy" : c.opa_decision === "deny" ? "text-critical" : "text-fg-muted"}>
+                        {c.opa_decision === "allow" ? "passed" : c.opa_decision === "deny" ? "blocked" : "not evaluated"}
                       </span>
                     </td>
                     <td className="py-2.5 text-right">
-                      {r ? (r.verified ? <span className="text-healthy">✓ verified</span> : <span className="text-warning">↩ rolled back</span>)
+                      {r ? <span className={r.verified ? "text-healthy" : r.rolled_back ? "text-warning" : "text-critical"}>{resultOutcome(r)}</span>
                         : applied.has(c.id) ? <span className="text-fg-muted">verifying…</span> : <span className="text-fg-muted">-</span>}
                     </td>
                   </tr>

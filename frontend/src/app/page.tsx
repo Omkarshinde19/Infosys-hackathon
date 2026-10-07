@@ -24,26 +24,26 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 
 const steps = [
   { icon: Radar, title: "Watch", text: "Checks every link, device and flow twice a second." },
-  { icon: Activity, title: "Notice", text: "Flags trouble early, before users start complaining." },
-  { icon: Search, title: "Find the cause", text: "Names what broke and where, with the evidence." },
-  { icon: Wrench, title: "Fix safely", text: "Tests the fix on a digital twin, then applies it." },
-  { icon: MessageSquareText, title: "Explain", text: "Writes a report in plain English, with before and after proof." },
+  { icon: Activity, title: "Notice", text: "Detects changes and service breaches in simulated telemetry." },
+  { icon: Search, title: "Find the cause", text: "Ranks candidate causes against evidence and exposes uncertainty." },
+  { icon: Wrench, title: "Fix safely", text: "Tests a candidate on the twin, checks policy and the selected comfort level, then verifies the result." },
+  { icon: MessageSquareText, title: "Explain", text: "Writes a report from the recorded evidence and measured before / after values." },
 ];
 
 const features = [
   { icon: Map, title: "Live network map", text: "Every building and connection, coloured by health, in 2D and 3D." },
-  { icon: Activity, title: "Early warning", text: "Several detectors must agree, so your team isn't spammed." },
-  { icon: Search, title: "Root cause with evidence", text: "A confidence score and the exact signals behind it." },
-  { icon: FlaskConical, title: "Test before touching", text: "Every fix is tried on a virtual copy of your network first." },
+  { icon: Activity, title: "Early warning", text: "Combines anomaly detectors and explicit service checks on simulated traffic." },
+  { icon: Search, title: "Root cause with evidence", text: "A heuristic ranking score and the exact signals behind it." },
+  { icon: FlaskConical, title: "Test before touching", text: "Healing candidates are evaluated on a copy of the simulated network." },
   { icon: SlidersHorizontal, title: "You stay in control", text: "Five comfort levels, from 'just tell me' to fully automatic." },
-  { icon: ShieldCheck, title: "Tamperproof audit", text: "Every decision and action is recorded and verifiable." },
+  { icon: ShieldCheck, title: "Tamper-evident audit", text: "Recorded decisions form a verifiable hash chain; integrity checks expose inconsistent history." },
 ];
 
 const audiences = [
-  { icon: GraduationCap, title: "Colleges", text: "Exams, labs and hostels stay online." },
-  { icon: Building2, title: "Enterprises", text: "Less downtime, fewer calls late at night." },
-  { icon: Hospital, title: "Hospitals", text: "Critical systems caught before they fail." },
-  { icon: Network, title: "IT service providers", text: "One platform for every client network." },
+  { icon: GraduationCap, title: "Colleges", text: "Our campus simulator models buildings, labs and hostels." },
+  { icon: Building2, title: "Enterprises", text: "A potential future use: evidence-based fault triage." },
+  { icon: Hospital, title: "Hospitals", text: "A conceptual application requiring independent safety and infrastructure validation." },
+  { icon: Network, title: "IT service providers", text: "A potential future use: supervised incident workflows." },
 ];
 
 export default function Home() {
@@ -79,9 +79,10 @@ export default function Home() {
               heal themselves.
             </h1>
             <p className="mx-auto mt-6 max-w-xl text-lg text-fg-muted">
-              NetHeal detects, diagnoses and fixes network faults in seconds, and explains every
-              decision in plain English.
+              A campus network prototype that simulates detection, diagnosis and healing,
+              then explains each recorded decision in plain English.
             </p>
+            <p className="mt-3 text-xs text-fg-muted">NC-04 simulated demonstration · no live infrastructure changes · language models explain and report only</p>
             <div className="pointer-events-auto mt-8 flex justify-center gap-3">
               <Link href="/dashboard" className="flex items-center gap-2 rounded-full bg-fg px-6 py-3 font-medium text-bg hover:opacity-90">
                 Open Control Room <ArrowRight className="size-4" />
@@ -102,7 +103,7 @@ export default function Home() {
         <Reveal delay={0.1}>
           <h2 className="text-3xl font-semibold md:text-4xl">The healing loop</h2>
           <p className="mt-3 max-w-md text-fg-muted">
-            Five steps, done automatically, usually before anyone notices.
+            A measured detect → diagnose → decide → heal → verify loop, with human approval or escalation when required.
           </p>
           <div className="mt-8 space-y-3">
             {steps.map((s, i) => (
@@ -124,7 +125,7 @@ export default function Home() {
       <section id="features" className="scroll-mt-24 bg-[radial-gradient(ellipse_at_center,var(--bg-2),transparent_70%)] px-6 py-28">
         <div className="mx-auto max-w-6xl">
           <Reveal>
-            <h2 className="text-center text-3xl font-semibold md:text-4xl">Everything your network team needs</h2>
+            <h2 className="text-center text-3xl font-semibold md:text-4xl">Tools for understanding the healing loop</h2>
           </Reveal>
           <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {features.map((f, i) => (
@@ -146,11 +147,11 @@ export default function Home() {
       <section className="mx-auto grid max-w-6xl items-center gap-14 px-6 py-20 lg:grid-cols-2">
         <Reveal>
           <ShieldCheck className="mb-4 size-8 text-healthy" />
-          <h2 className="text-3xl font-semibold md:text-4xl">The AI explains. It never acts alone.</h2>
+          <h2 className="text-3xl font-semibold md:text-4xl">The language model explains. The controller follows policy.</h2>
           <p className="mt-4 max-w-lg text-fg-muted">
-            Detection, diagnosis and healing are done by a tested engine that follows your rules. Every
-            fix is validated on a digital twin, checked against your safety rules, and undone
-            automatically if it doesn&apos;t help. The language model only explains what happened.
+            The simulated controller detects, diagnoses, proposes and verifies changes according to
+            safety rules and the selected comfort level. Unsuccessful changes trigger rollback;
+            rollback failures are recorded and escalated. The language model only explains and reports from evidence.
           </p>
           <Link href="/dashboard/approvals" className="mt-8 inline-flex items-center gap-2 rounded-full bg-fg px-6 py-3 font-medium text-bg hover:opacity-90">
             See the approvals <ArrowRight className="size-4" />
@@ -164,7 +165,8 @@ export default function Home() {
       {/* Who it's for */}
       <section id="who" className="mx-auto max-w-6xl scroll-mt-24 px-6 py-20">
         <Reveal>
-          <h2 className="text-center text-3xl font-semibold md:text-4xl">Built for networks that can&apos;t go down</h2>
+          <h2 className="text-center text-3xl font-semibold md:text-4xl">A campus prototype, with possible future applications</h2>
+          <p className="mx-auto mt-3 max-w-2xl text-center text-sm text-fg-muted">The working demonstration uses simulated infrastructure. The other settings below are conceptual applications, not validated deployments.</p>
         </Reveal>
         <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {audiences.map((a, i) => (
@@ -184,7 +186,7 @@ export default function Home() {
         <Reveal>
           <div className="glass mx-auto max-w-4xl overflow-hidden p-12 text-center">
             <h2 className="text-3xl font-semibold md:text-4xl">Watch a network heal itself.</h2>
-            <p className="mt-3 text-fg-muted">Inject a fault and see NetHeal detect, diagnose and fix it live.</p>
+            <p className="mt-3 text-fg-muted">Inject a simulated fault and watch the evidence, proposed action and verified outcome update live.</p>
             <Link href="/dashboard" className="mt-8 inline-flex items-center gap-2 rounded-full bg-fg px-6 py-3 font-medium text-bg hover:opacity-90">
               Open Control Room <ArrowRight className="size-4" />
             </Link>

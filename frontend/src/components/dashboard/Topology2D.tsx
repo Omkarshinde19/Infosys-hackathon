@@ -21,7 +21,7 @@ const ICONS = { edge: Globe, core: Router, distribution: Server, access: Buildin
 const COL_GAP = 300;
 const ROW_GAP = 78;
 
-type NetNodeData = { name: string; layer: keyof typeof COLUMNS; health: number; rootCause?: boolean };
+type NetNodeData = { name: string; layer: keyof typeof COLUMNS; health: number | null; rootCause?: boolean };
 
 function NetNode({ data }: NodeProps<Node<NetNodeData>>) {
   const Icon = ICONS[data.layer];
@@ -64,6 +64,7 @@ function layout(topo: Topology): Node<NetNodeData>[] {
 export function Topology2D() {
   const topology = useLive((s) => s.topology);
   const latest = useLive((s) => s.latest);
+  const current = useLive((s) => s.dataStatus === "fresh");
   const rootCause = useLive((s) => s.diagnosis[0]?.target);
   const baseNodes = useMemo(() => (topology ? layout(topology) : []), [topology]);
   const wrapper = useRef<HTMLDivElement>(null);
@@ -81,7 +82,7 @@ export function Topology2D() {
 
   const nodes = baseNodes.map((n) => ({
     ...n,
-    data: { ...n.data, health: nodeHealth(n.id, latest, topology.flows), rootCause: n.id === rootCause },
+    data: { ...n.data, health: current ? nodeHealth(n.id, latest, topology.flows) : null, rootCause: n.id === rootCause },
   }));
   const layers = Object.fromEntries(topology.nodes.map((n) => [n.id, n.layer]));
   const edges: Edge[] = topology.links.map((l) => {
@@ -94,12 +95,12 @@ export function Topology2D() {
       target: l.b,
       sourceHandle: sameColumn ? "bottom" : undefined,
       targetHandle: sameColumn ? "top" : undefined,
-      animated: !down && (s?.throughput_mbps ?? 0) > 1,
+      animated: current && !down && (s?.throughput_mbps ?? 0) > 1,
       label: l.id === rootCause ? "root cause" : undefined,
       labelStyle: { fill: "var(--critical)", fontWeight: 600 },
       labelBgStyle: { fill: "var(--bg)" },
       style: {
-        stroke: healthColor(health(s)),
+        stroke: healthColor(current ? health(s) : null),
         strokeWidth: 1.5 + Math.min(1, s?.util ?? 0) * 4,
         strokeDasharray: down ? "4 6" : undefined,
         opacity: down || (s?.throughput_mbps ?? 0) > 1 ? 1 : 0.35,

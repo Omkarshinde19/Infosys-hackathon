@@ -31,3 +31,46 @@ def test_idle_link_failure_affects_nobody():
 def test_unknown_target_is_rejected():
     with pytest.raises(ValueError):
         what_if(Network(seed=1), Healer(), "link_down", "nope")
+
+
+@pytest.mark.parametrize(
+    ("level", "phrase", "approval"),
+    [
+        (0, "alert a human", False),
+        (1, "recommend", False),
+        (2, "request human approval", True),
+        (3, "automatically", False),
+        (4, "automatically", False),
+    ],
+)
+def test_verdict_obeys_the_current_comfort_level(level, phrase, approval):
+    healer = Healer()
+    healer.level = level
+    result = what_if(Network(seed=1), healer, "link_down", "dist1-library")
+    assert phrase in result["verdict"] and result["autonomy"] == level
+    assert result["approval_required"] is approval
+    if level == 0:
+        assert not result["candidates"] and result["best"] is None
+
+
+def test_whatif_preserves_the_current_application_rate_budget():
+    net, healer = Network(seed=1), Healer()
+    healer.applied_at = [net.now] * 3
+    result = what_if(net, healer, "link_down", "dist1-library")
+    assert result["best"] is None
+    assert any(
+        "Rate limit" in reason
+        for candidate in result["candidates"]
+        for reason in candidate.policy_reasons
+    )
+    assert healer.applied_at == [net.now] * 3 and net.tick == 0
+
+
+def test_compound_whatif_does_not_silently_clear_an_existing_backup_failure():
+    net = Network(seed=1)
+    original_fault = net.inject_fault("link_down", "dist2-library")
+    result = what_if(net, Healer(), "link_down", "dist1-library", preserve_faults=True)
+    assert result["mode"] == "compound" and result["best"] is None
+    assert net.tick == 0 and list(net.faults) == [original_fault.id]
+    isolated = what_if(net, Healer(), "link_down", "dist1-library")
+    assert isolated["mode"] == "isolated" and isolated["best"] is not None

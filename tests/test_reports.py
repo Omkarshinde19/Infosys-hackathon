@@ -94,6 +94,41 @@ def test_template_covers_every_section(facts):
         assert f"## {section}" in md
 
 
+def test_report_includes_individual_flow_evidence_and_sentinel_disclosure(facts):
+    md = template_report(facts)
+    assert "### Flow evidence" in md
+    assert "After delivered Mbps" in md
+    assert "simulation scoring sentinel, not a measured delay" in md
+    assert "Library" in md
+
+
+def test_report_cause_matches_latest_repair_instead_of_old_top_hypothesis():
+    from datetime import UTC, datetime
+
+    from contracts.models import Incident
+
+    old = SimpleNamespace(
+        target="old-link", cause="link_failure", confidence=0.95, evidence=[], supported=True
+    )
+    current = SimpleNamespace(
+        target="new-link", cause="gray_failure", confidence=0.8, evidence=[], supported=True
+    )
+    fix = SimpleNamespace(
+        type="reroute", params={"avoid": ["new-link"], "routes": {"flow": ["a", "b", "c"]}}
+    )
+    inc = Incident(status="healing", opened_at=datetime.now(UTC))
+    ctx = {
+        "diagnosis": [old, current],
+        "actions": [{"kind": "applied", "payload": fix}],
+        "anomalies": {},
+    }
+    result = incident_facts(inc, ctx, str)
+    assert result["root_cause"]["where"] == "new-link"
+    assert result["root_cause"]["cause"].startswith("Gray failure")
+    ctx["diagnosis"] = [old]
+    assert incident_facts(inc, ctx, str)["root_cause"] is None
+
+
 def test_grounding_accepts_paraphrased_names_but_needs_cause_and_mttr(facts):
     paraphrase = (
         "Link failure on the link between Distribution North A and Library; "

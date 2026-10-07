@@ -10,6 +10,7 @@ TOPICS = {
     "action": "actions",
     "incident": "incidents",
     "audit": "audit",
+    "autonomy": "autonomy",
 }
 
 BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP")  # unset = run without the bus (local dev, tests)

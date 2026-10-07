@@ -11,6 +11,7 @@ from datetime import datetime
 
 import asyncpg
 from aiokafka import AIOKafkaConsumer
+from aiokafka.structs import TopicPartition
 from prometheus_client import start_http_server
 
 from services import bus
@@ -37,7 +38,10 @@ def to_rows(envelope: dict) -> dict[str, list[tuple]]:
                 (a["id"], _ts(a["ts"]), a["entity_id"], a["metric"], a["value"],
                  a["baseline"], a["score"], a["severity"], a["detectors"])
                 for a in data["raised"]
-            ]
+            ],
+            # Retain the entire delta, including clears and refreshed stable-ID
+            # evidence. The anomalies table is a latest-observation view.
+            "events": [(bus.TOPICS[kind], json.dumps(envelope))],
         }  # fmt: skip
     if kind == "incident":
         inc = data["incident"]
@@ -59,7 +63,12 @@ async def write(conn: asyncpg.Connection, rows: dict[str, list[tuple]]) -> None:
         )
     if rows.get("anomalies"):
         await conn.executemany(
-            "INSERT INTO anomalies VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT DO NOTHING",
+            """INSERT INTO anomalies VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+               ON CONFLICT (id) DO UPDATE SET
+                 ts=excluded.ts, entity_id=excluded.entity_id, metric=excluded.metric,
+                 value=excluded.value, baseline=excluded.baseline, score=excluded.score,
+                 severity=excluded.severity, detectors=excluded.detectors
+               WHERE anomalies.ts <= excluded.ts""",
             rows["anomalies"],
         )
     if rows.get("incidents"):
@@ -73,22 +82,48 @@ async def write(conn: asyncpg.Connection, rows: dict[str, list[tuple]]) -> None:
         await conn.executemany("INSERT INTO events (topic, data) VALUES ($1, $2)", rows["events"])
 
 
+async def process_message(conn: asyncpg.Connection, consumer, msg) -> None:
+    """Commit receipt+payload before acknowledging one consumed offset.
+
+    A commit failure leaves Kafka unacknowledged. A broker-ack failure after SQL
+    commit is safe to retry because the stored event UUID/coordinates deduplicate it.
+    """
+    envelope = json.loads(msg.value)
+    async with conn.transaction():
+        inserted = await conn.fetchval(
+            """INSERT INTO message_receipts
+            (topic,partition,offset_id,event_id) VALUES($1,$2,$3,$4)
+            ON CONFLICT DO NOTHING RETURNING 1""",
+            msg.topic,
+            msg.partition,
+            msg.offset,
+            envelope.get("event_id"),
+        )
+        if inserted:
+            await write(conn, to_rows(envelope))
+    await consumer.commit({TopicPartition(msg.topic, msg.partition): msg.offset + 1})
+
+
 async def main() -> None:
     start_http_server(9464)  # Prometheus metrics
     obs.setup_tracing("sink")
     conn = await asyncpg.connect(os.environ["DATABASE_URL"])
+    await conn.execute("""CREATE TABLE IF NOT EXISTS message_receipts (
+        topic TEXT NOT NULL, partition INTEGER NOT NULL, offset_id BIGINT NOT NULL,
+        event_id TEXT UNIQUE, PRIMARY KEY(topic,partition,offset_id))""")
     consumer = AIOKafkaConsumer(
         *bus.TOPICS.values(),
         bootstrap_servers=bus.BOOTSTRAP,
         group_id="sink",
         auto_offset_reset="earliest",
+        enable_auto_commit=False,
     )
     await consumer.start()
     print("sink: consuming", list(bus.TOPICS.values()), flush=True)
     try:
         async for msg in consumer:
             obs.MESSAGES.labels("sink", msg.topic).inc()
-            await write(conn, to_rows(json.loads(msg.value)))
+            await process_message(conn, consumer, msg)
     finally:
         await consumer.stop()
         await conn.close()

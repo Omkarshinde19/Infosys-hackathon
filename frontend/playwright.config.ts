@@ -7,6 +7,8 @@ export default defineConfig({
   workers: 1, // every test drives the same live network: never run two at once
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
   use: {
+    // Use an installed browser for portable local verification without downloading a cache.
+    channel: process.env.PLAYWRIGHT_CHANNEL,
     baseURL: process.env.BASE_URL ?? "http://localhost:3000",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",

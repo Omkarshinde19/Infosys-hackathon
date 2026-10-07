@@ -1,33 +1,75 @@
-# Known limitations and next steps
+# Verified scope and remaining limits
 
-What NetHeal does not do yet, written down so nobody over-claims it in a demo and so the next person knows where to start. Most items come from a code audit on 7 Oct 2026; the ones that were quick and safe are already fixed (localhost-only ports, signing-secret setup, validated assistant input, alert-only incidents, re-checked approvals, latest healing history).
-
-## Healing decisions
-
-- **Verification averages the affected flows.** One flow can stay above 1% loss while the group average passes. Next: check every affected flow on its own, and check that unaffected flows did not get slower (the safety policy checks their loss, not their latency).
-- **Candidates move all affected flows to the same path rank.** A mix (flow A on its first detour, flow B on its second) is never tried. Next: bounded search over mixed assignments, compared against an exact optimiser on this small campus.
-- **Route search uses base latency, then filters.** Demand and spare capacity only enter through the twin's verdict. Next: capacity-aware path generation, service priorities, cooldowns against route churn.
-- **A rollback restores the routes it changed; it does not re-read the switches.** On the emulator, a command that times out after the switch accepted it is not reconciled.
+NetHeal is the NC-04 campus simulator prototype. It runs detection, diagnosis,
+guarded planning, repair, per-flow verification and explanations. It operates on a
+configured synthetic campus and optionally a separate Mininet/Open vSwitch lab.
+No production network, customer downtime saving or physical cable repair has been validated.
 
 ## Detection and diagnosis
 
-- **Reachability is not checked for an entity while its baseline is being re-learned** (up to 10 s after a reroute). Downstream flows still alert.
-- **Diagnosis confidence is a weighted score, not a calibrated probability.** One cause at a time; simultaneous faults are not separated.
-- **Telemetry gaps are not their own alert.** Missing data is not flagged as a data-quality problem.
+Hard reachability checks continue during relearning. Missing, stale and malformed
+measurements produce data-quality evidence and block unsupported diagnoses. Ordinary
+statistical alerts use a trusted healthy baseline, robust deviation, Isolation Forest
+and temporal debounce. Flow service limits add explicit sustained degradation alerts.
+Unknown steady-state faults can still contaminate an apparently healthy starting baseline.
 
-## Machine learning
+RCA confidence is a heuristic ranking score. It combines resource signatures,
+affected-path votes and an optional pretrained graph model. It can abstain when only
+forecast, latency or bad-data symptoms exist. It identifies a leading cause with
+evidence and records unexplained flows. Complete simultaneous-fault decomposition
+and probability calibration remain future work.
 
-- **The RL agent is trained on the true fault location**, one decision per episode (`gamma = 0`), and compared with the rules on 600 held-out decisions. Next: train on the diagnosis it will really get, and compare with a constrained optimiser and a contextual bandit.
-- **Everything is trained and evaluated on one campus topology.** Generalisation to other networks is untested.
+The pretrained GNN, forecaster, LSTM autoencoder and RL weights were preserved.
+Their standalone scores come from their original training artifacts. The forecast
+training label uses a broader service threshold than the operational verifier.
+RL training uses a one-step environment with the true fault location. Its proposal
+must pass the same current twin and policy checks as deterministic candidates.
+Transfer to a new topology or workload has not been established.
 
-## Evaluation
+## Planning and recovery
 
-- **One fault per scenario, 60 s episodes, 26 healthy controls.** No overlapping faults, telemetry outages or controller restarts. The "reactive" baseline ignores the safety rules; there is no OSPF/ECMP-style baseline.
-- **The twin knows the injected fault** (it copies it). A real deployment would have to infer it.
+Mixed route assignments now use a bounded capacity-aware search. This improves
+candidate coverage without claiming the globally optimal traffic allocation.
+The supported actuators are rerouting, node draining and configuration rollback.
+Other contract enum values fail closed until an actuator exists.
 
-## Platform
+Candidates expire and bind to controller generation, observed diagnosis and state.
+Approvals and retries revalidate current predictions and policy. Every flow must
+meet its loss and latency limits, and collateral service deterioration blocks success.
+Execution and rollback failures have explicit outcomes. Continued deterioration
+causes bounded replanning and escalation.
 
-- **State lives in the engine process.** Incidents, approvals and the audit chain survive in TimescaleDB as a record, but a restart starts a fresh controller.
-- **Events are published without waiting for broker acknowledgement**, and the sink is not idempotent on replay.
-- **Sessions use a bearer token in browser storage**, fine on one laptop. A shared deployment would need HttpOnly cookies, revocation and a separately secured emulator API.
-- **The launcher is a bash script for macOS and Linux**; Windows needs WSL2. Python dependencies are lower-bound, not locked.
+The simulator twin knows configured fault state and shares the plant equations.
+The independent synthetic delay stress suite introduces a deliberate model mismatch.
+This is useful fault testing, with limited coverage of real uncertainty.
+An emulator command can time out after a switch accepts it. HTTP acknowledgement
+and checked OpenFlow exit status improve error reporting, but readback reconciliation,
+transactional multi-switch updates and confirmed device commits remain unimplemented.
+
+## Platform and explanations
+
+Native mode and the Docker engine can preserve reviewed incident history, reports
+and audit entries in a SQLite checkpoint/journal. Restart starts a clean simulated
+network and invalidates unfinished commands. It does not resume an unknown repair.
+This is one local controller, with no distributed controller failover guarantee.
+The audit hash chain is tamper-evident and needs a trusted external head to resist
+a privileged rewrite of the complete chain.
+
+Broker acknowledgements/retries run outside the simulation loop. Control events
+use a durable local outbox when NETHEAL_STATE_PATH is configured. Telemetry uses
+a bounded queue and can be dropped under backpressure. Browser sequence gaps
+trigger a coherent snapshot. The sink commits database writes and deduplication
+receipts before acknowledging consumer offsets. End-to-end Docker availability
+must be checked on the machine used for the demo.
+
+The LLM has only read-only query, document and isolated simulation tools. It does
+not detect, diagnose, approve or actuate repairs. Reports bind to an evidence hash
+and reject changes during generation. Citation coverage, cause/timing/numeric
+checks are useful guards, with no proof of complete semantic grounding. Templates
+provide a labeled fallback when credentials, model availability or checks fail.
+Live Qualcomm Cloud AI or Ollama inference requires a configured available provider.
+
+JWT bearer sessions remain in local browser storage. Local ports bind to loopback.
+A shared deployment needs a production identity provider, session revocation,
+HttpOnly cookies, rate limiting and separately authenticated emulator access.
+Python dependency floors are not a complete reproducible cross-platform lock.

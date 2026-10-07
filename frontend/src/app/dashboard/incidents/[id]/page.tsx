@@ -3,11 +3,13 @@
 import { ArrowLeft, Search } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { QueryState } from "@/components/dashboard/QueryState";
 import { CAUSES } from "@/components/dashboard/Diagnosis";
 import { type Report, ReportPanel } from "@/components/dashboard/ReportPanel";
 import { HealingResults, Stepper } from "@/components/dashboard/SelfHealing";
 import type { ActionEvent, Anomaly, Hypothesis, Incident } from "@/lib/live";
+import { useLive } from "@/lib/live";
+import { useQuery } from "@/lib/query";
 import { useEntityName } from "@/lib/names";
 
 type Detail = {
@@ -20,21 +22,19 @@ type Detail = {
 
 export default function IncidentPage() {
   const { id } = useParams<{ id: string }>();
-  const [detail, setDetail] = useState<Detail | null>(null);
-  const [missing, setMissing] = useState(false);
+  const version = useLive((s) => s.incident.incident?.id === id ? `${s.generation}/${s.incident.incident?.status}/${s.incident.actions.length}/${s.diagnosis[0]?.id}` : s.generation ?? "");
+  const query = useQuery<Detail>(`/api/incidents/${encodeURIComponent(id)}`, version);
+  const detail = query.data;
   const name = useEntityName();
 
-  useEffect(() => {
-    fetch(`/api/incidents/${id}`).then(async (r) => (r.ok ? setDetail(await r.json()) : setMissing(true)));
-  }, [id]);
-
-  if (missing) return <p className="p-10 text-fg-muted">Incident not found. It may be from before the gateway restarted.</p>;
-  if (!detail) return null;
+  if (!detail) return <QueryState {...query} />;
 
   const { incident, diagnosis, anomalies, actions } = detail;
   // Why no fix was applied (nothing to fix, or no safe fix), in NetHeal's own words.
   const decision = actions.findLast((a) => a.kind === "no_action" || a.kind === "alert_only" || a.kind === "escalated")?.payload as string | undefined;
   const top = diagnosis[0];
+  // A report belongs to these exact facts. Replacing evidence unmounts pending/locally generated reports.
+  const reportVersion = JSON.stringify({ incident, diagnosis, actions, generated: detail.report?.generated_at });
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6 pb-24">
       <Link href="/dashboard/incidents" className="flex w-fit items-center gap-1.5 pt-2 text-sm text-fg-muted hover:text-fg print:hidden">
@@ -64,7 +64,7 @@ export default function IncidentPage() {
           <h3 className="font-semibold">Root cause evidence</h3>
           {top ? (
             <ul className="mt-3 space-y-2 text-sm">
-              <li className="text-fg-muted">{Math.round(top.confidence * 100)}% confidence</li>
+              <li className="text-fg-muted">{Math.round(top.confidence * 100)}% heuristic ranking score · {top.supported === false ? "insufficient support" : "evidence-supported candidate"}</li>
               {top.evidence.map((e) => (
                 <li key={e.description} className="flex gap-2">
                   <Search className="mt-0.5 size-4 shrink-0 text-fg-muted" /> {e.description}
@@ -88,7 +88,7 @@ export default function IncidentPage() {
         </div>
       </div>
 
-      <ReportPanel incidentId={incident.id} initial={detail.report} />
+      <ReportPanel key={reportVersion} incidentId={incident.id} initial={detail.report} />
     </div>
   );
 }

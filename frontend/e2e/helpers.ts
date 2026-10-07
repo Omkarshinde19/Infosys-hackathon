@@ -32,6 +32,7 @@ export async function signIn(page: Page, username: string) {
 export const IGNORED = [
   /THREE\.Clock: This module has been deprecated/, // inside @react-three/fiber 9.8 (latest), not our code
   /GL Driver Message|GPU stall due to ReadPixels/, // headless Chrome's software WebGL only
+  /warning X4122:.*cannot be represented accurately in double precision/, // software shader compiler rounding, not shader compilation failure
   /was preloaded using link preload but not used/, // Next.js prefetching the next page's CSS
   /\[Fast Refresh\]|Download the React DevTools/, // dev-server chatter
   /Attempted to synchronously unmount a root/, // dev only: drei <Html> labels under StrictMode

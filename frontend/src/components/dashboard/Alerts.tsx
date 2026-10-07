@@ -17,13 +17,15 @@ const DETECTOR_NAMES: Record<string, string> = {
   reachability: "Reachability",
   lstm_ae: "LSTM autoencoder",
   forecast: "Forecaster",
+  service_sla: "Service objective",
 };
 
 function describe(a: Anomaly) {
   if (a.metric === "reachability") return "Unreachable: traffic can't get through";
-  if (a.metric === "predicted_sla_breach") return `SLA breach predicted within 5 s (${Math.round(a.value * 100)}% risk)`;
+  if (a.metric === "predicted_sla_breach") return `Forecast of the trained breach target within 5 s (${Math.round(a.value * 100)}% model score; target: 2% loss or 2× baseline latency)`;
   const m = METRIC[a.metric];
-  return `${m.label} ${m.fmt(a.value)} (normal ${m.fmt(a.baseline)})`;
+  if (!m) return `${a.metric}: ${a.value} (baseline ${a.baseline})`;
+  return `${m.label} ${m.fmt(a.value)} (${a.detectors.includes("service_sla") ? "service limit" : "baseline"} ${m.fmt(a.baseline)})`;
 }
 
 function AlertCard({ a, name }: { a: Anomaly; name: string }) {
@@ -54,12 +56,15 @@ export function Alerts() {
   const anomalies = Object.values(useLive((s) => s.anomalies));
   const log = useLive((s) => s.alertLog);
   const detector = useLive((s) => s.detector);
+  const status = useLive((s) => s.dataStatus);
   const name = useEntityName();
 
   return (
     <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
       <div className="glass min-h-48 p-6">
-        {!detector.ready ? (
+        {status === "unknown" || status === "stale" ? (
+          <p className="text-sm text-fg-muted">{status === "unknown" ? "Waiting for measured data before assessing anomalies." : `Live anomaly assessment unavailable. ${anomalies.length} alerts were active in the last snapshot.`}</p>
+        ) : !detector.ready ? (
           <div className="flex h-full flex-col justify-center">
             <p className="flex items-center gap-2 font-semibold">
               <ShieldCheck className="size-5" /> Learning what &quot;healthy&quot; looks like…
@@ -75,7 +80,7 @@ export function Alerts() {
           <div className="flex h-full flex-col items-center justify-center text-center">
             <CheckCircle2 className="size-8 text-healthy" />
             <p className="mt-2 font-semibold">All clear</p>
-            <p className="text-sm text-fg-muted">No anomalies. Every link, device and flow is within its normal range.</p>
+            <p className="text-sm text-fg-muted">No active detector alerts in the latest measured data.</p>
           </div>
         ) : (
           <div className="grid gap-3 md:grid-cols-2">

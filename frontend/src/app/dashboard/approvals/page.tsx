@@ -1,32 +1,38 @@
 "use client";
 
 import { Check, ShieldCheck, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useRef, useState } from "react";
 import { describeAction } from "@/components/dashboard/SelfHealing";
 import { useCan } from "@/lib/auth";
 import { postJSON, useLive } from "@/lib/live";
 import { useEntityName } from "@/lib/names";
 
-type Autonomy = { level: number; levels: Record<string, string> };
-
 export default function ApprovalsPage() {
-  const [autonomy, setAutonomy] = useState<Autonomy | null>(null);
+  const autonomy = useLive((s) => s.autonomy);
+  const status = useLive((s) => s.dataStatus);
+  const connected = useLive((s) => s.connected);
+  const [pending, setPending] = useState(false);
+  const busy = useRef(false);
   const [error, setError] = useState("");
   const isAdmin = useCan("admin");
   const isOperator = useCan("operator");
   const { awaiting, healer_status } = useLive((s) => s.incident);
+  const sampleTime = useLive((s) => s.lastSampleAt);
+  const expired = Boolean(awaiting?.expires_at && sampleTime && Date.parse(sampleTime) >= Date.parse(awaiting.expires_at));
   const name = useEntityName();
 
-  useEffect(() => {
-    fetch("/api/autonomy").then((r) => r.json()).then(setAutonomy);
-  }, []);
-
   async function act(fn: () => Promise<unknown>) {
+    if (busy.current) return;
+    busy.current = true;
+    setPending(true);
     setError("");
     try {
       await fn();
     } catch (e) {
       setError((e as Error).message);
+    } finally {
+      busy.current = false;
+      setPending(false);
     }
   }
 
@@ -49,8 +55,9 @@ export default function ApprovalsPage() {
               return (
                 <button
                   key={level}
-                  disabled={!isAdmin}
-                  onClick={() => act(async () => setAutonomy(await postJSON("/autonomy", { level: Number(level) }, "PUT")))}
+                  disabled={!isAdmin || pending || !connected}
+                  aria-pressed={active}
+                  onClick={() => act(() => postJSON("/autonomy", { level: Number(level) }, "PUT"))}
                   className={`glass p-4 text-left transition-colors disabled:cursor-not-allowed ${
                     active ? "border-accent-2! bg-[var(--glass-hover)]" : "enabled:hover:bg-[var(--glass-hover)]"
                   }`}
@@ -71,29 +78,30 @@ export default function ApprovalsPage() {
           <div className="glass p-6" style={{ borderColor: "var(--warning)" }}>
             <p className="font-semibold">{describeAction(awaiting, name)}</p>
             <div className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
-              <p>Twin latency: <b>{awaiting.twin_prediction?.latency_ms.toFixed(1)} ms</b></p>
-              <p>Twin loss: <b>{awaiting.twin_prediction?.loss_pct.toFixed(2)}%</b></p>
-              <p>Peak link load: <b>{Math.round((awaiting.twin_prediction?.max_util ?? 0) * 100)}%</b></p>
+              <p>Twin latency: <b>{awaiting.twin_prediction ? `${awaiting.twin_prediction.latency_ms.toFixed(1)} ms` : "—"}</b></p>
+              <p>Twin loss: <b>{awaiting.twin_prediction ? `${awaiting.twin_prediction.loss_pct.toFixed(2)}%` : "—"}</b></p>
+              <p>Peak link load: <b>{awaiting.twin_prediction ? `${Math.round(awaiting.twin_prediction.max_util * 100)}%` : "—"}</b></p>
             </div>
-            <p className="mt-3 flex items-center gap-2 text-sm text-healthy">
-              <ShieldCheck className="size-4" /> Tested on the digital twin and passed every safety rule
+            <p className={`mt-3 flex items-center gap-2 text-sm ${awaiting.opa_decision === "allow" ? "text-healthy" : "text-warning"}`}>
+              <ShieldCheck className="size-4" /> {awaiting.opa_decision === "allow" && awaiting.twin_prediction ? "Twin prediction and recorded safety check passed. The gateway rechecks before applying." : "Safety evaluation is incomplete or blocked."}
             </p>
             <div className="mt-5 flex gap-3">
               <button
-                disabled={!isOperator}
+                disabled={!isOperator || pending || status !== "fresh" || awaiting.opa_decision !== "allow" || !awaiting.twin_prediction || expired}
                 onClick={() => act(() => postJSON(`/approvals/${awaiting.id}/approve`))}
                 className="flex items-center gap-2 rounded-full bg-fg px-5 py-2.5 font-medium text-bg hover:opacity-90 disabled:opacity-40"
               >
                 <Check className="size-4" /> Approve &amp; apply
               </button>
               <button
-                disabled={!isOperator}
+                disabled={!isOperator || pending || status !== "fresh"}
                 onClick={() => act(() => postJSON(`/approvals/${awaiting.id}/reject`))}
                 className="glass flex items-center gap-2 rounded-full! px-5 py-2.5 font-medium enabled:hover:bg-[var(--glass-hover)] disabled:opacity-40"
               >
                 <X className="size-4" /> Reject
               </button>
             </div>
+            {awaiting.expires_at && <p className="mt-3 text-xs text-fg-muted">{expired ? "This proposal expired." : `Proposal expires at simulation time ${new Date(awaiting.expires_at).toLocaleTimeString()}.`} The gateway rechecks expiry and network state before applying.</p>}
             {!isOperator && <p className="mt-3 text-xs text-fg-muted">Sign in as an operator to approve or reject.</p>}
           </div>
         ) : (

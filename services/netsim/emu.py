@@ -36,33 +36,44 @@ class EmuNetwork(Network):
         self.request("POST", "/reset", {"routes": self.routes})
 
     def step(self) -> list[TelemetrySample]:
-        self.tick += 1
         rows = self.request("GET", "/telemetry")
+        self.tick += 1
         return [TelemetrySample(ts=self.now, **row) for row in rows]
 
     def inject_fault(
         self, type: str, target: str, severity: float = 1.0, ramp_s: float = 0.0
     ) -> Fault:
-        fault = super().inject_fault(type, target, severity, ramp_s)  # validates + feeds the twin
-        self.request("POST", "/fault", {"type": type, "target": target, "severity": severity,
-                                        "ramp_s": ramp_s})  # fmt: skip
+        # Validate in an isolated twin, then update local state only after the agent accepts.
+        twin = self.snapshot()
+        fault = twin.inject_fault(type, target, severity, ramp_s)
+        self._accepted(
+            "/fault", {"type": type, "target": target, "severity": severity, "ramp_s": ramp_s}
+        )
+        self.faults[fault.id] = fault
         return fault
 
     def clear_faults(self) -> None:
+        self._accepted("/clear_faults", {})
         super().clear_faults()
-        self.request("POST", "/clear_faults", {})
 
     def set_route(self, flow_id: str, path: list[str]) -> None:
+        self.snapshot().set_route(flow_id, path)
+        self._accepted("/route", {"flow": flow_id, "path": path})
         super().set_route(flow_id, path)
-        self.request("POST", "/route", {"flow": flow_id, "path": path})
 
     def rollback_config(self, flow_id: str) -> None:
+        self.snapshot().rollback_config(flow_id)
+        self._accepted("/rollback_config", {"flow": flow_id})
         super().rollback_config(flow_id)
-        self.request("POST", "/rollback_config", {"flow": flow_id})
+
+    def _accepted(self, path: str, body: dict) -> None:
+        response = self.request("POST", path, body)
+        if not isinstance(response, dict) or response.get("ok") is not True:
+            raise OSError(f"Emulator did not acknowledge {path}")
 
     def snapshot(self) -> Network:
         """The twin: a plain simulator with the same routes, faults and clock."""
         twin = Network(t0=self.t0)
-        twin.routes, twin.faults = dict(self.routes), copy.deepcopy(self.faults)
+        twin.routes, twin.faults = copy.deepcopy(self.routes), copy.deepcopy(self.faults)
         twin.tick = self.tick
         return twin

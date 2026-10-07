@@ -5,11 +5,33 @@
 
 NetHeal runs the full **detect → diagnose → decide → heal → verify** loop on a campus network, either a fast Python digital twin or an emulated network with real packets (Mininet + Open vSwitch). Every fix is tested on the twin and checked against safety rules before it touches the network, and an LLM explains what happened. Nothing touches live production infrastructure.
 
-> **Golden rule:** the AI never acts on its own. Detection, diagnosis and healing come from statistics, ML and a rule-checked healer; the language model only explains, with read-only tools.
+> **Golden rule:** the language model only explains, using read-only tools. Statistics and ML assist detection, diagnosis and planning; the controller can apply allowed repairs at the configured autonomy level after twin and policy checks.
 
 ---
 
 ## Quick start
+
+On this Windows checkout, run the native simulator and production dashboard in PowerShell:
+
+```powershell
+.\netheal.ps1 start
+.\netheal.ps1 status
+.\netheal.ps1 stop
+```
+
+Open **http://localhost:3000/dashboard**. The API runs on **http://localhost:8001/docs**.
+The native launcher keeps incident history and its audit chain in
+`.cache/runtime/controller.sqlite3`, starts hidden processes and records their identities.
+After a controller restart it starts a fresh simulator, retains reviewed history, and
+invalidates unfinished commands. Wait for the detector's healthy baseline before a drill.
+
+For a fresh Windows installation, install Python3.13 and Node24, create `.venv`, install
+`pip install -e ".[dev]"`, run `npm ci --prefix frontend`, then build the frontend with
+`GATEWAY_URL=http://127.0.0.1:8001` and
+`NEXT_PUBLIC_GATEWAY_WS=ws://localhost:8001/ws/live`. The launcher can also use the Codex
+bundled Node runtime on this laptop. The checked-in npm lock controls frontend dependencies.
+
+The optional Docker stack retains its Bash entry point:
 
 ```bash
 ./netheal setup     # first time: Python + Node dependencies, creates .env
@@ -20,18 +42,37 @@ Sign in at http://localhost:3000/login to inject faults or approve fixes (watchi
 
 **For the demo:** read [docs/DEMO.md](docs/DEMO.md) (checklist, 5-minute script, fallbacks, judge Q&A).
 
+## Study and presentation files
+
+The finished, portable files are included in [deliverables](deliverables/README.md):
+
+- [Interactive study companion](deliverables/NetHeal-Study-Companion.html): download the HTML
+  and open it in Chrome or Edge. Lessons, numbered source explanations, calculations and
+  recall questions work offline. The source snapshot and verification scope are embedded.
+- [Detection, root cause analysis and evaluation slides](deliverables/NetHeal-Detection-RCA-Evaluation.pptx),
+  with speaker notes and editable chart/table data.
+- [Actual simulator demo recording](deliverables/NetHeal-Live-Demo.webm).
+- [Verification evidence](deliverables/verification.json), including the published evaluation
+  populations, browser checks and actual restart/repair results.
+
+The running gateway also serves the packaged HTML at `/study#presentation`
+(`http://localhost:8001/study#presentation` in the native Windows setup).
+The dashboard and HTML can show measured simulation evidence without a cloud API key.
+Live provider calls and the optional emulator are outside the recorded local verification.
+
 ## What it does, measured
 
-From [docs/EVALUATION.md](docs/EVALUATION.md): 300 faults it never trained on, each replayed under five policies.
+Read [docs/EVALUATION.md](docs/EVALUATION.md) and the dashboard Evaluation page for the
+saved experiment's exact populations, source hashes, policy comparisons and uncertainty.
+The current harness compares seven policies using paired seeds and a fixed original
+service-impact cohort. A separate synthetic disturbance suite exercises an imperfect twin.
+Healthy controls and fault scenarios are counted separately. A recovery percentage is
+conditional on that experiment's service definition and topology.
 
-| | No healing | NetHeal (live configuration) |
-|---|---|---|
-| Faults that hurt users, recovered | 0% | **85%** |
-| Median time to detect / to a verified fix | 1.5 s / – | **1.5 s / 4.5 s** |
-| Total time users were hurt | 5,625 s | **865 s** |
-| False alarms on healthy traffic | 0% | **0%** |
-
-On the emulated network with real packets: a link failure is detected in 1.5 s and healed in 4.5 s.
+An action verifies only when **each affected and unaffected flow** meets its frozen
+service limits over the verification window. The result retains per-flow measurements,
+failed checks, rollback outcomes and subsequent relapses. The nominal simulator and its
+twin share a mathematical model. Real-network generalization remains untested.
 
 ## How it works
 
@@ -60,7 +101,7 @@ On the emulated network with real packets: a link failure is detected in 1.5 s a
 | Language model | Llama-3.3-70B on Cirrascale AI Suite (OpenAI-compatible) · qwen2.5:7b on Ollama when offline · bge embeddings for document search |
 | Backend | Python 3.13, FastAPI, Pydantic 2, aiokafka · Redpanda, TimescaleDB, Redis · Docker Compose |
 | Frontend | Next.js 16, React 19, TypeScript, Tailwind 4, React Flow, react-three-fiber (3D), ECharts, Zustand |
-| Quality | pytest (158 tests), Playwright (demo, offline, UI audit with axe-core), ruff, eslint, GitHub Actions |
+| Quality | pytest, Playwright (coherent state, demo, offline, UI audit with axe-core), ruff, eslint, GitHub Actions |
 
 ## Docs
 
@@ -99,18 +140,18 @@ netheal       the one command for everything (./netheal help)
 
 | Command | What it does |
 |---|---|
-| `./netheal start` / `stop` / `restart` | Whole stack in Docker (starts Docker Desktop if needed, waits for the detector's 30 s warm-up) |
+| `./netheal start` / `stop` / `restart` | Whole stack in Docker; requires a running daemon (the helper can open Docker Desktop on macOS). Waits for the detector's trusted baseline, normally 30 modeled seconds. |
 | `./netheal status` | Containers, health checks, detector and offline model |
 | `./netheal logs [service]` | Follow logs: `engine`, `stream`, `sink`, `frontend`, `redpanda`, `timescaledb`, `redis` |
 | `./netheal open` | Open the dashboard |
-| `./netheal reset` | Fresh demo state (restarts the engine; 30 s re-learn) |
+| `./netheal reset` | Restart the engine with a fresh network and detector baseline; configured SQLite history survives and unfinished commands are invalidated. |
 | `./netheal rehearse` | Pre-flight checks, then the demo 5× in a row with the internet blocked |
 | `./netheal record` | Backup video of the demo → `data/demo/netheal-demo.webm` |
 | `./netheal ui-check` | Find UI errors: every page × screen size × theme × role, then every user flow |
 | `./netheal emu` | Also start the emulated network (then Settings → Network backend, as admin; uses ~10 CPU cores) |
 | `./netheal ollama` | Install and start the offline language model (qwen2.5:7b, ≈4.7 GB once) |
 | `./netheal obs` | Also start Grafana (:3001), Prometheus (:9090) and Jaeger (:16686) and turn on tracing |
-| `./netheal eval` | Re-run the 300-fault evaluation (≈6 min on 8 cores; stop the emulator first) |
+| `./netheal eval` | Re-run the default 300-scenario nominal evaluation, including healthy controls; runtime depends on hardware. The separate stress suite must be requested explicitly. |
 | `./netheal train [rl]` | Regenerate the simulated faults and retrain every model (≈30 min), or only the RL agent |
 | `./netheal mlflow` | Browse training runs at http://localhost:5001 |
 | `./netheal test` / `lint` / `e2e` | Unit tests · ruff + eslint · end-to-end tests against the running stack |
@@ -139,11 +180,11 @@ curl -X POST localhost:8001/fault -H "authorization: Bearer $TOKEN" -H 'content-
   -d '{"type": "gray_failure", "target": "dist3-lab_cs", "severity": 0.5, "ramp_s": 15}'
 ```
 
-Fault types: `link_down`, `gray_failure`, `congestion`, `flapping` (target a link such as `dist1-library`), `node_overload` (a device such as `dist1`), `misconfig` (a flow such as `admin-internet`). Optional: `severity` (0–1) and `ramp_s` (gradual onset). Everything else is in [docs/CONTRACTS.md](docs/CONTRACTS.md) and at `/docs`.
+Fault types: `link_down`, `gray_failure`, `congestion`, `flapping` (target a link such as `dist1-library`), `node_overload` (a device such as `dist1`), `misconfig` (a flow such as `admin-internet`). Optional: finite `severity` (0–2) and `ramp_s` (0–300 modeled seconds for gradual onset). Everything else is in [docs/CONTRACTS.md](docs/CONTRACTS.md) and at `/docs`.
 
 ## Tests and CI
 
-- `./netheal test`: 158 unit tests (detector, diagnosis, healer, twin, policy, LLM fallbacks, evaluation, API).
+- `./netheal test`: unit and regression suites for detector, diagnosis, healer, twin, policy, LLM fallbacks, evaluation and API. Integration tests require their separately configured stack prerequisites.
 - `./netheal e2e`: the loop over Redpanda and TimescaleDB, plus real packets when the emulator runs.
 - `./netheal rehearse` and `./netheal ui-check`: Playwright demo runs (internet blocked), page audit and user flows.
 - GitHub Actions (`.github/workflows/ci.yml`) on every push: ruff, pytest, eslint, Next.js build, then the stack in Docker with the end-to-end and Playwright tests.

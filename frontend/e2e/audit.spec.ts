@@ -46,7 +46,11 @@ test("UI audit", async ({ browser }) => {
         page.on("console", (m) => (m.type() === "error" || m.type() === "warning") && note(`console.${m.type()}`, m.text()));
         page.on("pageerror", (e) => note("exception", e.message));
         page.on("response", (r) => r.status() >= 400 && note("http", `${r.status()} ${r.request().method()} ${new URL(r.url()).pathname}`));
-        page.on("requestfailed", (r) => !r.url().includes("_rsc") && note("request-failed", `${r.failure()?.errorText} ${r.url()}`));
+        page.on("requestfailed", (r) => {
+          const abortedRead = r.failure()?.errorText === "net::ERR_ABORTED" && r.method() === "GET" && new URL(r.url()).pathname.startsWith("/api/");
+          // Resource changes intentionally abort obsolete GETs; real network failures remain findings.
+          if (!r.url().includes("_rsc") && !abortedRead) note("request-failed", `${r.failure()?.errorText} ${r.url()}`);
+        });
 
         for (const path of await pagesToVisit(page)) {
           where = path;

@@ -1,0 +1,99 @@
+{
+  "summary": "279 Python tests and 29 final browser checks passed; production build, TypeScript, ESLint, Ruff and real restart durability passed. Current evaluation: 2,800 measured policy runs. Native simulator ready; live LLM and Docker emulation unverified.",
+  "python": {
+    "passed": 279,
+    "skipped": 2,
+    "duration_s": 173.36,
+    "skip_scope": "Optional Docker/Mininet emulator integration"
+  },
+  "frontend": {
+    "passed": 29,
+    "duration_minutes": 9.3,
+    "matrix_contexts": 12,
+    "matrix_findings": 0,
+    "production_build": "passed",
+    "typescript": "passed",
+    "eslint": "passed",
+    "backup_recording": "separate recording test passed; 75.12s real simulator video"
+  },
+  "ruff": {
+    "lint": "passed",
+    "format": "94 files checked"
+  },
+  "evaluation": {
+    "nominal_policy_runs": 2100,
+    "stress_policy_runs": 700,
+    "nominal_scenarios": 300,
+    "stress_scenarios": 100,
+    "saved_models_retrained": false,
+    "source_integrity": "passed; format-only AST verification recorded separately"
+  },
+  "companion": {
+    "desktop": "passed",
+    "mobile": "passed",
+    "js_errors": 0,
+    "source_range_validation": "passed"
+  },
+  "presentation": {
+    "slides": 8,
+    "native_charts": 1,
+    "native_tables": 1,
+    "structural_checks": "passed",
+    "artifact_tool_import": "passed",
+    "all_slides_rendered_and_inspected": true,
+    "native_powerpoint_opened": false
+  },
+  "runtime_restart": {
+    "passed": true,
+    "history_preserved": 13,
+    "audit_prefix_preserved": 126,
+    "audit_chain_valid": true,
+    "unfinished_invalidated": true,
+    "new_generation": true,
+    "fresh_ready": true,
+    "autonomy": 4,
+    "study_http": 200,
+    "websocket_event": "telemetry",
+    "offline_copilot_with_captured_provenance": true,
+    "final_autonomy": 4,
+    "final_network": "healthy and fresh"
+  },
+  "limits": [
+    "Docker daemon and actual Mininet/OVS runtime unavailable here",
+    "Live Qualcomm or other external LLM provider calls are unverified; offline reporting is tested",
+    "Single simulated campus and bounded delay mismatch; no production or global optimality claim",
+    "Saved model training lineage remains incomplete"
+  ],
+  "final_repair": {
+    "passed": true,
+    "real_simulator_repair": true,
+    "incident_id": "f2f9d1f6-f9d0-489c-810f-5f65903fc1a9",
+    "mttd_simulated_s": 1.5,
+    "mttr_simulated_s": 4.5,
+    "offline_report_generated": true,
+    "final_network_healthy": true,
+    "autonomy": 4
+  },
+  "publication": {
+    "checked_at": "2026-10-07T07:48:17.777120+00:00",
+    "change": "Serve the permanent tracked deliverables/NetHeal-Study-Companion.html from /study",
+    "focused_python": {
+      "passed": 30,
+      "duration_s": 89.42,
+      "scope": [
+        "tests/test_gateway.py",
+        "tests/test_runtime_safety.py",
+        "tests/test_storage.py"
+      ]
+    },
+    "packaged_study_http": {
+      "status": 200,
+      "content_matches_file": true,
+      "content_type": "text/html",
+      "cache_control": "no-store",
+      "missing_document_status": 404
+    },
+    "presentation_and_recording_match_verified_exports": true,
+    "full_suite_scope": "The earlier full 279-test suite and 29 browser checks preceded the publication path change. Focused checks above verify the final publication change."
+  }
+}

@@ -2,7 +2,8 @@
 
 import { ChevronRight, FileText } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { QueryState } from "@/components/dashboard/QueryState";
+import { useQuery } from "@/lib/query";
 import { CAUSES } from "@/components/dashboard/Diagnosis";
 import { type Hypothesis, type Incident, useLive } from "@/lib/live";
 import { useEntityName } from "@/lib/names";
@@ -15,13 +16,10 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 export default function IncidentsPage() {
-  const [rows, setRows] = useState<Row[] | null>(null);
   const name = useEntityName();
-  const live = useLive((s) => s.incident.incident); // refresh when the live incident changes
-
-  useEffect(() => {
-    fetch("/api/incidents").then((r) => r.json()).then(setRows);
-  }, [live]);
+  const version = useLive((s) => `${s.generation}/${s.incident.incident?.id}/${s.incident.incident?.status}/${s.incident.actions.length}`);
+  const query = useQuery<Row[]>("/api/incidents", version);
+  const rows = query.data;
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-8 pb-24">
@@ -30,6 +28,7 @@ export default function IncidentsPage() {
         <h1 className="text-4xl font-semibold tracking-tight">Incidents</h1>
         <p className="mt-1 text-sm text-fg-muted">Every problem NetHeal handled, with its timeline, fix and a report written by AI.</p>
       </header>
+      <QueryState {...query} />
 
       {rows?.length === 0 && (
         <div className="glass flex flex-col items-center p-10 text-center">

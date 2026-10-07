@@ -19,15 +19,15 @@ export default function ControlRoom() {
         <Overview />
       </Section>
 
-      <Section id="alerts" title="Alerts" subtitle="Problems the detector has noticed. Several detectors must agree before an alert is raised.">
+      <Section id="alerts" title="Alerts" subtitle="Measured reachability and service checks, combined statistical detectors, and separately labelled forecast signals.">
         <Alerts />
       </Section>
 
-      <Section id="diagnosis" title="Diagnosis" subtitle="The single most likely root cause behind the alerts, with the evidence.">
+      <Section id="diagnosis" title="Diagnosis" subtitle="Ranked root cause candidates, their evidence, and explicit uncertainty when support is insufficient.">
         <Diagnosis />
       </Section>
 
-      <Section id="healing" title="Healing" subtitle="Decide, heal, verify: every fix is tested on the digital twin before it touches the network.">
+      <Section id="healing" title="Healing" subtitle="Decide, heal, verify: candidate fixes are tested on the digital twin and applied to this simulated network under the selected autonomy level.">
         <SelfHealing />
       </Section>
 

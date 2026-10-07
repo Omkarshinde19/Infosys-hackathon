@@ -1,7 +1,10 @@
 "use client";
 
 import { Bot, Link2, ShieldAlert, ShieldCheck, User } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useRef, useState } from "react";
+import { QueryState } from "@/components/dashboard/QueryState";
+import { errorMessage, requestJSON } from "@/lib/http";
+import { useQuery } from "@/lib/query";
 
 type Entry = {
   seq: number;
@@ -25,19 +28,21 @@ function detail(e: Entry): string {
 }
 
 export default function AuditPage() {
-  const [entries, setEntries] = useState<Entry[]>([]);
-  const [verdict, setVerdict] = useState<Verdict | null>(null);
+  const query = useQuery<Entry[]>("/api/audit", "", 3000);
+  const entries = query.data ?? [];
+  const [checked, setChecked] = useState<{ verdict: Verdict; hash: string | undefined } | null>(null);
+  const verdict = checked?.hash === entries[0]?.hash ? checked?.verdict : null;
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const pending = useRef(false);
   const [shown, setShown] = useState(50); // a long log stays usable on a projector
 
-  useEffect(() => {
-    const load = () => fetch("/api/audit").then((r) => r.json()).then(setEntries);
-    load();
-    const timer = setInterval(load, 3000);
-    return () => clearInterval(timer);
-  }, []);
-
   async function verify() {
-    setVerdict(await (await fetch("/api/audit/verify")).json());
+    if (pending.current) return;
+    pending.current = true; setBusy(true); setError("");
+    try { setChecked({ verdict: await requestJSON<Verdict>("/api/audit/verify"), hash: entries[0]?.hash }); }
+    catch (cause) { setError(errorMessage(cause)); }
+    finally { pending.current = false; setBusy(false); }
   }
 
   return (
@@ -50,19 +55,21 @@ export default function AuditPage() {
           can&apos;t be edited without breaking the chain.
         </p>
       </header>
+      <QueryState {...query} />
+      {error && <p role="alert" className="glass p-4 text-critical">{error}</p>}
 
       <div className="glass flex flex-wrap items-center justify-between gap-4 p-5">
         {verdict ? (
           <p className={`flex items-center gap-2 font-medium ${verdict.valid ? "text-healthy" : "text-critical"}`}>
             {verdict.valid ? <ShieldCheck className="size-5" /> : <ShieldAlert className="size-5" />}
             {verdict.valid
-              ? `Integrity verified: all ${verdict.entries} entries are untouched`
+              ? `Hash chain consistent across ${verdict.entries} entries at verification time`
               : `Tampering detected at entry #${verdict.broken_at}`}
           </p>
         ) : (
           <p className="text-sm text-fg-muted">The {entries.length} most recent entries, newest first.</p>
         )}
-        <button onClick={verify} className="flex items-center gap-2 rounded-full bg-fg px-5 py-2.5 font-medium text-bg hover:opacity-90">
+        <button onClick={verify} disabled={busy || query.loading} className="flex items-center gap-2 rounded-full bg-fg px-5 py-2.5 font-medium text-bg hover:opacity-90 disabled:opacity-50">
           <Link2 className="size-4" /> Verify integrity
         </button>
       </div>

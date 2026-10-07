@@ -15,6 +15,8 @@ Traffic is real: one iperf3 UDP stream per flow at its demand. Bandwidths are sc
 """
 
 import re
+import shlex
+import subprocess
 import threading
 import time
 from contextlib import asynccontextmanager
@@ -22,11 +24,11 @@ from pathlib import Path
 
 import networkx as nx
 import yaml
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from mininet.link import TCLink
 from mininet.net import Mininet
 from mininet.node import OVSSwitch
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 SCALE = 0.01
 PINGS, PING_GAP_S, PING_WAIT_S = 10, 0.01, 0.3
@@ -100,11 +102,26 @@ def ofctl(switch, args: str, rules: list[str] | None = None) -> None:
             path = f"/tmp/rules-{switch.name}"
             Path(path).write_text("".join(f"{r}\n" for r in rules))
             args = f"{args} {path}"
-        switch.cmd(f"ovs-ofctl -O OpenFlow13 {args}")
+        process = switch.popen(
+            ["ovs-ofctl", "-O", "OpenFlow13", *shlex.split(args)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        try:
+            _, error = process.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.communicate()
+            raise RuntimeError(
+                "OpenFlow command timed out; device state requires reconciliation"
+            ) from None
+        if process.returncode:
+            raise RuntimeError(f"OpenFlow command failed: {error.decode(errors='replace')[:200]}")
 
 
 def route_rules(flow_id: str, path: list[str]) -> dict[str, list[str]]:
     """OpenFlow rules per switch for one flow, both directions."""
+    validate_route(flow_id, path)
     f, cookie = flows[flow_id], COOKIES[flow_id]
     src, dst = host[f["src"]].IP(), host[f["dst"]].IP()
     out: dict[str, list[str]] = {}
@@ -119,15 +136,19 @@ def route_rules(flow_id: str, path: list[str]) -> dict[str, list[str]]:
 
 def install_route(flow_id: str, path: list[str]) -> None:
     """Reroute one flow: drop its rules on the old path, add them on the new one."""
+    validate_route(flow_id, path)
+    new_rules = route_rules(flow_id, path)
     for n in set(routes.get(flow_id, [])):
         ofctl(sw[n], f"del-flows {sw[n].name} cookie={COOKIES[flow_id]}/-1")
-    for n, rules in route_rules(flow_id, path).items():
+    for n, rules in new_rules.items():
         ofctl(sw[n], f"add-flows {sw[n].name}", rules)
     routes[flow_id] = path
 
 
 def install_all(new_routes: dict[str, list[str]]) -> None:
     """Replace every switch's whole table at once (fast reset)."""
+    if set(new_routes) != set(flows):
+        raise ValueError("Reset must provide exactly the configured flows")
     tables: dict[str, list[str]] = {n: [] for n in sw}
     for fid, path in new_routes.items():
         for n, rules in route_rules(fid, path).items():
@@ -347,12 +368,43 @@ class Route(BaseModel):
 class Fault(BaseModel):
     type: str
     target: str
-    severity: float = 1.0
-    ramp_s: float = 0.0
+    severity: float = Field(default=1.0, ge=0, le=2, allow_inf_nan=False)
+    ramp_s: float = Field(default=0.0, ge=0, le=300, allow_inf_nan=False)
 
 
 class Target(BaseModel):
     flow: str
+
+
+def validate_route(flow_id: str, path: list[str]) -> None:
+    flow = flows.get(flow_id)
+    nodes = {n["id"] for n in spec["nodes"]}
+    edges = {frozenset((lk["a"], lk["b"])) for lk in spec["links"]}
+    if (
+        not flow
+        or len(path) < 2
+        or len(set(path)) != len(path)
+        or path[0] != flow["src"]
+        or path[-1] != flow["dst"]
+        or any(n not in nodes for n in path)
+        or any(frozenset((a, b)) not in edges for a, b in zip(path, path[1:], strict=False))
+    ):
+        raise ValueError("Invalid configured flow/path")
+
+
+def validate_fault(req: Fault) -> None:
+    link_types = {"link_down", "flapping", "gray_failure", "congestion"}
+    valid = (
+        links
+        if req.type in link_types
+        else flows
+        if req.type == "misconfig"
+        else sw
+        if req.type == "node_overload"
+        else {}
+    )
+    if req.target not in valid:
+        raise ValueError("Unknown fault type or target")
 
 
 @app.get("/health")
@@ -362,6 +414,13 @@ def health() -> dict:
 
 @app.post("/reset")
 def reset(req: Reset) -> dict:
+    if set(req.routes) != set(flows):
+        raise HTTPException(400, "Reset must provide exactly the configured flows")
+    try:
+        for fid, path in req.routes.items():
+            validate_route(fid, path)
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from error
     for target in list(faults):
         clear(target)
     install_all(req.routes)
@@ -370,12 +429,19 @@ def reset(req: Reset) -> dict:
 
 @app.post("/route")
 def route(req: Route) -> dict:
-    install_route(req.flow, req.path)
+    try:
+        install_route(req.flow, req.path)
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from error
     return {"ok": True}
 
 
 @app.post("/fault")
 def fault(req: Fault) -> dict:
+    try:
+        validate_fault(req)
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from error
     inject(req.type, req.target, req.severity, req.ramp_s)
     return {"ok": True}
 
@@ -389,6 +455,8 @@ def clear_faults() -> dict:
 
 @app.post("/rollback_config")
 def rollback_config(req: Target) -> dict:
+    if req.flow not in flows:
+        raise HTTPException(400, "Unknown configured flow")
     if faults.get(req.flow, {}).get("type") == "misconfig":
         clear(req.flow)
     return {"ok": True}

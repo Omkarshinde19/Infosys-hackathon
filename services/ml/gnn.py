@@ -57,7 +57,7 @@ def ensemble(rules: list[tuple], probs: torch.Tensor, ids: list[str]) -> list[tu
     pick isn't among the rule hypotheses it is added with signature 0 and vote 0.5. A GNN with
     no valid pick (every masked probability 0 or NaN) adds nothing.
     """
-    probs = probs.nan_to_num(0.0)
+    probs = torch.where(torch.isfinite(probs) & (probs >= 0) & (probs <= 1), probs, 0.0)
     index = {v: i for i, v in enumerate(ids)}
 
     def p(cause: str, target: str) -> float:

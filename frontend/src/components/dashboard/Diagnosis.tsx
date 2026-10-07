@@ -13,15 +13,15 @@ export const CAUSES: Record<Hypothesis["cause"], { label: string; text: string; 
   flapping: { label: "Flapping link", text: "The link keeps going up and down.", icon: ZapOff },
 };
 
-function Bar({ label, value }: { label: string; value: number }) {
+function Bar({ label, value }: { label: string; value: number | undefined }) {
   return (
     <div>
       <div className="flex justify-between text-xs text-fg-muted">
         <span>{label}</span>
-        <span className="tabular-nums">{Math.round(value * 100)}%</span>
+        <span className="tabular-nums">{value === undefined ? "unavailable" : `${Math.round(value * 100)}%`}</span>
       </div>
       <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[var(--glass-border)]">
-        <div className="h-full bg-accent-2 transition-[width] duration-500" style={{ width: `${value * 100}%` }} />
+        <div className="h-full bg-accent-2 transition-[width] duration-500" style={{ width: `${(value ?? 0) * 100}%` }} />
       </div>
     </div>
   );
@@ -29,6 +29,9 @@ function Bar({ label, value }: { label: string; value: number }) {
 
 export function Diagnosis() {
   const diagnosis = useLive((s) => s.diagnosis);
+  const meta = useLive((s) => s.diagnosisMeta);
+  const status = useLive((s) => s.dataStatus);
+  const alertCount = useLive((s) => Object.keys(s.anomalies).length);
   const name = useEntityName();
   const [top, ...others] = diagnosis;
 
@@ -36,8 +39,8 @@ export function Diagnosis() {
     return (
       <div className="glass flex min-h-40 flex-col items-center justify-center p-6 text-center">
         <Stethoscope className="size-8 text-fg-muted" />
-        <p className="mt-2 font-semibold">No active incident</p>
-        <p className="text-sm text-fg-muted">When alerts appear, NetHeal works out the single most likely root cause here.</p>
+        <p className="mt-2 font-semibold">{status !== "fresh" ? "Waiting for current diagnostic evidence" : alertCount ? "Diagnosis unavailable" : "No active diagnosis"}</p>
+        <p className="text-sm text-fg-muted">{meta?.reason ?? "When alerts appear, NetHeal compares candidate causes against the measured evidence."}</p>
       </div>
     );
   }
@@ -46,7 +49,8 @@ export function Diagnosis() {
   return (
     <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
       <div className="glass p-6" style={{ borderColor: "var(--critical)" }}>
-        <p className="text-xs tracking-wider text-fg-muted uppercase">Most likely root cause</p>
+        <p className="text-xs tracking-wider text-fg-muted uppercase">{top.supported === false || meta?.status === "uncertain" ? "Uncertain candidate · human review needed" : "Most likely root cause"}{status === "stale" && " · stale evidence"}</p>
+        {meta?.reason && <p className="mt-2 text-sm text-warning">{meta.reason}</p>}
         <div className="mt-3 flex items-start gap-4">
           <div className="grid size-14 shrink-0 place-items-center rounded-2xl bg-critical/20">
             <cause.icon className="size-7 text-critical" />
@@ -58,7 +62,7 @@ export function Diagnosis() {
           </div>
           <div className="text-right">
             <p className="text-4xl font-semibold tabular-nums">{Math.round(top.confidence * 100)}%</p>
-            <p className="text-xs text-fg-muted">confidence</p>
+            <p className="text-xs text-fg-muted">heuristic score</p>
           </div>
         </div>
 
@@ -74,11 +78,11 @@ export function Diagnosis() {
             </ul>
           </div>
           <div className="space-y-3">
-            <p className="text-sm font-medium">How sure each method is</p>
-            <Bar label="Fault signature (telemetry pattern)" value={top.method_scores.signature ?? 0} />
-            <Bar label="Flow voting (007): affected flows crossing it" value={top.method_scores.voting ?? 0} />
+            <p className="text-sm font-medium">Evidence scores by method (not calibrated probabilities)</p>
+            <Bar label="Fault signature (telemetry pattern)" value={top.method_scores.signature} />
+            <Bar label="Flow voting (007): affected flows crossing it" value={top.method_scores.voting} />
             {top.method_scores.gnn !== undefined && (
-              <Bar label="Graph neural network (trained on 3,000 simulated faults)" value={top.method_scores.gnn} />
+              <Bar label="Graph neural network (saved simulated-data model)" value={top.method_scores.gnn} />
             )}
           </div>
         </div>
@@ -87,7 +91,7 @@ export function Diagnosis() {
       <div className="glass p-6">
         <h3 className="font-semibold">Other candidates</h3>
         <ul className="mt-4 space-y-3 text-sm">
-          {others.length === 0 && <li className="text-fg-muted">None. All evidence points to one cause.</li>}
+          {others.length === 0 && <li className="text-fg-muted">No additional hypotheses were retained.</li>}
           {others.map((h) => (
             <li key={h.id} className="flex items-center justify-between gap-3">
               <span>

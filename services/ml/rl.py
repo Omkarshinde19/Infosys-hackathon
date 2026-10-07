@@ -68,13 +68,43 @@ class RLPlanner:
     def __init__(self, model):
         self.model = model
         self.space: RoutingSpace | None = None
+        self.last_error: str | None = None
+        self.schema = None
 
     def propose(self, net: Network, latest: dict, target: str) -> dict[str, list[str]]:
         """New routes for the flows the agent wants to move (empty: it would move nothing)."""
-        if self.space is None:
-            self.space = RoutingSpace(net)
-        action, _ = self.model.predict(self.space.observe(net, latest, target), deterministic=True)
-        return self.space.routes(action, net)
+        self.last_error = None
+        try:
+            schema = (
+                tuple(net.links),
+                tuple(net.graph.nodes),
+                tuple((fid, f["src"], f["dst"]) for fid, f in net.flows.items()),
+                tuple(sorted(tuple(sorted(edge)) for edge in net.graph.edges)),
+            )
+            if self.space is None:
+                self.space, self.schema = RoutingSpace(net), schema
+            if schema != self.schema:
+                raise ValueError("Topology/entity ordering differs from the routing vocabulary")
+            if target not in self.space.targets:
+                raise ValueError("Routing target is outside the policy observation schema")
+            observation = self.space.observe(net, latest, target)
+            expected = getattr(getattr(self.model, "observation_space", None), "shape", None)
+            if not np.isfinite(observation).all() or (expected and observation.shape != expected):
+                raise ValueError("Non-finite or incompatible routing observation")
+            action, _ = self.model.predict(observation, deterministic=True)
+            action = np.asarray(action)
+            if (
+                action.shape != (len(self.space.flows),)
+                or not np.isfinite(action).all()
+                or np.any(action != np.floor(action))
+                or np.any((action < 0) | (action >= K))
+            ):
+                raise ValueError("Routing model returned an invalid candidate-path action")
+            return self.space.routes(action, net)
+        except Exception as error:
+            # Optional model failures must leave deterministic guarded planning available.
+            self.last_error = f"{type(error).__name__}: {error}"
+            return {}
 
 
 def load(path: Path = MODEL_PATH) -> RLPlanner | None:

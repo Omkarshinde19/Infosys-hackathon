@@ -43,3 +43,12 @@ CREATE TABLE events (
     topic       TEXT NOT NULL,
     data        JSONB NOT NULL
 );
+
+-- Consumer offsets are acknowledged only after rows and this receipt commit together.
+CREATE TABLE message_receipts (
+    topic TEXT NOT NULL,
+    partition INTEGER NOT NULL,
+    offset_id BIGINT NOT NULL,
+    event_id TEXT UNIQUE,
+    PRIMARY KEY (topic, partition, offset_id)
+);

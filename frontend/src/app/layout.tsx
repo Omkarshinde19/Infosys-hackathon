@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "NetHeal",
-  description: "Networks that heal themselves: detect, diagnose, decide and heal automatically.",
+  description: "NC-04 campus network simulation: detect, diagnose, decide, heal and verify with measured evidence. Language models explain and report; this prototype does not control live infrastructure.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

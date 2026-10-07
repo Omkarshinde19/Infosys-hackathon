@@ -259,9 +259,10 @@ def test_replans_when_a_premature_diagnosis_is_corrected():
     from contracts.models import RCAHypothesis
 
     net, healer = Network(seed=1), Healer()
+    healthy = {s.entity_id: s for s in net.step()}
+    baseline = {f: healthy[f].latency_ms for f in net.flows}
     net.inject_fault("link_down", "dist1-library")
     samples = net.step()
-    baseline = {f: 9.0 for f in net.flows}
 
     def hypothesis(cause, target):
         return [

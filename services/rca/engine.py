@@ -9,7 +9,8 @@ For every anomalous link or node we ask two questions:
 A flow that is unreachable although every element on its path looks healthy points
 at its own forwarding rules (misconfig).
 
-confidence = 0.6 * signature strength + 0.4 * vote share
+confidence = 0.6 * signature strength + 0.4 * vote share. This is a heuristic
+ranking score, not a calibrated probability of the cause being correct.
 
 With a trained root-cause GNN (services/ml/gnn.py) the ranking becomes an ensemble:
 confidence = 0.45 * signature + 0.25 * vote + 0.30 * GNN probability.
@@ -33,30 +34,119 @@ class RCAEngine:
         self.link_down: dict[str, deque[bool]] = defaultdict(lambda: deque(maxlen=FLAP_WINDOW))
         self.incident_id: str | None = None
         self.hypotheses: list[RCAHypothesis] = []
+        self.diagnosis_status = "healthy"
+        self.uncertainty_reason: str | None = None
+        self.unexplained_flows: list[str] = []
 
     def clear(self) -> None:
         self.link_down.clear()
         self.incident_id = None
         self.hypotheses = []
+        self.diagnosis_status = "healthy"
+        self.uncertainty_reason = None
+        self.unexplained_flows = []
 
     def update(
         self, samples: list[TelemetrySample], active: dict[str, Anomaly], net: Network,
         detector=None,
     ) -> bool:  # fmt: skip
-        """Feed one tick. Returns True when the ranked diagnosis changed."""
-        latest = {s.entity_id: s for s in samples}
-        for lid in net.links:
-            self.link_down[lid].append(latest[lid].latency_ms is None)
+        """Publish refreshed scores/evidence while preserving incident and hypothesis IDs.
 
-        before = [(h.cause, h.target) for h in self.hypotheses]
+        Forecasts and bad telemetry describe risk/uncertainty, not an actionable cause.
+        A model-only hypothesis is explicitly unsupported until observed rules agree.
+        """
+        latest = {s.entity_id: s for s in samples}
+        quality = getattr(detector, "quality_issues", {})
+        for lid in net.links:
+            if lid in latest and lid not in quality:
+                self.link_down[lid].append(latest[lid].latency_ms is None)
+
+        before = self._publication()
+        previous = {(h.cause, h.target): h.id for h in self.hypotheses}
         if not active:
             self.incident_id, self.hypotheses = None, []
+            self.diagnosis_status, self.uncertainty_reason = "healthy", None
+            self.unexplained_flows = []
         else:
             self.incident_id = self.incident_id or new_id()
-            self.hypotheses = self._diagnose(latest, active, net)
-            if self.gnn is not None and detector is not None:
+            observed = {
+                e: a
+                for e, a in active.items()
+                if e in latest
+                and e not in quality
+                and a.ts == latest[e].ts
+                and a.detectors not in (["forecast"], ["telemetry_quality"])
+            }
+            self.hypotheses = self._diagnose(latest, observed, net)
+            if self.hypotheses and self.gnn is not None and detector is not None and not quality:
                 self.hypotheses = self._with_gnn(self.hypotheses, latest, net, detector)
-        return before != [(h.cause, h.target) for h in self.hypotheses]
+            for h in self.hypotheses:
+                h.id = previous.get((h.cause, h.target), h.id)
+                if quality:
+                    h.supported = False
+                    h.evidence.append(
+                        Evidence(
+                            description="Invalid telemetry prevents safe cause confirmation",
+                            weight=0.0,
+                        )
+                    )
+            self.unexplained_flows = [
+                f
+                for f in net.flows
+                if f in observed
+                and not any(
+                    h.supported
+                    and (
+                        h.target == f
+                        if h.cause == "misconfig"
+                        else h.target in net.routes[f] or h.target in net.path_links(net.routes[f])
+                    )
+                    for h in self.hypotheses
+                )
+            ]
+            if self.unexplained_flows:
+                for h in self.hypotheses:
+                    h.supported = False
+                    h.evidence.append(
+                        Evidence(
+                            description=(
+                                "This cause does not fully explain current service symptoms"
+                            ),
+                            weight=0.0,
+                        )
+                    )
+            supported = bool(self.hypotheses and self.hypotheses[0].supported)
+            self.diagnosis_status = "supported" if supported else "uncertain"
+            self.uncertainty_reason = (
+                None
+                if supported
+                else (
+                    "Telemetry is missing, stale or invalid; a cause cannot be established."
+                    if quality
+                    else "Current degraded flows have no supported cause on their paths."
+                    if self.unexplained_flows
+                    else "Forecast risk or anomalous symptoms do not identify a cause."
+                )
+            )
+        return before != self._publication()
+
+    def _publication(self):
+        return (
+            self.diagnosis_status,
+            self.uncertainty_reason,
+            self.unexplained_flows,
+            [
+                (
+                    h.cause,
+                    h.target,
+                    h.confidence,
+                    h.supported,
+                    h.method_scores,
+                    [(e.anomaly_id, e.description, e.weight) for e in h.evidence],
+                )
+                for h in self.hypotheses
+            ],
+        )
 
     # ---- diagnosis ---------------------------------------------------------
 
@@ -86,14 +176,32 @@ class RCAEngine:
                 share, vote_evidence = vote(path_nodes, entity)
             else:
                 continue  # flows are symptoms; handled below
-            hypotheses.append(
-                self._hypothesis(cause, entity, strength, share, why, anomaly, vote_evidence)
-            )
+            h = self._hypothesis(cause, entity, strength, share, why, anomaly, vote_evidence)
+            if (
+                entity in net.links
+                and anomaly.metric == "latency_ms"
+                and (
+                    (latest[entity].loss_pct or 0) < LOSSY_PCT
+                    and (latest[entity].util or 0) < CONGESTED_UTIL
+                )
+            ):
+                h.supported = False  # latency alone cannot distinguish congestion from device delay
+                h.evidence[0].description += "; latency alone does not establish congestion"
+            hypotheses.append(h)
 
         # Unreachable flow with a healthy path: its own forwarding rules are wrong.
         for f in bad_flows:
             on_path = path_links[f] | path_nodes[f]
-            if active[f].metric == "reachability" and not on_path & active.keys():
+            path_observed_healthy = all(
+                e in latest
+                and (latest[e].entity_type == "node" or latest[e].latency_ms is not None)
+                for e in on_path
+            )
+            if (
+                active[f].metric == "reachability"
+                and path_observed_healthy
+                and not on_path & active.keys()
+            ):
                 why = "Unreachable although every link and device on its path is healthy"
                 evidence = Evidence(description="Only this flow is affected", weight=VOTE_WEIGHT)
                 hypotheses.append(
@@ -116,12 +224,14 @@ class RCAEngine:
         for cause, target, confidence, p in ensemble(rules, probs, graph.ids):
             h = by_key.get((cause, target)) or RCAHypothesis(
                 incident_id=self.incident_id, cause=cause, target=target, confidence=0,
-                evidence=[], method_scores={"signature": 0.0, "voting": 0.5},
+                evidence=[], method_scores={"signature": 0.0, "voting": 0.5}, supported=False,
             )  # fmt: skip
             h.confidence = round(confidence, 3)
             h.method_scores["gnn"] = round(p, 3)
             h.evidence.append(
-                Evidence(description=f"Graph neural network agrees: {p:.0%}", weight=W_GNN)
+                Evidence(
+                    description=f"Graph neural network uncalibrated score: {p:.0%}", weight=W_GNN
+                )
             )
             ranked.append(h)
         return ranked
@@ -136,7 +246,8 @@ class RCAEngine:
         if s.util is not None and s.util >= CONGESTED_UTIL:
             return "congestion", a.score, f"Utilisation at {s.util:.0%} of capacity"
         if s.loss_pct is not None and s.loss_pct >= LOSSY_PCT:
-            why = f"Packet loss {s.loss_pct:.1f}% while utilisation is only {s.util:.0%}"
+            util = f"{s.util:.0%}" if s.util is not None else "unavailable"
+            why = f"Packet loss {s.loss_pct:.1f}% while utilisation is {util}"
             return "gray_failure", a.score, why
         return "congestion", a.score, f"Latency {s.latency_ms:.1f} ms (normal {a.baseline:.1f} ms)"
 

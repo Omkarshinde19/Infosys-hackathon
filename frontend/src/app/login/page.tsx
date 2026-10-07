@@ -2,7 +2,7 @@
 
 import { LogIn } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAuth } from "@/lib/auth";
@@ -14,9 +14,12 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const pending = useRef(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (pending.current) return;
+    pending.current = true;
     setBusy(true);
     setError("");
     try {
@@ -26,6 +29,7 @@ export default function LoginPage() {
       setError((err as Error).message);
     } finally {
       setBusy(false);
+      pending.current = false;
     }
   }
 
@@ -59,7 +63,7 @@ export default function LoginPage() {
             className="mt-1.5 w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass)] px-3 py-2"
           />
         </label>
-        {error && <p className="mt-4 text-sm text-critical">{error}</p>}
+        {error && <p role="alert" className="mt-4 text-sm text-critical">{error}</p>}
         <button
           disabled={busy || !username || !password}
           className="mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-fg py-2.5 font-medium text-bg hover:opacity-90 disabled:opacity-50"

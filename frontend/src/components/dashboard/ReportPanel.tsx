@@ -1,10 +1,12 @@
 "use client";
 
 import { Download, FileText, Printer, RefreshCw, Sparkles } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { postJSON } from "@/lib/live";
+import { errorMessage } from "@/lib/http";
+import { useCan } from "@/lib/auth";
 
 export type Report = {
   markdown: string;
@@ -18,13 +20,25 @@ export type Report = {
 export function ReportPanel({ incidentId, initial }: { incidentId: string; initial: Report | null }) {
   const [report, setReport] = useState(initial);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const pending = useRef(false);
+  const active = useRef(true);
+  const canGenerate = useCan("operator");
+  useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
 
   async function generate(refresh: boolean) {
+    if (pending.current || !canGenerate) return;
+    pending.current = true;
     setBusy(true);
+    setError("");
     try {
-      setReport(await postJSON(`/incidents/${incidentId}/report${refresh ? "?refresh=true" : ""}`));
+      const report = await postJSON<Report>(`/incidents/${incidentId}/report${refresh ? "?refresh=true" : ""}`);
+      if (active.current) setReport(report);
+    } catch (cause) {
+      if (active.current) setError(errorMessage(cause));
     } finally {
-      setBusy(false);
+      pending.current = false;
+      if (active.current) setBusy(false);
     }
   }
 
@@ -47,7 +61,7 @@ export function ReportPanel({ incidentId, initial }: { incidentId: string; initi
         </h3>
         {report && (
           <div className="flex gap-2 text-sm">
-            <button onClick={() => generate(true)} disabled={busy} className="glass flex items-center gap-1.5 rounded-full! px-3 py-1.5 hover:bg-[var(--glass-hover)]">
+            <button onClick={() => generate(true)} disabled={busy || !canGenerate} className="glass flex items-center gap-1.5 rounded-full! px-3 py-1.5 hover:bg-[var(--glass-hover)] disabled:opacity-50">
               <RefreshCw className={`size-3.5 ${busy ? "animate-spin" : ""}`} /> Regenerate
             </button>
             <button onClick={download} className="glass flex items-center gap-1.5 rounded-full! px-3 py-1.5 hover:bg-[var(--glass-hover)]">
@@ -59,6 +73,7 @@ export function ReportPanel({ incidentId, initial }: { incidentId: string; initi
           </div>
         )}
       </div>
+      {error && <p role="alert" className="mt-4 text-sm text-critical">{error}</p>}
 
       {!report && (
         <div className="flex flex-col items-center py-10 text-center">
@@ -68,7 +83,7 @@ export function ReportPanel({ incidentId, initial }: { incidentId: string; initi
           </p>
           <button
             onClick={() => generate(false)}
-            disabled={busy}
+            disabled={busy || !canGenerate}
             className="mt-5 flex items-center gap-2 rounded-full bg-fg px-5 py-2.5 font-medium text-bg hover:opacity-90 disabled:opacity-60"
           >
             <Sparkles className={`size-4 ${busy ? "animate-pulse" : ""}`} />
@@ -76,6 +91,7 @@ export function ReportPanel({ incidentId, initial }: { incidentId: string; initi
           </button>
         </div>
       )}
+      {!canGenerate && <p className="mt-3 text-xs text-fg-muted print:hidden">Sign in as an operator to generate or regenerate a report. Existing reports remain readable.</p>}
 
       {report && (
         <>
