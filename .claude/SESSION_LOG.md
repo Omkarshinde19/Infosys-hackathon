@@ -52,11 +52,13 @@
 | 7 | 10-07 | Review Abeer's audit report; implement the safe set (security, correctness without number changes, dead code, docs) | see entry S2·7 | `14df05e`…(log commit) |
 | 8 | 10-07 | WhatsApp message for Abeer about the audit changes; CI then failed → fixed a real 3D-map bug | see entry S2·8 | `4ca9fdb`…(log commit) |
 
-### Session 3: 2026-10-07 · messages used: 1 / 25
+### Session 3: 2026-10-07 · messages used: 3 / 25
 
 | Msg | Date | Request | Files touched | Commit(s) |
 |---|---|---|---|---|
 | 1 | 10-07 | Pull Abeer's push, check it is in sync with our commits, gather context for the PPT (don't build it yet) | `.claude/SESSION_LOG.md` (this row + entry S3·1) | log commit |
+| 2 | 10-07 | Fix the 2 CI failures; README with Mac and Windows commands; PPT plan (Abeer → Omkar → Parth, sales → technical) | see entry S3·2 | `eada858`, `46e583d` |
+| 3 | 10-07 | Build the PPT and a script for everyone, fast | see entry S3·3 | log commit |
 
 ---
 
@@ -809,3 +811,15 @@
   - new: `native_shortest` (OSPF-like reference) recovers 12%; 100-scenario hidden-delay stress suite: `rl` 54/92 vs `no_heal` 36/92
 - Stale against the new numbers: `docs/DEMO.md:36` (85%, 865 vs 5,625 s), our deck in `documents/` (slides 6 and 12), `omkar-understanding/01` and `09`.
 - New from Abeer: `deliverables/` (8-slide detection/RCA/evaluation deck, 75 s demo video, study companion HTML, verification record), `netheal.ps1` (Windows launcher), `services/storage.py` (SQLite history), `docs/LIMITATIONS.md` rewritten.
+
+### S3 · Msg 2 · CI fixes, README, PPT plan
+- `tests/e2e/test_stack.py:93`: expects 3 event topics (anomalies, rca.hypotheses, actions), matching Abeer's sink (`eada858`). Not run locally: the Docker rebuild re-downloads PyTorch because `infra/python.Dockerfile` copies the source before `pip install` (slow, also in CI; left as is). CI is the check.
+- Flaky `e2e/demo.spec.ts` (`fb690e8`): the CI trace shows the incident page rendered with no page errors while the URL stayed `/dashboard`. Same code passed on `252fea5`. Cause not found yet; not changed.
+- `README.md`: Quick start split into macOS/Linux (Docker, `./netheal`) and Windows (PowerShell, `netheal.ps1`) (`46e583d`).
+- PPT plan: `omkar-understanding/10-ppt-plan-and-script.md` (local). Checked Parth's architecture text against the code; corrections: `engine.py` sends no UDP (maths only; the emulator uses iperf3 UDP and reports over HTTP); the loop is direct calls in one process, Redpanda carries events out; z score + Isolation Forest must agree (LSTM AE and forecaster add opinions); safety rules are now 8.
+- Measured on 7 Oct: Llama 3.3 70B on Cirrascale, median of 3: first token 1.5 s, 18 tokens/s, 8.2 s for 116 tokens; bge embedding 1.2 s; Ask NetHeal through the engine 13.5 s and 14.1 s (provider Qualcomm). Twin: 0.2 ms per tick, 1.4 ms per dry run.
+
+### S3 · Msg 3 · Deck v2 + pitch script ✅
+- **Deck** `documents/NetHeal_Syntax_Cartel_Presentation_v2.pptx` + `.pdf` (gitignored; built with pptxgenjs in the scratchpad): 13 slides + 3 backup, sections per speaker (Abeer 1 to 5, Omkar 6 to 9 + live demo, Parth 10 to 13), speaker chip on every slide, native chart and tables, minimal flowcharts, no hyphens in slide text, new evaluation numbers (72% vs 2%, 4.5 s, 0 false alarms, 74% less hurt time), Claude six layers (purpose, date, model, system, trust, impact). `validate.py` passed; every slide rendered and checked; fixed title alignment, title chips overlap, a wrapped role and cut arrow labels.
+- **Script** `docs/PITCH_SCRIPT.md` (new): per speaker lines, demo steps, Q&A table with owners.
+- `docs/DEMO.md:36`: Evaluation line updated to the new numbers.
