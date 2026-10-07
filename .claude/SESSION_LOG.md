@@ -52,13 +52,14 @@
 | 7 | 10-07 | Review Abeer's audit report; implement the safe set (security, correctness without number changes, dead code, docs) | see entry S2·7 | `14df05e`…(log commit) |
 | 8 | 10-07 | WhatsApp message for Abeer about the audit changes; CI then failed → fixed a real 3D-map bug | see entry S2·8 | `4ca9fdb`…(log commit) |
 
-### Session 3: 2026-10-07 · messages used: 3 / 25
+### Session 3: 2026-10-07 · messages used: 4 / 25
 
 | Msg | Date | Request | Files touched | Commit(s) |
 |---|---|---|---|---|
 | 1 | 10-07 | Pull Abeer's push, check it is in sync with our commits, gather context for the PPT (don't build it yet) | `.claude/SESSION_LOG.md` (this row + entry S3·1) | log commit |
 | 2 | 10-07 | Fix the 2 CI failures; README with Mac and Windows commands; PPT plan (Abeer → Omkar → Parth, sales → technical) | see entry S3·2 | `eada858`, `46e583d` |
 | 3 | 10-07 | Build the PPT and a script for everyone, fast | see entry S3·3 | log commit |
+| 4 | 10-07 | New deck from scratch with all three scripts as speaker notes (Canva/PowerPoint); shorten Omkar's demo script to 2 to 3 min | see entry S3·4 | log commit |
 
 ---
 
@@ -823,3 +824,9 @@
 - **Deck** `documents/NetHeal_Syntax_Cartel_Presentation_v2.pptx` + `.pdf` (gitignored; built with pptxgenjs in the scratchpad): 13 slides + 3 backup, sections per speaker (Abeer 1 to 5, Omkar 6 to 9 + live demo, Parth 10 to 13), speaker chip on every slide, native chart and tables, minimal flowcharts, no hyphens in slide text, new evaluation numbers (72% vs 2%, 4.5 s, 0 false alarms, 74% less hurt time), Claude six layers (purpose, date, model, system, trust, impact). `validate.py` passed; every slide rendered and checked; fixed title alignment, title chips overlap, a wrapped role and cut arrow labels.
 - **Script** `docs/PITCH_SCRIPT.md` (new): per speaker lines, demo steps, Q&A table with owners.
 - `docs/DEMO.md:36`: Evaluation line updated to the new numbers.
+
+### S3 · Msg 4 · Final deck with scripts in the speaker notes ✅
+- **Deck** `documents/NetHeal_Final_Deck.pptx` + `.pdf` (gitignored; pptxgenjs in the scratchpad). Replaces the earlier decks. 14 slides, dark navy theme, sections per speaker: Abeer 1 to 6, Omkar 7 to 8 (demo route + results), Parth 9 to 13, close 14. Each speaker's script is in that slide's notes; there's a speaker and time chip on every slide. `validate.py` passed, every slide rendered and checked.
+- Omkar's demo script was cut to about 350 words (2:30) and matched to the real UI: no "Live & Fresh" indicator (the sidebar shows a "Simulated network" pill), "Guarded state" changed to comfort levels (`healer.py:50`), "Approve & apply" on Approvals, rollback is automatic after the 3 s verify, the report needs "Generate report".
+- Parth's script corrections (checked against the code + EVALUATION.md): "hundreds of thousands" became $300K+/h (ITIC 2024); "fully autonomous, zero-touch" became "acts only as far as you allow" (contradicted the approval demo); "mathematically proves" became "tests on a twin + safety rules"; "eliminates false positives" became "0 false alarms in 300 scenarios"; "exact switch in milliseconds" became "right root cause first guess in 84%"; Redpanda carries events out (not into the engines); "tamper-proof" became tamper-evident.
+
