@@ -48,6 +48,7 @@
 | 4 | 10-07 | Prep for the judges: pitch + demo script (2.5 + 2.5 min), tech-stack Q&A, build process, Qualcomm usage | local `omkar-understanding/` only (not in git) | log commit |
 | 5 | 10-07 | Presentation slides from the Infosys template; found and fixed Ask NetHeal falling back from Qualcomm | `services/copilot/agent.py`, `tests/test_copilot.py`; deck in `documents/` (not in git) | `c5a0043`, `02e7494`, log commit |
 | 6 | 10-07 | Add Abeer Chaturvedi and Parth Mande to the deck; new colour palette for the slides only | deck in `documents/` (not in git) | log commit |
+| 7 | 10-07 | "Does it self heal or only reroute?" (answered from `healer.py`: reroute/drain for physical faults, config rollback fixes misconfig; ECMP split, rate limit and quarantine are defined in contracts but not built) | none in git (local prep notes corrected) | log commit |
 | 7 | 10-07 | Review Abeer's audit report; implement the safe set (security, correctness without number changes, dead code, docs) | see entry S2·7 | `14df05e`…(log commit) |
 | 8 | 10-07 | WhatsApp message for Abeer about the audit changes; CI then failed → fixed a real 3D-map bug | see entry S2·8 | `4ca9fdb`…(log commit) |
 
