@@ -11,7 +11,18 @@ NetHeal runs the full **detect → diagnose → decide → heal → verify** loo
 
 ## Quick start
 
-On this Windows checkout, run the native simulator and production dashboard in PowerShell:
+### macOS / Linux (Docker, the full stack)
+
+```bash
+./netheal setup     # first time: Python + Node dependencies, creates .env
+./netheal start     # whole stack in Docker; open http://localhost:3000
+./netheal status
+./netheal stop
+```
+
+`./netheal dev` runs the engine and dashboard without Docker. Every command: `./netheal help` and [Commands](#commands).
+
+### Windows (PowerShell, native, no Docker)
 
 ```powershell
 .\netheal.ps1 start
@@ -30,13 +41,9 @@ For a fresh Windows installation, install Python3.13 and Node24, create `.venv`,
 `GATEWAY_URL=http://127.0.0.1:8001` and
 `NEXT_PUBLIC_GATEWAY_WS=ws://localhost:8001/ws/live`. The launcher can also use the Codex
 bundled Node runtime on this laptop. The checked-in npm lock controls frontend dependencies.
+`.\netheal.ps1 test` and `.\netheal.ps1 eval` run the unit tests and the evaluation.
 
-The optional Docker stack retains its Bash entry point:
-
-```bash
-./netheal setup     # first time: Python + Node dependencies, creates .env
-./netheal start     # whole stack in Docker; open http://localhost:3000
-```
+### Both
 
 Sign in at http://localhost:3000/login to inject faults or approve fixes (watching needs no account). Demo accounts: [config/DEMO_ACCOUNTS.md](config/DEMO_ACCOUNTS.md). For the AI features, put the Cirrascale key in `.env` (see `.env.example`); without it, built-in templates write reports and answers.
 
