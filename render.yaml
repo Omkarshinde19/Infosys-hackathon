@@ -1,0 +1,15 @@
+# Render Blueprint: the NetHeal engine as one free web service.
+# The dashboard deploys separately on Vercel (root directory: frontend).
+services:
+  - type: web
+    name: netheal-engine
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./infra/render.Dockerfile
+    dockerContext: .
+    healthCheckPath: /topology
+    autoDeploy: true
+    envVars:
+      - key: JWT_SECRET
+        generateValue: true
